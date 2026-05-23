@@ -166,6 +166,7 @@ CREATE TABLE `station_schedules` (
 
 CREATE TABLE `users` (
   `user_id`       int(11)                          NOT NULL AUTO_INCREMENT,
+  `line_user_id`  varchar(50)                      DEFAULT NULL,
   `username`      varchar(50)                      NOT NULL,
   `email`         varchar(100)                     DEFAULT NULL,
   `password_hash` varchar(255)                     NOT NULL,
@@ -173,8 +174,9 @@ CREATE TABLE `users` (
   `created_at`    timestamp                        NOT NULL DEFAULT current_timestamp(),
   `updated_at`    timestamp                        NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`user_id`),
-  UNIQUE KEY `username`  (`username`),
-  UNIQUE KEY `email`     (`email`),
+  UNIQUE KEY `username`        (`username`),
+  UNIQUE KEY `email`           (`email`),
+  UNIQUE KEY `uk_line_user_id` (`line_user_id`),
   KEY `idx_email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
