@@ -1,3 +1,8 @@
+#自訂
+*.docx
+架構文件/
+.claude/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -216,7 +221,3 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-
-#神神的
-*.docx
-架構文件/
