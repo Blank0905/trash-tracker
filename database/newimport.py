@@ -340,13 +340,13 @@ class GarbageTruckImporter:
 if __name__ == '__main__':
     importer = GarbageTruckImporter(
         host='localhost',
-        database='test_garbage',
+        database='garbage_db',
         user='root',
         password=''
     )
     
-    importer.import_taipei('台北市垃圾車清運點位資訊.csv')
-    importer.import_new_taipei('新北市垃圾車路線.csv')
-    importer.import_keelung('route_klepb.csv')
+    importer.import_taipei('database/台北市垃圾車清運點位資訊.csv')
+    importer.import_new_taipei('database/新北市垃圾車路線.csv')
+    importer.import_keelung('database/route_klepb.csv')
     
     importer.close()
