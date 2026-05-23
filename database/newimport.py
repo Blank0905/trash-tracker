@@ -8,7 +8,7 @@ import math
 
 class GarbageTruckImporter:
     
-    def __init__(self, host='localhost', database='test_garbage', 
+    def __init__(self, host='localhost', database='garbage', 
                  user='root', password=''):
         self.conn = mysql.connector.connect(
             host=host,
@@ -340,7 +340,7 @@ class GarbageTruckImporter:
 if __name__ == '__main__':
     importer = GarbageTruckImporter(
         host='localhost',
-        database='test_garbage',
+        database='garbage',
         user='root',
         password=''
     )
