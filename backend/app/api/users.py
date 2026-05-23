@@ -14,34 +14,33 @@ def show_register_page():
 @bp.route('/register', methods=['POST'])
 def register_user():
     """
-    接收前端 (或 LINE LIFF 網頁) 傳來的註冊資料，寫入資料庫
+    LINE 一鍵綁定（免帳密）：以 line_user_id 為核心識別寫入資料庫。
     預期收到的 JSON 格式:
     {
-        "username": "testuser",
-        "email": "test@example.com",  # 可選填
-        "password": "mypassword"
+        "line_user_id": "U...",       # 必填，由 LIFF 取得
+        "email": "test@example.com"   # 選填
     }
+    一般使用者免帳密：username 與 password 皆不收（留 NULL）；
+    username/password 欄位保留給日後管理員等帳密型帳號。
     """
     data = request.get_json()
+    line_user_id = data.get('line_user_id') if data else None
 
-    if not data or not data.get('username') or not data.get('password'):
-        return jsonify({'status': 'error', 'message': '必須提供 username 與 password'}), 400
+    if not line_user_id:
+        return jsonify({'status': 'error', 'message': '必須提供 line_user_id'}), 400
 
     username = data.get('username')
     email = data.get('email')
     raw_password = data.get('password')
-    line_user_id = data.get('line_user_id') # 從 LIFF 拿到的重要 ID
-
-    hashed_password = generate_password_hash(raw_password)
+    hashed_password = generate_password_hash(raw_password) if raw_password else None
 
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
-            # 檢查是否重複註冊 (包含 LINE ID 檢查)
-            check_sql = "SELECT user_id FROM users WHERE username = %s OR (email = %s AND email IS NOT NULL) OR line_user_id = %s"
-            cursor.execute(check_sql, (username, email, line_user_id))
+            # 檢查此 LINE 是否已綁定過
+            cursor.execute("SELECT user_id FROM users WHERE line_user_id = %s", (line_user_id,))
             if cursor.fetchone():
-                return jsonify({'status': 'error', 'message': '此帳號、Email 或 LINE 已經被綁定過'}), 409
+                return jsonify({'status': 'error', 'message': '此 LINE 帳號已綁定過'}), 409
 
             # 寫入資料庫
             insert_sql = """
@@ -54,8 +53,8 @@ def register_user():
             new_user_id = cursor.lastrowid
 
             return jsonify({
-                'status': 'success', 
-                'message': '註冊成功！',
+                'status': 'success',
+                'message': '綁定成功！',
                 'data': {
                     'user_id': new_user_id,
                     'username': username

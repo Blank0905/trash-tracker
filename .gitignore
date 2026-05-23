@@ -1,6 +1,5 @@
 #自訂
 *.docx
-架構文件/
 .claude/
 
 # Byte-compiled / optimized / DLL files

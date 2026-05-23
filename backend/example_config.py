@@ -4,7 +4,7 @@ import os
 DB_CONFIG = {
     'host': 'localhost',
     'port': '3306',
-    'database': 'garbage_db',
+    'database': 'garbage_database',
     'user': 'root',
     'password': ''
 }
@@ -12,7 +12,7 @@ DB_CONFIG = {
 class Config:
     # 預設開發環境的 MySQL 連線字串 (使用 PyMySQL)
     # 格式: mysql+pymysql://<帳號>:<密碼>@<主機>:<Port>/<資料庫名稱>
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'mysql+pymysql://root:@localhost:3306/garbage_db'
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'mysql+pymysql://root:@localhost:3306/garbage_database'
     
     # 關閉不必要的追蹤以節省記憶體
     SQLALCHEMY_TRACK_MODIFICATIONS = False

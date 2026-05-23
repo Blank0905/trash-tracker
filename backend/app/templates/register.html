@@ -102,7 +102,7 @@
 <body>
 
 <div class="container">
-    <h2>帳號綁定註冊</h2>
+    <h2>LINE 帳號綁定</h2>
     
     <!-- 顯示 LINE 抓到的頭像與名稱 -->
     <div class="profile-preview" id="profile-section" style="display: none;">
@@ -112,18 +112,10 @@
 
     <form id="registerForm">
         <div class="form-group">
-            <label>設定您的使用者名稱 (Username)</label>
-            <input type="text" id="username" required placeholder="例如: john_doe">
-        </div>
-        <div class="form-group">
             <label>電子信箱 Email (選填)</label>
             <input type="email" id="email" placeholder="example@mail.com">
         </div>
-        <div class="form-group">
-            <label>設定密碼</label>
-            <input type="password" id="password" required placeholder="請輸入至少 6 位密碼">
-        </div>
-        <button type="submit" id="submitBtn">立即註冊與綁定</button>
+        <button type="submit" id="submitBtn">完成綁定</button>
     </form>
 </div>
 
@@ -150,9 +142,6 @@
             document.getElementById('profile-img').src = profile.pictureUrl;
             document.getElementById('profile-name').innerText = profile.displayName;
             document.getElementById('profile-section').style.display = 'flex';
-            
-            // 可以預設把使用者的 LINE 暱稱帶入 Username 欄位讓他少打字
-            document.getElementById('username').value = profile.displayName;
 
         } catch (err) {
             console.error('LIFF 初始化失敗', err);
@@ -170,10 +159,8 @@
         btn.innerText = '處理中...';
 
         const data = {
-            username: document.getElementById('username').value,
             email: document.getElementById('email').value || null,
-            password: document.getElementById('password').value,
-            line_user_id: lineUserId // 將 LINE ID 一併送給我們的 Python 後端
+            line_user_id: lineUserId // 綁定核心：LINE 內部 ID（username/密碼皆不收）
         };
 
         try {
@@ -188,17 +175,17 @@
             const result = await response.json();
             
             if (response.ok) {
-                alert('註冊成功！我們已為您完成綁定。');
+                alert('綁定成功！');
                 liff.closeWindow(); // 註冊完自動關閉 LINE 視窗
             } else {
-                alert('註冊失敗：' + result.message);
+                alert('綁定失敗：' + result.message);
                 btn.disabled = false;
-                btn.innerText = '立即註冊與綁定';
+                btn.innerText = '完成綁定';
             }
         } catch (error) {
             alert('系統發生錯誤，請稍後再試。');
             btn.disabled = false;
-            btn.innerText = '立即註冊與綁定';
+            btn.innerText = '完成綁定';
         }
     });
 </script>

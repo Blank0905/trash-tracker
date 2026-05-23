@@ -167,9 +167,9 @@ CREATE TABLE `station_schedules` (
 CREATE TABLE `users` (
   `user_id`       int(11)                          NOT NULL AUTO_INCREMENT,
   `line_user_id`  varchar(50)                      DEFAULT NULL,
-  `username`      varchar(50)                      NOT NULL,
+  `username`      varchar(50)                      DEFAULT NULL,
   `email`         varchar(100)                     DEFAULT NULL,
-  `password_hash` varchar(255)                     NOT NULL,
+  `password_hash` varchar(255)                     DEFAULT NULL,
   `role`          enum('user','developer','admin')  DEFAULT 'user',
   `status`        enum('active','suspended')       DEFAULT 'active',
   `created_at`    timestamp                        NOT NULL DEFAULT current_timestamp(),

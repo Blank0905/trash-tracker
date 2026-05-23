@@ -39,7 +39,7 @@ def handle_message(event):
     user_text = event.message.text
 
     # 只在使用者輸入註冊關鍵字時回覆 LIFF 連結；其餘訊息不回覆 (echo 已移除)
-    if user_text in ['註冊', '登入', '綁定帳號']:
+    if user_text in ['註冊', '綁定帳號']:
         liff_url = f"https://liff.line.me/{Config.LINE_LIFF_ID}"
         reply_content = f"歡迎使用垃圾車追蹤系統！\n\n請點擊下方專屬連結進行帳號註冊與綁定：\n{liff_url}"
 
