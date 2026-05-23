@@ -37,8 +37,6 @@ def load_db_config() -> Dict[str, object]:
         merged["port"] = 3306
 
     return merged
-
-
 class GarbageTruckImporter:
     def __init__(
         self,
@@ -50,6 +48,7 @@ class GarbageTruckImporter:
         batch_size: int = 100,
     ) -> None:
         print(f"連線資料庫 host={host} port={port} database={database}")
+
         self.conn = mysql.connector.connect(
             host=host,
             port=port,
@@ -406,7 +405,6 @@ class GarbageTruckImporter:
         self.cursor.close()
         self.conn.close()
 
-
 def resolve_csv_path(filename: str) -> Path:
     candidates = [
         Path.cwd() / filename,
@@ -452,3 +450,4 @@ def run_import() -> None:
 
 if __name__ == "__main__":
     run_import()
+
