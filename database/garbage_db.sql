@@ -171,13 +171,74 @@ CREATE TABLE `users` (
   `email`         varchar(100)                     DEFAULT NULL,
   `password_hash` varchar(255)                     NOT NULL,
   `role`          enum('user','developer','admin')  DEFAULT 'user',
+  `status`        enum('active','suspended')       DEFAULT 'active',
   `created_at`    timestamp                        NOT NULL DEFAULT current_timestamp(),
   `updated_at`    timestamp                        NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`user_id`),
   UNIQUE KEY `username`        (`username`),
   UNIQUE KEY `email`           (`email`),
   UNIQUE KEY `uk_line_user_id` (`line_user_id`),
-  KEY `idx_email` (`email`)
+  KEY `idx_email`  (`email`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- 資料表結構 `bulky_waste_info`
+-- 大型廢棄物清運資訊（功能8）。內容自由格式，content 可存純文字或 JSON。
+--
+
+CREATE TABLE `bulky_waste_info` (
+  `info_id`    int(11)                          NOT NULL AUTO_INCREMENT,
+  `city`       enum('台北市','新北市','基隆市') NOT NULL,
+  `title`      varchar(200)                     NOT NULL,
+  `content`    text                             DEFAULT NULL COMMENT '自由格式：純文字或 JSON',
+  `updated_at` timestamp                        NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`info_id`),
+  KEY `idx_city` (`city`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- 資料表結構 `announcements`
+-- 環保政策公告（管理3）。內文自由格式，外層 metadata 供推播追蹤與查詢。
+--
+
+CREATE TABLE `announcements` (
+  `announcement_id` int(11)                          NOT NULL AUTO_INCREMENT,
+  `title`           varchar(200)                     NOT NULL,
+  `content`         text                             NOT NULL COMMENT '自由格式內文',
+  `target_city`     enum('台北市','新北市','基隆市') DEFAULT NULL COMMENT 'NULL = 全體',
+  `created_by`      int(11)                          DEFAULT NULL COMMENT '發布的管理員 user_id',
+  `is_pushed`       tinyint(1)                       DEFAULT 0 COMMENT '是否已透過 LINE 推播',
+  `pushed_at`       timestamp                        NULL DEFAULT NULL,
+  `created_at`      timestamp                        NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`announcement_id`),
+  KEY `idx_target_city` (`target_city`),
+  KEY `idx_created_at`  (`created_at`),
+  KEY `created_by`      (`created_by`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- 資料表結構 `api_sync_log`
+-- ETL / Open Data 同步監控（管理2）。記錄每次抓取的來源、結果與時間。
+--
+
+CREATE TABLE `api_sync_log` (
+  `log_id`           int(11)                        NOT NULL AUTO_INCREMENT,
+  `source`           enum('TPE','NTPC','KLU')       NOT NULL COMMENT '台北/新北/基隆',
+  `status`           enum('success','failed','partial') NOT NULL,
+  `records_affected` int(11)                        DEFAULT NULL,
+  `message`          text                           DEFAULT NULL COMMENT '錯誤訊息或摘要',
+  `started_at`       timestamp                      NULL DEFAULT NULL,
+  `finished_at`      timestamp                      NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`log_id`),
+  KEY `idx_source`      (`source`),
+  KEY `idx_finished_at` (`finished_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -203,6 +264,9 @@ ALTER TABLE `stations`
 
 ALTER TABLE `station_schedules`
   ADD CONSTRAINT `station_schedules_ibfk_1` FOREIGN KEY (`station_id`) REFERENCES `stations` (`station_id`) ON DELETE CASCADE;
+
+ALTER TABLE `announcements`
+  ADD CONSTRAINT `announcements_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL;
 
 COMMIT;
 
