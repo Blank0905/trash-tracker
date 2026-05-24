@@ -135,7 +135,7 @@
 | Blueprint | URL 前綴 | 檔案 | 現況 |
 | :---- | :---- | :---- | :---- |
 | `stations` | `/api/stations` | [routes.py](../backend/app/api/routes.py) | 路線圖：目前為空白 Blueprint 骨架，正式端點待實作 |
-| `users` | `/api/users` | [users.py](../backend/app/api/users.py) | `GET /register`（渲染 LIFF 頁）、`POST /register`（寫入使用者，含 `line_user_id`） |
+| `users` | `/api/users` | [users.py](../backend/app/api/users.py) | 純 JSON API：`POST /register`（綁定寫入，含 `line_user_id`）、`GET /me`、`PUT /credentials`。LIFF 頁 HTML 改由 `pages.py` 的 `GET /liff/<page>` 提供（含 `register`） |
 | `line_webhook` | `/api/webhooks` | [webhooks.py](../backend/app/api/webhooks.py) | `POST /line`（驗簽後處理事件；文字訊息回覆並導向 LIFF） |
 
 **已知技術債（路線圖）**：
@@ -362,7 +362,7 @@ areas ──┬──< routes ──< stations ──< station_schedules
 ### 7.1 LIFF 註冊流程
 1. 使用者在 LINE Bot 輸入「註冊／綁定帳號」。
 2. [webhooks.py](../backend/app/api/webhooks.py) 回覆 LIFF 連結 `https://liff.line.me/{LIFF_ID}`。
-3. LIFF 開啟 [register.html](../backend/app/templates/register.html)（由 `GET /api/users/register` 以 Jinja 渲染、注入 `LIFF_ID`）。
+3. LIFF 開啟註冊頁 `GET /liff/register`（通用路由 [pages.py](../backend/app/api/pages.py) 渲染 [templates/liff/register.html](../backend/app/templates/liff/register.html)、注入 `LIFF_ID`）。
 4. 前端 `liff.init()` → `liff.getProfile()` 取得 `userId`、暱稱、頭像（暱稱/頭像**僅供畫面顯示**，不寫入帳號欄位）。
 5. 表單送出 `POST /api/users/register`（必填 `line_user_id`；`email` 選填；**不收 username 與密碼**）。
 6. 後端以 `line_user_id` 檢查是否已綁定，未綁定則寫入 `users`（`username`／`password_hash` 皆留 `NULL`），由資料庫自動產生 `user_id` 流水號。
@@ -389,7 +389,7 @@ tw-garbage-truck-tracker/
 │   │   │   └── webhooks.py        # /api/webhooks/line
 │   │   ├── services/              # 路線圖：geo_service / line_service（空檔）
 │   │   ├── tasks/                 # 路線圖：data_sync / notifier（空檔）+ newimport
-│   │   ├── templates/register.html# LIFF 註冊頁
+│   │   ├── templates/liff/*.html    # LIFF 頁（register/map/search…，由 /liff/<page> 提供）
 │   │   └── utils/helpers.py       # 路線圖：空檔
 │   ├── config.py                  # 由 example_config.py 複製（git 忽略）
 │   ├── example_config.py

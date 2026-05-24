@@ -1,17 +1,14 @@
-from flask import Blueprint, request, jsonify, render_template, g
+from flask import Blueprint, request, jsonify, g
 from werkzeug.security import generate_password_hash
 from app.db import get_db_connection
 from app.utils.responses import ok
 from app.utils.auth import line_required
-from config import Config
 import pymysql
 
 bp = Blueprint('users', __name__, url_prefix='/api/users')
 
-@bp.route('/register', methods=['GET'])
-def show_register_page():
-    # 渲染 HTML 並把 config.py 的 LIFF_ID 塞進去
-    return render_template('register.html', liff_id=Config.LINE_LIFF_ID)
+# 註：LIFF 註冊頁 HTML 改由通用路由 GET /liff/register 提供（見 app/api/pages.py）；
+#     本檔只保留純 JSON API（register 寫入 / me / credentials）。
 
 @bp.route('/register', methods=['POST'])
 def register_user():
