@@ -10,14 +10,11 @@ DB_CONFIG = {
 }
 
 class Config:
-    # 預設開發環境的 MySQL 連線字串 (使用 PyMySQL)
-    # 格式: mysql+pymysql://<帳號>:<密碼>@<主機>:<Port>/<資料庫名稱>
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'mysql+pymysql://root:@localhost:3306/garbage_database'
-    
-    # 關閉不必要的追蹤以節省記憶體
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-    
     # LINE Bot 的金鑰
     LINE_CHANNEL_SECRET = os.environ.get('LINE_CHANNEL_SECRET') or 'LINE_CHANNEL_SECRET'
     LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN') or 'LINE_CHANNEL_ACCESS_TOKEN'
     LINE_LIFF_ID = os.environ.get('LINE_LIFF_ID') or 'LINE_LIFF_ID'
+    LINE_CHANNEL_ID = os.environ.get('LINE_CHANNEL_ID') or ''  # 未來 LIFF ID Token 驗證用
+
+    # Google Maps（LIFF 地圖頁用）
+    GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY') or ''

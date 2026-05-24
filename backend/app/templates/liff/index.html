@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>垃圾車追蹤</title>
+  <!-- LIFF SDK -->
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+</head>
+<body>
+  <!--
+    這是 LIFF 頁的「範本」，給 P5 參考。
+    新增頁面：在 templates/liff/ 放一支 <名稱>.html，即可由 GET /liff/<名稱> 取用，
+    不需修改任何 Python（通用路由在 app/api/pages.py）。
+  -->
+  <h2>LIFF 範例頁</h2>
+  <pre id="out">載入中…</pre>
+
+  <script>
+    // 後端注入（見 app/api/pages.py）
+    const LIFF_ID = "{{ liff_id }}";
+    const GOOGLE_MAPS_API_KEY = "{{ google_maps_api_key }}";
+
+    // 統一的後端呼叫方式：自動帶上 X-Line-User-Id（簡易版身分識別）
+    async function api(path, options = {}) {
+      const headers = Object.assign(
+        { 'Content-Type': 'application/json', 'X-Line-User-Id': window.__lineUserId || '' },
+        options.headers || {}
+      );
+      const res = await fetch(`/api${path}`, { ...options, headers });
+      return res.json();
+    }
+
+    async function main() {
+      await liff.init({ liffId: LIFF_ID });
+      if (!liff.isLoggedIn()) { liff.login(); return; }
+      const profile = await liff.getProfile();
+      window.__lineUserId = profile.userId;
+
+      // 範例：呼叫 /api/users/me
+      const me = await api('/users/me');
+      document.getElementById('out').innerText = JSON.stringify(me, null, 2);
+    }
+    main().catch(e => { document.getElementById('out').innerText = '錯誤：' + e; });
+  </script>
+</body>
+</html>

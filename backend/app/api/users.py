@@ -1,6 +1,8 @@
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, request, jsonify, render_template, g
 from werkzeug.security import generate_password_hash
 from app.db import get_db_connection
+from app.utils.responses import ok
+from app.utils.auth import line_required
 from config import Config
 import pymysql
 
@@ -66,3 +68,18 @@ def register_user():
         return jsonify({'status': 'error', 'message': str(e)}), 500
     finally:
         conn.close()
+
+
+@bp.route('/me', methods=['GET'])
+@line_required
+def get_me():
+    """回傳目前 LINE 使用者的資料（依 X-Line-User-Id）。"""
+    u = g.current_user
+    return ok({
+        'user_id': u['user_id'],
+        'line_user_id': u['line_user_id'],
+        'username': u['username'],
+        'email': u['email'],
+        'role': u['role'],
+        'status': u['status'],
+    })
