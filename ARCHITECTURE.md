@@ -25,10 +25,11 @@
 1. 檢視／維護使用者資料、權限控管、異常帳號停權
 2. 監控 Open Data／ETL 同步狀態（抓取成功與否、最後更新時間）
 3. 發布並透過 LINE 推播重大環保政策公告（颱風停收、春節異動等）
+4. 在後台瀏覽資料庫的內容與結構（DB 瀏覽器：選表 → 分頁／搜尋／排序查看資料列，並檢視欄位結構）
 
 ### 介面分工
 - **一般使用者**：全程走 **LINE**——Bot 對話 + LIFF 網頁（地圖、日程、收藏、規範與大型廢棄物查詢）。**不使用 React**。
-- **管理者**：使用 **React 單頁後台**（帳密登入），執行使用者管理、同步監控與公告推播。
+- **管理者**：管理者其實是「`role` 被升為 `admin` 的 LINE 使用者」。使用者先綁定 LINE（`username`＝暱稱），可自助設定 **email + 密碼**；有了 email/密碼後，既有管理者才能把其 `role` 升為 `admin`。管理者在 LINE 會看到後台連結，跳轉到 **React 單頁後台**，用 **email + 密碼**登入，執行使用者管理、同步監控、公告推播與資料庫瀏覽。第一位管理者由人工在 DB 改 `role`。
 
 ### 目前已實作 vs. 路線圖
 
@@ -51,6 +52,7 @@
 | **管理員 React 後台 + 帳密登入** | 路線圖（目前 frontend 為 CRA 預設樣板，未開始） |
 | 管理：使用者停權 / 權限控管 API | 路線圖（`users.status` schema 已備） |
 | 管理：Open Data／ETL 同步監控 | 路線圖（`api_sync_log` schema 已備） |
+| 管理：資料庫瀏覽器（內容／結構） | 路線圖（新需求；`/api/db/browse`、`/api/db/structure` 待實作） |
 | **即時 GPS 車輛追蹤**（新北每 2 分鐘 API、`truck_locations` 表；含一般垃圾車與回收車） | 不做（範圍外），全面以靜態班表/路線資料為主 |
 
 ---
@@ -236,7 +238,7 @@ areas ──┬──< routes ──< stations ──< station_schedules
 | 欄位 | 型別 | 約束 | 說明 |
 | :---- | :---- | :---- | :---- |
 | `user_id` | INT | PK, AI | 主鍵（由系統自動產生流水號，Auto Increment） |
-| `username` | VARCHAR(50) | UNIQUE, NULL | 顯示名稱；LINE 綁定時留 `NULL`（保留給管理員等帳密帳號；UNIQUE 允許多個 NULL） |
+| `username` | VARCHAR(50) | NULL（非唯一） | 顯示名稱；LINE 綁定時帶入 LINE 暱稱。暱稱會重複，故**不設 UNIQUE**（登入唯一性靠 `email`） |
 | `email` | VARCHAR(100) | UNIQUE, NULL | 信箱 |
 | `password_hash` | VARCHAR(255) | NULL | 帳密型帳號用雜湊欄位（可為 `NULL`） |
 | `role` | ENUM('user','developer','admin') | default 'user' | 權限角色（管理後台檢查 `admin`/`developer`） |
@@ -428,16 +430,17 @@ tw-garbage-truck-tracker/
 4. **LIFF 功能頁**：地圖（Google Maps，靜態路線/站點）、收藏管理、垃圾袋規範、大型廢棄物資訊（`bulky_waste_info`）。
 
 **管理者端（React 後台）**
-5. **管理員登入機制**：帳密登入（JWT 或 session），驗證 `role` 為 `admin`/`developer`。
+5. **管理員登入機制**：以 **email + 密碼** 登入（`check_password_hash`）、驗證 `role` 為 `admin`/`developer`；登入後請求帶 `X-Admin-User: <email>`。升級流程＝LINE 使用者先自助設 email+密碼，既有管理者再把其 `role` 升為 `admin`；首位人工改 DB。（JWT 列為以後做）
 6. **使用者管理 API**：檢視/維護使用者、權限控管、停權（切換 `users.status`）。
 7. **公告管理 + 推播**：`announcements` CRUD，並透過 `line_service` 對目標 `target_city`／全體推播。
 8. **同步監控頁**：讀取 `api_sync_log` 呈現各來源最後同步狀態與時間。
-9. **React 後台前端**：登入頁 + 上述管理頁面（取代現有 CRA 樣板）。
+9. **資料庫瀏覽器（新需求）**：後端 `/api/db/browse`（動態查表，**表名／排序欄位白名單防注入**、`limit` 上限）、`/api/db/structure`（`DESCRIBE`）；前端後台新增「資料庫瀏覽」頁（選表、分頁、搜尋、排序、結構檢視）。
+10. **React 後台前端**：登入頁 + 上述管理頁面（取代現有 CRA 樣板）。
 
 **共用 / 基礎**
-10. **定時 ETL `data_sync.py`**：APScheduler 排程；整併兩份 `newimport.py`；每次同步寫入 `api_sync_log`。
-11. **`line_service.py`**：集中封裝 LINE 推播（reply / push / multicast）。
-12. **設定清理**：移除 `Config` 中未使用的 `SQLALCHEMY_*` 欄位。
+11. **定時 ETL `data_sync.py`**：APScheduler 排程；整併兩份 `newimport.py`；每次同步寫入 `api_sync_log`。
+12. **`line_service.py`**：集中封裝 LINE 推播（reply / push / multicast）。
+13. **設定清理**：移除 `Config` 中未使用的 `SQLALCHEMY_*` 欄位。
 
 > **範圍外（明確不做）**：即時 GPS 車輛追蹤（`truck_locations` 表、新北每 2 分鐘 API 抓取、ETA 計算）及據此的車型辨識（一般垃圾車 vs 回收車），均**不納入本專案範圍**。所有到站推播一律以靜態 `station_schedules` 班表為依據。
 
@@ -453,3 +456,4 @@ tw-garbage-truck-tracker/
 | 4 | services/tasks/utils 多為空檔 | 邏輯散落 API 層 | 依路線圖逐步下沉 |
 | 5 | 尚無登入與權限驗證（管理 API 未受保護） | 管理功能無法安全上線 | 實作管理員登入 + `role`/`status` 檢查中介層 |
 | 6 | 基隆 `bag_regulations` 未納入、台北班表為規則推定 | 資料完整度 | 後續補實際資料源 |
+| 7 | DB 瀏覽器動態 SQL（表名來自前端） | SQL 注入 / 資料外洩風險 | 表名與排序欄位白名單、`limit` 上限、遮蔽 `password_hash` |

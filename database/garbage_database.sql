@@ -175,11 +175,11 @@ CREATE TABLE `users` (
   `created_at`    timestamp                        NOT NULL DEFAULT current_timestamp(),
   `updated_at`    timestamp                        NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`user_id`),
-  UNIQUE KEY `username`        (`username`),
   UNIQUE KEY `email`           (`email`),
   UNIQUE KEY `uk_line_user_id` (`line_user_id`),
   KEY `idx_email`  (`email`),
   KEY `idx_status` (`status`)
+  -- username 不設 UNIQUE：LINE 綁定時帶入暱稱，暱稱會重複；登入唯一性靠 email
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -195,8 +195,7 @@ CREATE TABLE `bulky_waste_info` (
   `title`      varchar(200)                     NOT NULL,
   `content`    text                             DEFAULT NULL COMMENT '自由格式：純文字或 JSON',
   `updated_at` timestamp                        NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`info_id`),
-  KEY `idx_city` (`city`)
+  PRIMARY KEY (`info_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
