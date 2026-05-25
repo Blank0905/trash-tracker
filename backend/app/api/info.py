@@ -16,7 +16,40 @@ def bag_regulations():
     data: [{ reg_id, city, bag_size, volume_liters, price, purchase_locations, notes }]
     """
     city = request.args.get('city')
-    # TODO(P2): SELECT * FROM bag_regulations [WHERE city=%s]
+    conn = get_db_connection()
+try:
+    with conn.cursor() as cursor:
+        if city:
+            cursor.execute(
+                """
+                SELECT reg_id, city, bag_size, volume_liters, price, purchase_locations, notes
+                FROM bag_regulations
+                WHERE city = %s
+                ORDER BY reg_id ASC
+                """,
+                (city,)
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT reg_id, city, bag_size, volume_liters, price, purchase_locations, notes
+                FROM bag_regulations
+                ORDER BY reg_id ASC
+                """
+            )
+
+        rows = cursor.fetchall()
+
+        for row in rows:
+            if row.get('volume_liters') is not None:
+                row['volume_liters'] = float(row['volume_liters'])
+            if row.get('price') is not None:
+                row['price'] = float(row['price'])
+
+        return ok(rows, count=len(rows))
+
+finally:
+    conn.close()
     return ok([], count=0)
 
 
@@ -26,7 +59,38 @@ def bulky_waste():
     data: [{ info_id, city, title, content, updated_at }]
     """
     city = request.args.get('city')
-    # TODO(P2): SELECT * FROM bulky_waste_info [WHERE city=%s]
+    conn = get_db_connection()
+try:
+    with conn.cursor() as cursor:
+        if city:
+            cursor.execute(
+                """
+                SELECT info_id, city, title, content, updated_at
+                FROM bulky_waste_info
+                WHERE city = %s
+                ORDER BY updated_at DESC
+                """,
+                (city,)
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT info_id, city, title, content, updated_at
+                FROM bulky_waste_info
+                ORDER BY updated_at DESC
+                """
+            )
+
+        rows = cursor.fetchall()
+
+        for row in rows:
+            if row.get('updated_at') is not None:
+                row['updated_at'] = str(row['updated_at'])
+
+        return ok(rows, count=len(rows))
+
+finally:
+    conn.close()
     return ok([], count=0)
 
 
@@ -37,6 +101,37 @@ def announcements():
     data: [{ announcement_id, title, content, target_city, created_at }]
     """
     city = request.args.get('city')
-    # TODO(P2): SELECT ... FROM announcements
-    #           WHERE target_city IS NULL [OR target_city=%s] ORDER BY created_at DESC
+    conn = get_db_connection()
+try:
+    with conn.cursor() as cursor:
+        if city:
+            cursor.execute(
+                """
+                SELECT announcement_id, title, content, target_city, created_at
+                FROM announcements
+                WHERE target_city IS NULL OR target_city = %s
+                ORDER BY created_at DESC
+                """,
+                (city,)
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT announcement_id, title, content, target_city, created_at
+                FROM announcements
+                WHERE target_city IS NULL
+                ORDER BY created_at DESC
+                """
+            )
+
+        rows = cursor.fetchall()
+
+        for row in rows:
+            if row.get('created_at') is not None:
+                row['created_at'] = str(row['created_at'])
+
+        return ok(rows, count=len(rows))
+
+finally:
+    conn.close()
     return ok([], count=0)
