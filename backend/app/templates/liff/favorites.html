@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>我的收藏</title>
+    <!-- 引入 LINE LIFF SDK -->
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        :root {
+            --primary: #00B900; /* LINE Green */
+            --danger: #e74c3c;
+            --bg-color: #121212;
+            --surface: #1e1e1e;
+            --text-main: #ffffff;
+            --text-muted: #888888;
+        }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        .container {
+            width: 100%;
+            max-width: 420px;
+        }
+        h2 {
+            text-align: center;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+        #status {
+            text-align: center;
+            color: var(--text-muted);
+            margin: 30px 0;
+        }
+        .fav-item {
+            background-color: var(--surface);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .fav-main { min-width: 0; }
+        .fav-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .fav-sub {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .fav-actions {
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .btn-small {
+            border: none;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+        }
+        .btn-rename { background-color: #2c2c2c; }
+        .btn-delete { background-color: var(--danger); }
+        .btn-small:active { transform: scale(0.96); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>我的收藏</h2>
+    <div id="status">載入中…</div>
+    <div id="list"></div>
+</div>
+
+<script>
+    // 透過 Flask 後端渲染時，自動塞入 config.py 裡的 LIFF ID
+    const LIFF_ID = "{{ liff_id }}";
+    let lineUserId = null;
+
+    // 統一的後端呼叫方式：自動帶上 X-Line-User-Id（簡易版身分識別）
+    async function api(path, options = {}) {
+        const headers = Object.assign(
+            { 'Content-Type': 'application/json', 'X-Line-User-Id': lineUserId || '' },
+            options.headers || {}
+        );
+        const res = await fetch(`/api${path}`, { ...options, headers });
+        return res.json();
+    }
+
+    // 防 XSS：插入 DOM 前轉義
+    function esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    const statusEl = document.getElementById('status');
+    const listEl = document.getElementById('list');
+
+    function render(items) {
+        if (!items || items.length === 0) {
+            statusEl.style.display = 'block';
+            statusEl.innerText = '尚無收藏';
+            listEl.innerHTML = '';
+            return;
+        }
+        statusEl.style.display = 'none';
+        listEl.innerHTML = items.map(f => {
+            const title = f.alias || f.station_name;            // 有別名優先顯示別名
+            const sub = (f.alias ? esc(f.station_name) + ' · ' : '')
+                + '表定到站 ' + (f.arrive_time ? f.arrive_time.slice(0, 5) : '—');
+            return `
+            <div class="fav-item">
+                <div class="fav-main">
+                    <div class="fav-title">${esc(title)}</div>
+                    <div class="fav-sub">${sub}</div>
+                </div>
+                <div class="fav-actions">
+                    <button class="btn-small btn-rename" data-action="rename"
+                            data-fav-id="${f.fav_id}" data-alias="${esc(f.alias || '')}">改別名</button>
+                    <button class="btn-small btn-delete" data-action="delete"
+                            data-fav-id="${f.fav_id}">刪除</button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    async function loadFavorites() {
+        const res = await api('/favorites/');
+        if (res.status === 'success') {
+            render(res.data);
+        } else {
+            statusEl.style.display = 'block';
+            statusEl.innerText = '載入失敗：' + (res.message || '請稍後再試。');
+        }
+    }
+
+    // 事件委派：改別名 / 刪除
+    listEl.addEventListener('click', async (e) => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        const favId = btn.dataset.favId;
+
+        if (btn.dataset.action === 'rename') {
+            const next = prompt('輸入新的別名：', btn.dataset.alias || '');
+            if (next === null) return; // 使用者取消
+            const r = await api(`/favorites/${favId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ alias: next })
+            });
+            if (r.status === 'success') loadFavorites();
+            else alert('更新失敗：' + (r.message || '請稍後再試。'));
+
+        } else if (btn.dataset.action === 'delete') {
+            if (!confirm('確定要刪除這個收藏嗎？')) return;
+            const r = await api(`/favorites/${favId}`, { method: 'DELETE' });
+            if (r.status === 'success') loadFavorites();
+            else alert('刪除失敗：' + (r.message || '請稍後再試。'));
+        }
+    });
+
+    // LIFF 初始化 → 取得 userId → 載入收藏
+    async function main() {
+        await liff.init({ liffId: LIFF_ID });
+        if (!liff.isLoggedIn()) { liff.login(); return; }
+        const profile = await liff.getProfile();
+        lineUserId = profile.userId;
+        await loadFavorites();
+    }
+    main().catch(e => {
+        console.error('LIFF 初始化失敗', e);
+        statusEl.innerText = '無法連接到 LINE 系統，請在 LINE APP 中開啟此頁面。';
+    });
+</script>
+
+</body>
+</html>
