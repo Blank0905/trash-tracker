@@ -17,9 +17,39 @@ def list_favorites():
     """列出本人收藏。
     data: [{ fav_id, station_id, alias, station_name, latitude, longitude, arrive_time }]
     """
-    # TODO(P2): SELECT f.*, s.station_name, s.latitude, s.longitude, s.arrive_time
-    #           FROM favorites f JOIN stations s USING(station_id)
-    #           WHERE f.user_id = g.current_user['user_id']
+   conn = get_db_connection()
+try:
+    with conn.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT 
+                f.fav_id,
+                f.station_id,
+                f.alias,
+                s.station_name,
+                s.latitude,
+                s.longitude,
+                s.arrive_time
+            FROM favorites f
+            JOIN stations s ON f.station_id = s.station_id
+            WHERE f.user_id = %s
+            ORDER BY f.fav_id DESC
+            """,
+            (g.current_user['user_id'],)
+        )
+        rows = cursor.fetchall()
+
+        for row in rows:
+            if row.get('arrive_time') is not None:
+                row['arrive_time'] = str(row['arrive_time'])
+
+        return ok(rows, count=len(rows))
+
+except Exception as e:
+    return err(str(e), 500)
+
+finally:
+    conn.close()
     return ok([], count=0)
 
 
@@ -31,8 +61,30 @@ def add_favorite():
     station_id = data.get('station_id')
     if not station_id:
         return err('缺少 station_id', 400)
-    # TODO(P2): INSERT INTO favorites (user_id, station_id, alias) ...
-    #           已收藏（unique 衝突）回 err('已收藏過此站點', 409)
+    conn = get_db_connection()
+try:
+    with conn.cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO favorites (user_id, station_id, alias)
+            VALUES (%s, %s, %s)
+            """,
+            (g.current_user['user_id'], station_id, data.get('alias'))
+        )
+        conn.commit()
+
+        return ok({'fav_id': cursor.lastrowid}, status_code=201)
+
+except Exception as e:
+    conn.rollback()
+
+    if 'Duplicate entry' in str(e) or '1062' in str(e):
+        return err('已收藏過此站點', 409)
+
+    return err(str(e), 500)
+
+finally:
+    conn.close()
     return ok({'fav_id': None}, status_code=201)
 
 
@@ -67,5 +119,27 @@ def update_favorite(fav_id):
 @line_required
 def delete_favorite(fav_id):
     """刪除收藏。"""
-    # TODO(P2): DELETE FROM favorites WHERE fav_id=%s AND user_id=%s
+    conn = get_db_connection()
+try:
+    with conn.cursor() as cursor:
+        cursor.execute(
+            """
+            DELETE FROM favorites
+            WHERE fav_id = %s AND user_id = %s
+            """,
+            (fav_id, g.current_user['user_id'])
+        )
+        conn.commit()
+
+        if cursor.rowcount == 0:
+            return err('Favorite not found', 404)
+
+except Exception as e:
+    conn.rollback()
+    return err(str(e), 500)
+
+finally:
+    conn.close()
+
+return ok(None)
     return ok(None)
