@@ -18,42 +18,48 @@ def list_favorites():
     data: [{ fav_id, station_id, alias, station_name, latitude, longitude, arrive_time }]
     """
     conn = get_db_connection()
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT 
-                    f.fav_id,
-                    f.station_id,
-                    f.alias,
-                    s.station_name,
-                    s.latitude,
-                    s.longitude,
-                    s.arrive_time
-                FROM favorites f
-                JOIN stations s ON f.station_id = s.station_id
-                WHERE f.user_id = %s
-                ORDER BY f.fav_id DESC
-                """,
-                (g.current_user['user_id'],)
-            )
-            rows = cursor.fetchall()
+try:
+    with conn.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT
+                f.fav_id,
+                f.station_id,
+                f.alias,
+                s.station_name,
+                s.latitude,
+                s.longitude,
+                s.arrive_time
+            FROM favorites f
+            JOIN stations s ON f.station_id = s.station_id
+            WHERE f.user_id = %s
+            """,
+            (g.current_user['user_id'],)
+        )
 
-            for row in rows:
-                if row.get('arrive_time') is not None:
-                    row['arrive_time'] = str(row['arrive_time'])
-                # latitude/longitude 是 DECIMAL，需轉 float 才能 JSON 序列化
-                if row.get('latitude') is not None:
-                    row['latitude'] = float(row['latitude'])
-                if row.get('longitude') is not None:
-                    row['longitude'] = float(row['longitude'])
+        rows = cursor.fetchall()
+        data = []
 
-            return ok(rows, count=len(rows))
-    except Exception as e:
-        return err(str(e), 500)
+        for row in rows:
+            fav_id, station_id, alias, station_name, latitude, longitude, arrive_time = row
 
-    finally:
-        conn.close()
+            data.append({
+                'fav_id': fav_id,
+                'station_id': station_id,
+                'alias': alias,
+                'station_name': station_name,
+                'latitude': float(latitude) if latitude is not None else None,
+                'longitude': float(longitude) if longitude is not None else None,
+                'arrive_time': str(arrive_time) if arrive_time is not None else None
+            })
+
+        return ok(data, count=len(data))
+
+except Exception as e:
+    return err(str(e), 500)
+
+finally:
+    conn.close()
 
 
 @bp.route('/', methods=['POST'])
