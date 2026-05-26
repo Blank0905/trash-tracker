@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>附近垃圾車站點</title>
+    <!-- 引入 LINE LIFF SDK -->
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        :root {
+            --primary: #00B900;
+            --bg-color: #121212;
+            --surface: #1e1e1e;
+            --text-main: #ffffff;
+            --text-muted: #888888;
+        }
+        html, body { height: 100%; margin: 0; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: var(--text-main);
+        }
+        #map { position: fixed; inset: 0; background: var(--bg-color); }
+        #map .placeholder { padding: 24px; color: var(--text-muted); }
+
+        /* 頂部「以地圖中心搜尋」 */
+        #searchHere {
+            position: fixed;
+            top: 12px; left: 50%; transform: translateX(-50%);
+            z-index: 5;
+            border: none; border-radius: 999px;
+            padding: 10px 18px;
+            background: var(--primary); color: white;
+            font-size: 0.9rem; font-weight: bold;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            cursor: pointer;
+        }
+
+        /* 底部站點資訊面板 */
+        #panel {
+            position: fixed; left: 0; right: 0; bottom: 0;
+            z-index: 6;
+            background: var(--surface);
+            border-radius: 18px 18px 0 0;
+            padding: 20px;
+            box-shadow: 0 -6px 20px rgba(0,0,0,0.5);
+            transform: translateY(110%);
+            transition: transform 0.25s ease;
+        }
+        #panel.open { transform: translateY(0); }
+        .p-name { font-size: 1.1rem; font-weight: 600; margin-bottom: 14px; }
+        .p-row {
+            display: flex; justify-content: space-between;
+            padding: 8px 0; font-size: 0.95rem;
+            border-bottom: 1px solid #2c2c2c;
+        }
+        .p-row .val { color: var(--primary); font-weight: 600; }
+        .p-actions { display: flex; gap: 10px; margin-top: 16px; }
+        .p-actions button {
+            flex: 1; border: none; border-radius: 10px;
+            padding: 12px; font-size: 0.95rem; font-weight: bold;
+            cursor: pointer; color: white;
+        }
+        #p-fav { background: var(--primary); }
+        #p-close { background: #2c2c2c; }
+
+        #toast {
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+            z-index: 7;
+            background: rgba(0,0,0,0.85); color: white;
+            padding: 10px 18px; border-radius: 999px; font-size: 0.85rem;
+            opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+        }
+        #toast.show { opacity: 1; }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+<button id="searchHere" style="display:none;">以目前地圖中心搜尋</button>
+
+<div id="panel">
+    <div class="p-name" id="p-name">站點</div>
+    <div class="p-row"><span>🗑️ 一般垃圾</span><span class="val" id="p-garbage">—</span></div>
+    <div class="p-row"><span>♻️ 資源回收</span><span class="val" id="p-recycle">—</span></div>
+    <div class="p-row"><span>🍎 廚餘</span><span class="val" id="p-food">—</span></div>
+    <div class="p-actions">
+        <button id="p-fav">加入最愛</button>
+        <button id="p-close">關閉</button>
+    </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+    // 後端注入（見 app/api/pages.py）
+    const LIFF_ID = "{{ liff_id }}";
+    const GMAPS_KEY = "{{ google_maps_api_key }}";
+    const DEFAULT_CENTER = { lat: 25.0478, lng: 121.5170 }; // 台北車站，最終後備
+    const SEARCH_RADIUS_KM = 0.7;
+
+    let lineUserId = null;
+    let map = null;
+    let markers = [];
+
+    // 統一後端呼叫：自動帶 X-Line-User-Id
+    async function api(path, options = {}) {
+        const headers = Object.assign(
+            { 'Content-Type': 'application/json', 'X-Line-User-Id': lineUserId || '' },
+            options.headers || {}
+        );
+        const res = await fetch(`/api${path}`, { ...options, headers });
+        return res.json();
+    }
+
+    function toast(msg) {
+        const el = document.getElementById('toast');
+        el.innerText = msg;
+        el.classList.add('show');
+        clearTimeout(el._t);
+        el._t = setTimeout(() => el.classList.remove('show'), 2500);
+    }
+
+    // Google Maps 以 callback 非同步載入，用 Promise 等它就緒
+    let resolveGmaps;
+    const gmapsReady = new Promise(r => (resolveGmaps = r));
+    window.__initGmaps = () => resolveGmaps();
+
+    function loadGmaps() {
+        const s = document.createElement('script');
+        s.src = `https://maps.googleapis.com/maps/api/js?key=${GMAPS_KEY}&callback=__initGmaps&loading=async`;
+        s.async = true;
+        document.head.appendChild(s);
+    }
+
+    // 定位優先序：① GPS 實際位置 → ② 第一個最愛點 → ③ 預設點
+    function getGeo() {
+        return new Promise(resolve => {
+            if (!navigator.geolocation) return resolve(null);
+            navigator.geolocation.getCurrentPosition(
+                pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                () => resolve(null),
+                { timeout: 8000, maximumAge: 60000 }
+            );
+        });
+    }
+
+    async function getFirstFavorite() {
+        const r = await api('/favorites/');
+        if (r.status === 'success' && Array.isArray(r.data) && r.data.length > 0) {
+            const f = r.data[0];
+            return { lat: +f.latitude, lng: +f.longitude };
+        }
+        return null;
+    }
+
+    // 鄰近搜尋並畫 marker
+    async function searchStations(lat, lng) {
+        const r = await api(`/stations/search?lat=${lat}&lng=${lng}&radius=${SEARCH_RADIUS_KM}`);
+        markers.forEach(m => m.setMap(null));
+        markers = [];
+        if (r.status !== 'success') { toast('搜尋失敗：' + (r.message || '')); return; }
+        r.data.forEach(s => {
+            const mk = new google.maps.Marker({
+                position: { lat: +s.latitude, lng: +s.longitude },
+                map, title: s.station_name
+            });
+            mk.addListener('click', () => openStation(s.station_id, s.station_name));
+            markers.push(mk);
+        });
+        if (r.data.length === 0) toast('附近 700 公尺內沒有站點');
+    }
+
+    // 由 7 天班表自行算出某類別的下一次收運（搭配站點固定到站時間）
+    const DOW = ['日', '一', '二', '三', '四', '五', '六'];
+    function nextCollection(schedules, arriveTime, key) {
+        if (!Array.isArray(schedules)) return '—';
+        const now = new Date();
+        const today = now.getDay(); // 0=日 … 6=六，對齊資料庫 day_of_week
+        for (let off = 0; off < 7; off++) {
+            const dow = (today + off) % 7;
+            const sch = schedules.find(s => s.day_of_week === dow);
+            if (sch && sch[key] === 1) {
+                // 今天但到站時間已過 → 跳過，往後找
+                if (off === 0 && arriveTime) {
+                    const [h, m, sec] = arriveTime.split(':').map(Number);
+                    const at = new Date(now); at.setHours(h, m, sec || 0, 0);
+                    if (at <= now) continue;
+                }
+                const label = off === 0 ? '今天' : off === 1 ? '明天' : '週' + DOW[dow];
+                return `${label} ${arriveTime ? arriveTime.slice(0, 5) : ''}`.trim();
+            }
+        }
+        return '近 7 天無';
+    }
+
+    // 點站 → 取明細（含班表）→ 算三類別 → 顯示面板
+    async function openStation(stationId, fallbackName) {
+        const r = await api(`/stations/${stationId}`);
+        if (r.status !== 'success') { toast('讀取站點失敗：' + (r.message || '')); return; }
+        const d = r.data;
+        document.getElementById('p-name').innerText = d.station_name || fallbackName || '站點';
+        document.getElementById('p-garbage').innerText = nextCollection(d.schedules, d.arrive_time, 'collects_garbage');
+        document.getElementById('p-recycle').innerText = nextCollection(d.schedules, d.arrive_time, 'collects_recycling');
+        document.getElementById('p-food').innerText = nextCollection(d.schedules, d.arrive_time, 'collects_foodscraps');
+        document.getElementById('p-fav').onclick = () => addFavorite(d.station_id);
+        document.getElementById('panel').classList.add('open');
+    }
+
+    async function addFavorite(stationId) {
+        const r = await api('/favorites/', { method: 'POST', body: JSON.stringify({ station_id: stationId }) });
+        if (r.status === 'success') toast('已加入最愛！');
+        else toast('加入失敗：' + (r.message || '')); // 409＝已收藏過此站點
+    }
+
+    document.getElementById('p-close').onclick = () =>
+        document.getElementById('panel').classList.remove('open');
+
+    document.getElementById('searchHere').onclick = () => {
+        if (!map) return;
+        const c = map.getCenter();
+        searchStations(c.lat(), c.lng());
+    };
+
+    // 主流程
+    async function main() {
+        if (!GMAPS_KEY) {
+            document.getElementById('map').innerHTML =
+                '<p class="placeholder">尚未設定 Google Maps 金鑰，請在 backend/config.py 填入 GOOGLE_MAPS_API_KEY。</p>';
+            return;
+        }
+        await liff.init({ liffId: LIFF_ID });
+        if (!liff.isLoggedIn()) { liff.login(); return; }
+        const profile = await liff.getProfile();
+        lineUserId = profile.userId;
+
+        const center = (await getGeo()) || (await getFirstFavorite()) || DEFAULT_CENTER;
+
+        loadGmaps();
+        await gmapsReady;
+        map = new google.maps.Map(document.getElementById('map'), {
+            center, zoom: 16, disableDefaultUI: true, zoomControl: true
+        });
+        document.getElementById('searchHere').style.display = 'block';
+        searchStations(center.lat, center.lng);
+    }
+
+    main().catch(e => {
+        console.error(e);
+        toast('初始化失敗，請在 LINE App 內開啟此頁。');
+    });
+</script>
+
+</body>
+</html>
