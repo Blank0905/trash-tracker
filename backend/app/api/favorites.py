@@ -17,40 +17,43 @@ def list_favorites():
     """列出本人收藏。
     data: [{ fav_id, station_id, alias, station_name, latitude, longitude, arrive_time }]
     """
-   conn = get_db_connection()
-try:
-    with conn.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT 
-                f.fav_id,
-                f.station_id,
-                f.alias,
-                s.station_name,
-                s.latitude,
-                s.longitude,
-                s.arrive_time
-            FROM favorites f
-            JOIN stations s ON f.station_id = s.station_id
-            WHERE f.user_id = %s
-            ORDER BY f.fav_id DESC
-            """,
-            (g.current_user['user_id'],)
-        )
-        rows = cursor.fetchall()
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT 
+                    f.fav_id,
+                    f.station_id,
+                    f.alias,
+                    s.station_name,
+                    s.latitude,
+                    s.longitude,
+                    s.arrive_time
+                FROM favorites f
+                JOIN stations s ON f.station_id = s.station_id
+                WHERE f.user_id = %s
+                ORDER BY f.fav_id DESC
+                """,
+                (g.current_user['user_id'],)
+            )
+            rows = cursor.fetchall()
 
-        for row in rows:
-            if row.get('arrive_time') is not None:
-                row['arrive_time'] = str(row['arrive_time'])
+            for row in rows:
+                if row.get('arrive_time') is not None:
+                    row['arrive_time'] = str(row['arrive_time'])
+                # latitude/longitude 是 DECIMAL，需轉 float 才能 JSON 序列化
+                if row.get('latitude') is not None:
+                    row['latitude'] = float(row['latitude'])
+                if row.get('longitude') is not None:
+                    row['longitude'] = float(row['longitude'])
 
-        return ok(rows, count=len(rows))
+            return ok(rows, count=len(rows))
+    except Exception as e:
+        return err(str(e), 500)
 
-except Exception as e:
-    return err(str(e), 500)
-
-finally:
-    conn.close()
-    return ok([], count=0)
+    finally:
+        conn.close()
 
 
 @bp.route('/', methods=['POST'])
@@ -62,30 +65,29 @@ def add_favorite():
     if not station_id:
         return err('缺少 station_id', 400)
     conn = get_db_connection()
-try:
-    with conn.cursor() as cursor:
-        cursor.execute(
-            """
-            INSERT INTO favorites (user_id, station_id, alias)
-            VALUES (%s, %s, %s)
-            """,
-            (g.current_user['user_id'], station_id, data.get('alias'))
-        )
-        conn.commit()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO favorites (user_id, station_id, alias)
+                VALUES (%s, %s, %s)
+                """,
+                (g.current_user['user_id'], station_id, data.get('alias'))
+            )
+            conn.commit()
 
-        return ok({'fav_id': cursor.lastrowid}, status_code=201)
+            return ok({'fav_id': cursor.lastrowid}, status_code=201)
 
-except Exception as e:
-    conn.rollback()
+    except Exception as e:
+        conn.rollback()
 
-    if 'Duplicate entry' in str(e) or '1062' in str(e):
-        return err('已收藏過此站點', 409)
+        if 'Duplicate entry' in str(e) or '1062' in str(e):
+            return err('已收藏過此站點', 409)
 
-    return err(str(e), 500)
+        return err(str(e), 500)
 
-finally:
-    conn.close()
-    return ok({'fav_id': None}, status_code=201)
+    finally:
+        conn.close()
 
 
 @bp.route('/<int:fav_id>', methods=['PATCH'])
@@ -120,26 +122,24 @@ def update_favorite(fav_id):
 def delete_favorite(fav_id):
     """刪除收藏。"""
     conn = get_db_connection()
-try:
-    with conn.cursor() as cursor:
-        cursor.execute(
-            """
-            DELETE FROM favorites
-            WHERE fav_id = %s AND user_id = %s
-            """,
-            (fav_id, g.current_user['user_id'])
-        )
-        conn.commit()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                DELETE FROM favorites
+                WHERE fav_id = %s AND user_id = %s
+                """,
+                (fav_id, g.current_user['user_id'])
+            )
+            conn.commit()
 
-        if cursor.rowcount == 0:
-            return err('Favorite not found', 404)
+            if cursor.rowcount == 0:
+                return err('Favorite not found', 404)
+            return ok(None) 
 
-except Exception as e:
-    conn.rollback()
-    return err(str(e), 500)
+    except Exception as e:
+        conn.rollback()
+        return err(str(e), 500)
 
-finally:
-    conn.close()
-
-return ok(None)
-    return ok(None)
+    finally:
+        conn.close()
