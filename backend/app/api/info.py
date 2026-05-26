@@ -4,8 +4,8 @@
 資料表：bag_regulations、bulky_waste_info、announcements。
 """
 from flask import Blueprint, request
-from app.utils.responses import ok
-# from app.db import get_db_connection
+from app.utils.responses import ok, err
+from app.db import get_db_connection
 
 bp = Blueprint('info', __name__, url_prefix='/api/info')
 
@@ -17,28 +17,27 @@ def bag_regulations():
     """
     city = request.args.get('city')
     conn = get_db_connection()
-try:
-    with conn.cursor() as cursor:
-        if city:
-            cursor.execute(
-                """
-                SELECT reg_id, city, bag_size, volume_liters, price, purchase_locations, notes
-                FROM bag_regulations
-                WHERE city = %s
-                ORDER BY reg_id ASC
-                """,
-                (city,)
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT reg_id, city, bag_size, volume_liters, price, purchase_locations, notes
-                FROM bag_regulations
-                ORDER BY reg_id ASC
-                """
-            )
-
-        rows = cursor.fetchall()
+    try:
+        with conn.cursor() as cursor:
+            if city:
+                cursor.execute(
+                    """
+                    SELECT reg_id, city, bag_size, volume_liters, price, purchase_locations, notes
+                    FROM bag_regulations
+                    WHERE city = %s
+                    ORDER BY reg_id ASC
+                    """,
+                    (city,)
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT reg_id, city, bag_size, volume_liters, price, purchase_locations, notes
+                    FROM bag_regulations
+                    ORDER BY reg_id ASC
+                    """
+                )
+            rows = cursor.fetchall()
 
         for row in rows:
             if row.get('volume_liters') is not None:
@@ -47,10 +46,10 @@ try:
                 row['price'] = float(row['price'])
 
         return ok(rows, count=len(rows))
-
-finally:
-    conn.close()
-    return ok([], count=0)
+    except Exception as e:
+        return err(str(e), 500)
+    finally:
+        conn.close()
 
 
 @bp.route('/bulky-waste', methods=['GET'])
@@ -60,38 +59,37 @@ def bulky_waste():
     """
     city = request.args.get('city')
     conn = get_db_connection()
-try:
-    with conn.cursor() as cursor:
-        if city:
-            cursor.execute(
-                """
-                SELECT info_id, city, title, content, updated_at
-                FROM bulky_waste_info
-                WHERE city = %s
-                ORDER BY updated_at DESC
-                """,
-                (city,)
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT info_id, city, title, content, updated_at
-                FROM bulky_waste_info
-                ORDER BY updated_at DESC
-                """
-            )
-
-        rows = cursor.fetchall()
+    try:
+        with conn.cursor() as cursor:
+            if city:
+                cursor.execute(
+                    """
+                    SELECT info_id, city, title, content, updated_at
+                    FROM bulky_waste_info
+                    WHERE city = %s
+                    ORDER BY updated_at DESC
+                    """,
+                    (city,)
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT info_id, city, title, content, updated_at
+                    FROM bulky_waste_info
+                    ORDER BY updated_at DESC
+                    """
+                )
+            rows = cursor.fetchall()
 
         for row in rows:
             if row.get('updated_at') is not None:
                 row['updated_at'] = str(row['updated_at'])
 
         return ok(rows, count=len(rows))
-
-finally:
-    conn.close()
-    return ok([], count=0)
+    except Exception as e:
+        return err(str(e), 500)
+    finally:
+        conn.close()
 
 
 @bp.route('/announcements', methods=['GET'])
@@ -102,36 +100,35 @@ def announcements():
     """
     city = request.args.get('city')
     conn = get_db_connection()
-try:
-    with conn.cursor() as cursor:
-        if city:
-            cursor.execute(
-                """
-                SELECT announcement_id, title, content, target_city, created_at
-                FROM announcements
-                WHERE target_city IS NULL OR target_city = %s
-                ORDER BY created_at DESC
-                """,
-                (city,)
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT announcement_id, title, content, target_city, created_at
-                FROM announcements
-                WHERE target_city IS NULL
-                ORDER BY created_at DESC
-                """
-            )
-
-        rows = cursor.fetchall()
+    try:
+        with conn.cursor() as cursor:
+            if city:
+                cursor.execute(
+                    """
+                    SELECT announcement_id, title, content, target_city, created_at
+                    FROM announcements
+                    WHERE target_city IS NULL OR target_city = %s
+                    ORDER BY created_at DESC
+                    """,
+                    (city,)
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT announcement_id, title, content, target_city, created_at
+                    FROM announcements
+                    WHERE target_city IS NULL
+                    ORDER BY created_at DESC
+                    """
+                )
+            rows = cursor.fetchall()
 
         for row in rows:
             if row.get('created_at') is not None:
                 row['created_at'] = str(row['created_at'])
 
         return ok(rows, count=len(rows))
-
-finally:
-    conn.close()
-    return ok([], count=0)
+    except Exception as e:
+        return err(str(e), 500)
+    finally:
+        conn.close()
