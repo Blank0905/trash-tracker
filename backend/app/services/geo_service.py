@@ -113,7 +113,7 @@ def get_station_detail(station_id):
     
     return formatted_result
 
-def get_next_arrival(station_id):
+def next_arrival(station_id):
     conn = get_db_connection()
     time_sql = "SELECT arrive_time FROM stations WHERE station_id = %s"
     schedule_sql = """
@@ -177,7 +177,7 @@ def get_next_arrival(station_id):
                 
     return None
 
-def get_route_stations(route_id):
+def list_route_stations(route_id):
     conn = get_db_connection()
     sql = """
         SELECT station_id, station_name, latitude, longitude, sequence_order, arrive_time
