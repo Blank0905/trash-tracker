@@ -12,11 +12,10 @@ bp = Blueprint('info', __name__, url_prefix='/api/info')
 
 @bp.route('/bag-regulations', methods=['GET'])
 def bag_regulations():
-    """垃圾袋規範。query: city?（不帶則回全部）
-    data: [{ reg_id, city, bag_size, volume_liters, price, purchase_locations, notes }]
-    """
+    """垃圾袋規範。query: city?（不帶則回全部）"""
     city = request.args.get('city')
     conn = get_db_connection()
+
     try:
         with conn.cursor() as cursor:
             if city:
@@ -37,28 +36,38 @@ def bag_regulations():
                     ORDER BY reg_id ASC
                     """
                 )
+
             rows = cursor.fetchall()
+            data = []
 
-        for row in rows:
-            if row.get('volume_liters') is not None:
-                row['volume_liters'] = float(row['volume_liters'])
-            if row.get('price') is not None:
-                row['price'] = float(row['price'])
+            for row in rows:
+                reg_id, city, bag_size, volume_liters, price, purchase_locations, notes = row
 
-        return ok(rows, count=len(rows))
+                data.append({
+                    'reg_id': reg_id,
+                    'city': city,
+                    'bag_size': bag_size,
+                    'volume_liters': float(volume_liters) if volume_liters is not None else None,
+                    'price': float(price) if price is not None else None,
+                    'purchase_locations': purchase_locations,
+                    'notes': notes
+                })
+
+            return ok(data, count=len(data))
+
     except Exception as e:
         return err(str(e), 500)
+
     finally:
         conn.close()
 
 
 @bp.route('/bulky-waste', methods=['GET'])
 def bulky_waste():
-    """大型廢棄物清運資訊。query: city?
-    data: [{ info_id, city, title, content, updated_at }]
-    """
+    """大型廢棄物清運資訊。query: city?"""
     city = request.args.get('city')
     conn = get_db_connection()
+
     try:
         with conn.cursor() as cursor:
             if city:
@@ -79,27 +88,36 @@ def bulky_waste():
                     ORDER BY updated_at DESC
                     """
                 )
+
             rows = cursor.fetchall()
+            data = []
 
-        for row in rows:
-            if row.get('updated_at') is not None:
-                row['updated_at'] = str(row['updated_at'])
+            for row in rows:
+                info_id, city, title, content, updated_at = row
 
-        return ok(rows, count=len(rows))
+                data.append({
+                    'info_id': info_id,
+                    'city': city,
+                    'title': title,
+                    'content': content,
+                    'updated_at': str(updated_at) if updated_at is not None else None
+                })
+
+            return ok(data, count=len(data))
+
     except Exception as e:
         return err(str(e), 500)
+
     finally:
         conn.close()
 
 
 @bp.route('/announcements', methods=['GET'])
 def announcements():
-    """環保政策公告（給使用者看）。query: city?
-    回傳 target_city 為 NULL（全體）或符合 city 者，新到舊排序。
-    data: [{ announcement_id, title, content, target_city, created_at }]
-    """
+    """環保政策公告。query: city?"""
     city = request.args.get('city')
     conn = get_db_connection()
+
     try:
         with conn.cursor() as cursor:
             if city:
@@ -121,14 +139,25 @@ def announcements():
                     ORDER BY created_at DESC
                     """
                 )
+
             rows = cursor.fetchall()
+            data = []
 
-        for row in rows:
-            if row.get('created_at') is not None:
-                row['created_at'] = str(row['created_at'])
+            for row in rows:
+                announcement_id, title, content, target_city, created_at = row
 
-        return ok(rows, count=len(rows))
+                data.append({
+                    'announcement_id': announcement_id,
+                    'title': title,
+                    'content': content,
+                    'target_city': target_city,
+                    'created_at': str(created_at) if created_at is not None else None
+                })
+
+            return ok(data, count=len(data))
+
     except Exception as e:
         return err(str(e), 500)
+
     finally:
         conn.close()
