@@ -1,0 +1,10 @@
+version: "2"
+tunnels:
+    web-app:
+        proto: http
+        addr: 3000
+        hostname: monistical-tawanda-unshady.ngrok-free.dev
+    api-service:
+        proto: http
+        addr: 5000
+authtoken: 3BtQocDNzxj4agTRJlmJLKaYLHj_5tkFekc9PDKrxVA6zCyu7
