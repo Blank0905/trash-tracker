@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>附近垃圾車站點</title>
+    <!-- 引入 LINE LIFF SDK -->
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <!-- Leaflet（OpenStreetMap，免 API key、免信用卡） -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        :root {
+            --primary: #00B900;
+            --bg-color: #121212;
+            --surface: #1e1e1e;
+            --text-main: #ffffff;
+            --text-muted: #888888;
+        }
+        html, body { height: 100%; margin: 0; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: var(--text-main);
+        }
+        #map { position: fixed; inset: 0; background: var(--bg-color); }
+        #map .placeholder { padding: 24px; color: var(--text-muted); }
+
+        /* 頂部控制列：半徑選擇 + 以地圖中心搜尋（z-index 需高於 Leaflet 圖層） */
+        #topbar {
+            position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+            z-index: 1100; display: flex; gap: 8px; align-items: center;
+        }
+        #topbar select {
+            border: none; border-radius: 999px;
+            padding: 10px 14px;
+            background: var(--surface); color: var(--text-main);
+            font-size: 0.9rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+        #searchHere {
+            border: none; border-radius: 999px;
+            padding: 10px 18px;
+            background: var(--primary); color: white;
+            font-size: 0.9rem; font-weight: bold;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            cursor: pointer;
+        }
+
+        /* 底部站點資訊面板 */
+        #panel {
+            position: fixed; left: 0; right: 0; bottom: 0;
+            z-index: 1200;
+            background: var(--surface);
+            border-radius: 18px 18px 0 0;
+            padding: 20px;
+            box-shadow: 0 -6px 20px rgba(0,0,0,0.5);
+            transform: translateY(110%);
+            transition: transform 0.25s ease;
+        }
+        #panel.open { transform: translateY(0); }
+        .p-name { font-size: 1.1rem; font-weight: 600; margin-bottom: 14px; }
+        #p-schedule { margin-bottom: 4px; }
+        .sch-row {
+            display: flex; justify-content: space-between; gap: 12px;
+            padding: 8px 0; font-size: 0.95rem;
+            border-bottom: 1px solid #2c2c2c;
+        }
+        .sch-day { color: var(--text-main); white-space: nowrap; }
+        .sch-types { color: var(--primary); font-weight: 600; text-align: right; }
+        .sch-empty { color: var(--text-muted); padding: 8px 0; }
+        .p-actions { display: flex; gap: 10px; margin-top: 16px; }
+        .p-actions button {
+            flex: 1; border: none; border-radius: 10px;
+            padding: 12px; font-size: 0.95rem; font-weight: bold;
+            cursor: pointer; color: white;
+        }
+        #p-fav { background: var(--primary); }
+        #p-close { background: #2c2c2c; }
+
+        /* 右下角定位鈕（手動重新定位，手勢觸發成功率高） */
+        #locateBtn {
+            position: fixed; right: 16px; bottom: 30px;
+            z-index: 1100;
+            width: 48px; height: 48px; border-radius: 50%;
+            border: none; background: var(--surface); color: white;
+            font-size: 1.3rem; line-height: 48px; text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            cursor: pointer;
+        }
+
+        #toast {
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+            z-index: 1300;
+            background: rgba(0,0,0,0.85); color: white;
+            padding: 10px 18px; border-radius: 999px; font-size: 0.85rem;
+            opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+        }
+        #toast.show { opacity: 1; }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="topbar">
+    <select id="radius">
+        <option value="0.5">500 公尺</option>
+        <option value="1">1 公里</option>
+        <option value="2" selected>2 公里</option>
+        <option value="3">3 公里</option>
+        <option value="5">5 公里</option>
+    </select>
+    <button id="searchHere" style="display:none;">以此處搜尋</button>
+</div>
+
+<div id="panel">
+    <div class="p-name" id="p-name">站點</div>
+    <div id="p-schedule"></div>
+    <div class="p-actions">
+        <button id="p-fav">加入最愛</button>
+        <button id="p-close">關閉</button>
+    </div>
+</div>
+
+<button id="locateBtn" title="重新定位">📍</button>
+<div id="toast"></div>
+
+<script>
+    // 後端注入（見 app/api/pages.py）。改用 Leaflet/OSM 後不再需要 Google Maps 金鑰。
+    const LIFF_ID = "{{ liff_id }}";
+    const DEFAULT_CENTER = { lat: 25.0478, lng: 121.5170 }; // 台北車站，最終後備
+
+    let lineUserId = null;
+    let map = null;
+    let markers = [];        // 站點 marker
+    let userMarker = null;   // 使用者目前位置圖標
+    let rangeCircle = null;  // 搜尋範圍圓圈
+
+    // 目前選取的搜尋半徑（公里）
+    function currentRadius() {
+        return parseFloat(document.getElementById('radius').value) || 2;
+    }
+
+    // 統一後端呼叫：自動帶 X-Line-User-Id
+    async function api(path, options = {}) {
+        const headers = Object.assign(
+            { 'Content-Type': 'application/json', 'X-Line-User-Id': lineUserId || '' },
+            options.headers || {}
+        );
+        const res = await fetch(`/api${path}`, { ...options, headers });
+        return res.json();
+    }
+
+    function toast(msg) {
+        const el = document.getElementById('toast');
+        el.innerText = msg;
+        el.classList.add('show');
+        clearTimeout(el._t);
+        el._t = setTimeout(() => el.classList.remove('show'), 2500);
+    }
+
+    // 定位優先序：① GPS 實際位置 → ② 第一個最愛點 → ③ 預設點
+    function getGeo() {
+        return new Promise(resolve => {
+            if (!navigator.geolocation) {
+                toast('此裝置/瀏覽器不支援定位');
+                return resolve(null);
+            }
+            navigator.geolocation.getCurrentPosition(
+                pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                err => {
+                    // 把失敗原因顯示出來，方便判斷是權限、訊號還是逾時
+                    const reason = err.code === 1 ? '定位權限被拒：請到手機設定／LINE 開啟定位權限'
+                        : err.code === 2 ? '無法取得位置：定位服務目前無法使用'
+                        : err.code === 3 ? '定位逾時：請在收得到 GPS 訊號處再試'
+                        : '定位失敗';
+                    console.error('geolocation error', err.code, err.message);
+                    toast(reason + '（已暫用預設位置）');
+                    resolve(null);
+                },
+                // 低精度（網路定位）在手機/室內更快更容易成功；找附近站點不需高精度 GPS
+                { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+            );
+        });
+    }
+
+    async function getFirstFavorite() {
+        const r = await api('/favorites/');
+        if (r.status === 'success' && Array.isArray(r.data) && r.data.length > 0) {
+            const f = r.data[0];
+            return { lat: +f.latitude, lng: +f.longitude };
+        }
+        return null;
+    }
+
+    // 使用者目前位置圖標（藍點）；只有 GPS 真的定位成功才畫
+    function setUserMarker(pos) {
+        if (userMarker) map.removeLayer(userMarker);
+        userMarker = L.circleMarker([pos.lat, pos.lng], {
+            radius: 8, color: '#ffffff', weight: 3,
+            fillColor: '#1a73e8', fillOpacity: 1
+        }).addTo(map).bindTooltip('你的位置');
+    }
+
+    // 鄰近搜尋：畫搜尋範圍圓圈 + 站點 marker
+    async function searchStations(lat, lng) {
+        const radiusKm = currentRadius();
+        const r = await api(`/stations/search?lat=${lat}&lng=${lng}&radius=${radiusKm}`);
+
+        // 清掉上一輪的站點 marker
+        markers.forEach(m => map.removeLayer(m));
+        markers = [];
+
+        // 畫/更新搜尋範圍圓圈
+        if (rangeCircle) map.removeLayer(rangeCircle);
+        rangeCircle = L.circle([lat, lng], {
+            radius: radiusKm * 1000,
+            color: '#00B900', weight: 1,
+            fillColor: '#00B900', fillOpacity: 0.08
+        }).addTo(map);
+
+        if (r.status !== 'success') { toast('搜尋失敗：' + (r.message || '')); return; }
+        r.data.forEach(s => {
+            const mk = L.marker([+s.latitude, +s.longitude]).addTo(map);
+            mk.bindTooltip(s.station_name);
+            mk.on('click', () => openStation(s.station_id, s.station_name));
+            markers.push(mk);
+        });
+        if (r.data.length === 0) toast(`附近 ${radiusKm} 公里內沒有站點`);
+    }
+
+    // 把一週班表條列成「有收運的日子」：週X HH:MM + 當天收的種類
+    const DOW = ['日', '一', '二', '三', '四', '五', '六'];
+    function renderWeek(schedules, arriveTime) {
+        if (!Array.isArray(schedules) || schedules.length === 0)
+            return '<div class="sch-empty">本站無收運班表資料</div>';
+        const time = arriveTime ? arriveTime.slice(0, 5) : '';
+        const rows = schedules
+            .slice()
+            .sort((a, b) => a.day_of_week - b.day_of_week)
+            .filter(s => s.collects_garbage || s.collects_recycling || s.collects_foodscraps)
+            .map(s => {
+                const types = [];
+                if (s.collects_garbage) types.push('一般垃圾');
+                if (s.collects_recycling) types.push('資源回收');
+                if (s.collects_foodscraps) types.push('廚餘');
+                return `<div class="sch-row"><span class="sch-day">週${DOW[s.day_of_week]} ${time}</span>`
+                     + `<span class="sch-types">${types.join('、')}</span></div>`;
+            });
+        return rows.length ? rows.join('') : '<div class="sch-empty">近 7 天無收運</div>';
+    }
+
+    // 點站 → 取明細（含班表）→ 條列一週收運 → 顯示面板
+    async function openStation(stationId, fallbackName) {
+        const r = await api(`/stations/${stationId}`);
+        if (r.status !== 'success') { toast('讀取站點失敗：' + (r.message || '')); return; }
+        const d = r.data;
+        document.getElementById('p-name').innerText = d.station_name || fallbackName || '站點';
+        document.getElementById('p-schedule').innerHTML = renderWeek(d.schedules, d.arrive_time);
+        document.getElementById('p-fav').onclick = () => addFavorite(d.station_id);
+        document.getElementById('panel').classList.add('open');
+    }
+
+    async function addFavorite(stationId) {
+        const r = await api('/favorites/', { method: 'POST', body: JSON.stringify({ station_id: stationId }) });
+        if (r.status === 'success') toast('已加入最愛！');
+        else toast('加入失敗：' + (r.message || '')); // 409＝已收藏過此站點
+    }
+
+    document.getElementById('p-close').onclick = () =>
+        document.getElementById('panel').classList.remove('open');
+
+    // 以目前地圖中心搜尋
+    document.getElementById('searchHere').onclick = () => {
+        if (!map) return;
+        const c = map.getCenter(); // Leaflet 的 LatLng：.lat / .lng 是屬性
+        searchStations(c.lat, c.lng);
+    };
+
+    // 改搜尋半徑 → 立即以目前地圖中心重查
+    document.getElementById('radius').addEventListener('change', () => {
+        if (!map) return;
+        const c = map.getCenter();
+        searchStations(c.lat, c.lng);
+    });
+
+    // 右下角 📍：手動重新定位（手勢觸發，成功率高於頁面載入時的自動定位）
+    document.getElementById('locateBtn').onclick = async () => {
+        if (!map) return;
+        toast('定位中…');
+        const geo = await getGeo();   // 失敗時 getGeo 內已 toast 原因
+        if (!geo) return;
+        map.setView([geo.lat, geo.lng], 16);
+        setUserMarker(geo);
+        searchStations(geo.lat, geo.lng);
+    };
+
+    // 主流程
+    async function main() {
+        await liff.init({ liffId: LIFF_ID });
+        if (!liff.isLoggedIn()) { liff.login(); return; }
+        const profile = await liff.getProfile();
+        lineUserId = profile.userId;
+
+        const geo = await getGeo();
+        const center = geo || (await getFirstFavorite()) || DEFAULT_CENTER;
+
+        // 初始化 Leaflet 地圖 + OpenStreetMap 圖磚
+        map = L.map('map', { zoomControl: true }).setView([center.lat, center.lng], 16);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 貢獻者'
+        }).addTo(map);
+
+        // 只有實際 GPS 定位成功才畫「使用者位置」
+        if (geo) setUserMarker(geo);
+
+        document.getElementById('searchHere').style.display = 'block';
+        searchStations(center.lat, center.lng);
+    }
+
+    main().catch(e => {
+        console.error(e);
+        toast('初始化失敗，請在 LINE App 內開啟此頁。');
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>站點查詢</title>
+    <!-- 引入 LINE LIFF SDK -->
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        :root {
+            --primary: #00B900; /* LINE Green */
+            --danger: #e74c3c;
+            --bg-color: #121212;
+            --surface: #1e1e1e;
+            --text-main: #ffffff;
+            --text-muted: #888888;
+        }
+        * { box-sizing: border-box; }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+        .container { width: 100%; max-width: 420px; }
+        h2 { text-align: center; font-weight: 600; letter-spacing: 1px; }
+        #status { text-align: center; color: var(--text-muted); margin: 30px 0; }
+
+        .searchbar { display: flex; gap: 8px; margin-bottom: 16px; }
+        select {
+            background: #2c2c2c;
+            color: var(--text-main);
+            border: 1px solid #3a3a3a;
+            border-radius: 10px;
+            padding: 0 10px;
+            font-size: 0.9rem;
+        }
+        .btn {
+            border: none;
+            border-radius: 10px;
+            padding: 12px 16px;
+            font-size: 0.95rem;
+            font-weight: bold;
+            color: #fff;
+            cursor: pointer;
+        }
+        .btn.primary { background: var(--primary); flex: 1; }
+        .btn:active { transform: scale(0.98); }
+
+        /* 搜尋結果清單 */
+        .item {
+            background-color: var(--surface);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            cursor: pointer;
+        }
+        .item:active { transform: scale(0.99); }
+        .item-main { min-width: 0; }
+        .item-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .item-sub { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
+        .item-dist { flex-shrink: 0; font-size: 0.9rem; color: var(--primary); font-weight: 600; }
+
+        /* 站點明細 */
+        .back {
+            background: none;
+            border: none;
+            color: var(--primary);
+            font-size: 0.95rem;
+            cursor: pointer;
+            padding: 0;
+            margin-bottom: 8px;
+        }
+        .d-title { font-size: 1.3rem; font-weight: 600; margin: 6px 0; }
+        .d-sub { color: var(--text-muted); font-size: 0.9rem; }
+        .d-route { font-size: 0.9rem; margin-top: 8px; }
+        .d-time { font-size: 0.9rem; margin-top: 6px; color: var(--text-muted); }
+        .d-label { margin-top: 16px; font-weight: 600; }
+        .d-note { color: var(--text-muted); margin: 16px 0; }
+
+        .next-box {
+            background: #10240f;
+            border: 1px solid var(--primary);
+            border-radius: 10px;
+            padding: 12px;
+            margin-top: 14px;
+        }
+        .next-when { font-weight: 600; }
+        .next-types { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
+
+        .sched { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.85rem; }
+        .sched th, .sched td {
+            text-align: center;
+            padding: 6px 2px;
+            border-bottom: 1px solid #2c2c2c;
+            color: var(--text-muted);
+        }
+        .sched th.rowh { text-align: left; color: var(--text-main); font-weight: 600; white-space: nowrap; }
+        .sched td.on { color: var(--primary); font-weight: bold; }
+
+        .d-actions { display: flex; gap: 10px; margin-top: 20px; }
+        .btn.act { flex: 1; background: #2c2c2c; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>站點查詢</h2>
+
+    <div id="main">
+        <div class="searchbar">
+            <select id="radius">
+                <option value="1">1 公里</option>
+                <option value="2" selected>2 公里</option>
+                <option value="3">3 公里</option>
+                <option value="5">5 公里</option>
+            </select>
+            <button id="searchBtn" class="btn primary">📍 用目前位置搜尋</button>
+        </div>
+        <div id="status">按上方按鈕，用目前位置搜尋附近站點</div>
+        <div id="list"></div>
+    </div>
+
+    <div id="detail" style="display:none"></div>
+</div>
+
+<script>
+    // 透過 Flask 後端渲染時，自動塞入 config.py 裡的 LIFF ID
+    const LIFF_ID = "{{ liff_id }}";
+    let lineUserId = null;
+
+    // 統一的後端呼叫方式：自動帶上 X-Line-User-Id（簡易版身分識別）
+    async function api(path, options = {}) {
+        const headers = Object.assign(
+            { 'Content-Type': 'application/json', 'X-Line-User-Id': lineUserId || '' },
+            options.headers || {}
+        );
+        const res = await fetch(`/api${path}`, { ...options, headers });
+        return res.json();
+    }
+
+    // 防 XSS：插入 DOM 前轉義
+    function esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    const DAYS_SHORT = ['日', '一', '二', '三', '四', '五', '六'];
+    const DAYS_LONG = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+    const TYPE_LABEL = { garbage: '一般垃圾', recycling: '資源回收', food: '廚餘', foodscraps: '廚餘' };
+
+    const mainEl = document.getElementById('main');
+    const statusEl = document.getElementById('status');
+    const listEl = document.getElementById('list');
+    const detailEl = document.getElementById('detail');
+
+    function setStatus(msg) { statusEl.style.display = 'block'; statusEl.innerText = msg; }
+    function showDetail() { mainEl.style.display = 'none'; detailEl.style.display = 'block'; window.scrollTo(0, 0); }
+    function closeDetail() { detailEl.style.display = 'none'; mainEl.style.display = 'block'; }
+
+    function fmtTime(t) { return t ? String(t).slice(0, 5) : ''; }
+    function fmtDist(km) {
+        if (km == null || isNaN(km)) return '';
+        return km < 1 ? Math.round(km * 1000) + ' 公尺' : Number(km).toFixed(1) + ' 公里';
+    }
+
+    // --- 搜尋 ---
+    function search() {
+        if (!navigator.geolocation) { setStatus('此裝置不支援定位'); return; }
+        setStatus('定位中…');
+        listEl.innerHTML = '';
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            const { latitude, longitude } = pos.coords;
+            const radius = document.getElementById('radius').value;
+            setStatus('搜尋附近站點…');
+            const res = await api(`/stations/search?lat=${latitude}&lng=${longitude}&radius=${radius}&limit=20`);
+            if (res.status === 'success') renderResults(res.data);
+            else setStatus('搜尋失敗：' + (res.message || '請稍後再試。'));
+        }, (err) => {
+            console.error('定位失敗', err);
+            setStatus('無法取得定位，請允許定位權限後再試。');
+        }, { enableHighAccuracy: true, timeout: 10000 });
+    }
+
+    function renderResults(items) {
+        if (!items || items.length === 0) {
+            setStatus('附近查無站點');
+            listEl.innerHTML = '';
+            return;
+        }
+        statusEl.style.display = 'none';
+        listEl.innerHTML = items.map(s => `
+            <div class="item" data-station-id="${esc(s.station_id)}">
+                <div class="item-main">
+                    <div class="item-title">${esc(s.station_name)}</div>
+                    <div class="item-sub">表定到站 ${esc(fmtTime(s.arrive_time)) || '—'}</div>
+                </div>
+                <div class="item-dist">${esc(fmtDist(s.distance_km))}</div>
+            </div>`).join('');
+    }
+
+    // --- 明細 ---
+    function renderNext(next) {
+        if (!next) return '';
+        const types = (next.types || []).map(t => TYPE_LABEL[t] || t).join('、');
+        const when = `${DAYS_LONG[Number(next.day_of_week)] || ''} ${fmtTime(next.arrive_time)}`.trim();
+        const mins = (next.in_minutes != null) ? `（約 ${esc(next.in_minutes)} 分鐘後）` : '';
+        return `
+            <div class="next-box">
+                <div class="next-when">🚛 最快到站：${esc(when)} ${mins}</div>
+                ${types ? `<div class="next-types">收運：${esc(types)}</div>` : ''}
+            </div>`;
+    }
+
+    function renderSchedule(schedules) {
+        const byDay = {};
+        (schedules || []).forEach(s => { byDay[Number(s.day_of_week)] = s; });
+        const head = '<th class="rowh"></th>' + DAYS_SHORT.map(d => `<th>${d}</th>`).join('');
+        const rows = [
+            ['一般垃圾', 'collects_garbage'],
+            ['資源回收', 'collects_recycling'],
+            ['廚餘', 'collects_foodscraps'],
+        ].map(([label, key]) => {
+            const cells = DAYS_SHORT.map((_, d) => {
+                const on = byDay[d] && Number(byDay[d][key]) === 1;
+                return `<td class="${on ? 'on' : ''}">${on ? '✓' : '·'}</td>`;
+            }).join('');
+            return `<tr><th class="rowh">${label}</th>${cells}</tr>`;
+        }).join('');
+        return `<table class="sched"><tr>${head}</tr>${rows}</table>`;
+    }
+
+    function renderDetail(stationId, d, next) {
+        const back = `<button class="back" data-action="back">← 返回</button>`;
+        const actions = `
+            <div class="d-actions">
+                <button class="btn act" data-action="fav" data-station-id="${esc(stationId)}">⭐ 收藏</button>
+                <button class="btn act" data-action="noti" data-station-id="${esc(stationId)}">🔔 設定通知</button>
+            </div>`;
+
+        if (!d) {
+            // 後端 stations 明細 API 尚未實作（目前回 null）；仍保留收藏/通知動作
+            return back
+                + `<h3 class="d-title">站點 #${esc(stationId)}</h3>`
+                + `<div class="d-note">站點明細尚未提供（後端 stations API 待實作）。</div>`
+                + actions;
+        }
+
+        const area = d.area ? [d.area.city, d.area.district, d.area.village].filter(Boolean).join(' ') : '';
+        const route = d.route || {};
+        const leave = fmtTime(d.leave_time);
+        return back
+            + `<h3 class="d-title">${esc(d.station_name)}</h3>`
+            + (area ? `<div class="d-sub">${esc(area)}</div>` : '')
+            + (route.route_name ? `<div class="d-route">路線：${esc(route.route_name)}${route.team ? ' · ' + esc(route.team) : ''}</div>` : '')
+            + `<div class="d-time">表定到站 ${esc(fmtTime(d.arrive_time)) || '—'}${leave ? ' · 離開 ' + esc(leave) : ''}</div>`
+            + renderNext(next)
+            + `<div class="d-label">每週收運日</div>`
+            + renderSchedule(d.schedules)
+            + actions;
+    }
+
+    async function openDetail(stationId) {
+        detailEl.innerHTML = '<button class="back" data-action="back">← 返回</button><div class="d-note">載入中…</div>';
+        showDetail();
+        try {
+            const [dRes, nRes] = await Promise.all([
+                api(`/stations/${stationId}`),
+                api(`/stations/${stationId}/next`),
+            ]);
+            const d = dRes.status === 'success' ? dRes.data : null;
+            const next = nRes.status === 'success' ? nRes.data : null;
+            detailEl.innerHTML = renderDetail(stationId, d, next);
+        } catch (e) {
+            console.error('載入明細失敗', e);
+            detailEl.innerHTML = '<button class="back" data-action="back">← 返回</button><div class="d-note">載入失敗，請稍後再試。</div>';
+        }
+    }
+
+    // --- 收藏 / 通知（需登入）---
+    async function addFavorite(stationId) {
+        if (!lineUserId) { liff.login(); return; }
+        const r = await api('/favorites/', { method: 'POST', body: JSON.stringify({ station_id: Number(stationId) }) });
+        alert(r.status === 'success' ? '已加入收藏' : (r.message || '收藏失敗，請稍後再試。'));
+    }
+    async function addNotification(stationId) {
+        if (!lineUserId) { liff.login(); return; }
+        const r = await api('/notifications/', { method: 'POST', body: JSON.stringify({ station_id: Number(stationId) }) });
+        alert(r.status === 'success' ? '已設定到站通知（可到「到站通知」頁調整）' : (r.message || '設定失敗，請稍後再試。'));
+    }
+
+    // --- 事件 ---
+    document.getElementById('searchBtn').addEventListener('click', search);
+
+    listEl.addEventListener('click', (e) => {
+        const item = e.target.closest('.item[data-station-id]');
+        if (item) openDetail(item.dataset.stationId);
+    });
+
+    detailEl.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        if (btn.dataset.action === 'back') closeDetail();
+        else if (btn.dataset.action === 'fav') addFavorite(btn.dataset.stationId);
+        else if (btn.dataset.action === 'noti') addNotification(btn.dataset.stationId);
+    });
+
+    // 搜尋為公開功能，不強制登入；收藏/通知時才要求登入
+    async function main() {
+        try {
+            await liff.init({ liffId: LIFF_ID });
+            if (liff.isLoggedIn()) {
+                const profile = await liff.getProfile();
+                lineUserId = profile.userId;
+            }
+        } catch (e) {
+            console.warn('LIFF 初始化略過（可能非 LINE 環境）', e);
+        }
+    }
+    main();
+</script>
+
+</body>
+</html>

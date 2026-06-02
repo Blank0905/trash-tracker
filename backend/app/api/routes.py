@@ -1,67 +1,46 @@
-from flask import Blueprint, jsonify, request
-from app.db import get_db_connection
+"""站點與地理查詢 API（負責人：P1）
+
+實作邏輯請寫在 app/services/geo_service.py，本層只負責收參數、呼叫 service、回傳 JSON。
+回應一律用 app.utils.responses 的 ok() / err()。
+"""
+from flask import Blueprint, request
+from app.services import geo_service
+from app.utils.responses import ok, err
 
 bp = Blueprint('stations', __name__, url_prefix='/api/stations')
 
-@bp.route('/', methods=['GET'])
-def get_all_stations():
-    """範例：取得前 10 筆站點"""
-    conn = get_db_connection()
-    try:
-        with conn.cursor() as cursor:
-            sql = "SELECT station_id, station_name, latitude, longitude, arrive_time FROM stations LIMIT 10"
-            cursor.execute(sql)
-            stations = cursor.fetchall()
-            
-            for s in stations:
-                if s['arrive_time']:
-                    s['arrive_time'] = str(s['arrive_time'])
-                    
-            return jsonify({'status': 'success', 'data': stations})
-    finally:
-        conn.close()
-
 @bp.route('/search', methods=['GET'])
 def search_nearby():
-    """
-    進階範例：給定經緯度算距離，並找出附近 2 公里內的站點
-    參數: lat, lng, radius (預設 2km)
-    """
+
     lat = request.args.get('lat', type=float)
     lng = request.args.get('lng', type=float)
     radius = request.args.get('radius', type=float, default=2.0)
+    limit = request.args.get('limit', type=int, default=20)
 
     if lat is None or lng is None:
-        return jsonify({'status': 'error', 'message': 'Missing lat or lng'}), 400
+        return err('缺少必要參數 lat 或 lng', 400)
 
-    conn = get_db_connection()
-    try:
-        with conn.cursor() as cursor:
-            # 這是專業的 Haversine 距離計算 SQL
-            # 6371 是地球半徑 (公里)
-            sql = """
-                SELECT *, (
-                    6371 * acos (
-                        cos ( radians(%s) )
-                        * cos( radians( latitude ) )
-                        * cos( radians( longitude ) - radians(%s) )
-                        + sin ( radians(%s) )
-                        * sin( radians( latitude ) )
-                    )
-                ) AS distance
-                FROM stations
-                HAVING distance < %s
-                ORDER BY distance ASC
-                LIMIT 20
-            """
-            cursor.execute(sql, (lat, lng, lat, radius))
-            results = cursor.fetchall()
+    # 限制最大撈取數量
+    if limit > 200:
+        limit = 200
 
-            for r in results:
-                if r['arrive_time']: r['arrive_time'] = str(r['arrive_time'])
-                if r['leave_time']: r['leave_time'] = str(r['leave_time'])
-                r['distance'] = round(float(r['distance']), 3) # 轉成公里並取到小數三位
+    stations = geo_service.find_nearby_stations(lat, lng, radius, limit)
+    return ok(stations, count=len(stations))
 
-            return jsonify({'status': 'success', 'count': len(results), 'data': results})
-    finally:
-        conn.close()
+@bp.route('/<int:station_id>', methods=['GET'])
+def get_station_detail_endpoint(station_id):
+    result = geo_service.get_station_detail(station_id)
+    if not result:
+        return err('找不到該站點資訊', 404)
+    return ok(result)
+
+@bp.route('/<int:station_id>/next', methods=['GET'])
+def get_next_arrival_endpoint(station_id):
+    result = geo_service.next_arrival(station_id)
+    # 找不到車或日程時data帶null(OK傳NONE)
+    return ok(result)
+
+@bp.route('/by-route/<int:route_id>', methods=['GET'])
+def get_stations_by_route(route_id):
+    stations = geo_service.list_route_stations(route_id)
+    return ok(stations, count=len(stations))

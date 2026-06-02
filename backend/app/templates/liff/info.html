@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>資訊查詢</title>
+    <!-- 引入 LINE LIFF SDK -->
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        :root {
+            --primary: #00B900; /* LINE Green */
+            --bg-color: #121212;
+            --surface: #1e1e1e;
+            --text-main: #ffffff;
+            --text-muted: #888888;
+        }
+        * { box-sizing: border-box; }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+        .container { width: 100%; max-width: 420px; }
+        h2 { text-align: center; font-weight: 600; letter-spacing: 1px; }
+
+        /* 縣市選單 */
+        .city-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+        .city-btn {
+            flex: 1;
+            border: 1px solid #2c2c2c;
+            background: var(--surface);
+            color: var(--text-muted);
+            border-radius: 10px;
+            padding: 10px 0;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .city-btn.active {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+            font-weight: 600;
+        }
+
+        /* 分頁列 */
+        .tab-bar { display: flex; border-bottom: 1px solid #2c2c2c; margin-bottom: 16px; }
+        .tab-btn {
+            flex: 1;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            padding: 12px 0;
+            font-size: 0.95rem;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        .tab-btn.active {
+            color: var(--text-main);
+            border-bottom-color: var(--primary);
+            font-weight: 600;
+        }
+
+        #status { text-align: center; color: var(--text-muted); margin: 30px 0; }
+
+        .card {
+            background-color: var(--surface);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .card-title { font-size: 1.05rem; font-weight: 600; }
+        .card-sub { font-size: 0.85rem; color: var(--primary); margin-top: 4px; }
+        .card-body { font-size: 0.9rem; margin-top: 10px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+        .card-foot { font-size: 0.78rem; color: var(--text-muted); margin-top: 10px; }
+        .kv { font-size: 0.85rem; color: var(--text-muted); margin-top: 6px; }
+        .kv b { color: var(--text-main); font-weight: 600; }
+        .badge {
+            display: inline-block;
+            font-size: 0.72rem;
+            padding: 2px 8px;
+            border-radius: 6px;
+            background: #2c2c2c;
+            color: var(--text-muted);
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>資訊查詢</h2>
+    <div class="city-bar" id="cityBar"></div>
+    <div class="tab-bar" id="tabBar"></div>
+    <div id="status">載入中…</div>
+    <div id="list"></div>
+</div>
+
+<script>
+    // 透過 Flask 後端渲染時，自動塞入 config.py 裡的 LIFF ID
+    const LIFF_ID = "{{ liff_id }}";
+    let lineUserId = null;
+
+    // city 值需與 DB 的 ENUM 全名一致（台北市 / 新北市 / 基隆市）
+    const CITIES = ['台北市', '新北市', '基隆市'];
+    // 分頁設定：新增分頁只要在這裡加一筆（label / 後端路徑 / 渲染函式）
+    const TABS = [
+        { key: 'bag',   label: '垃圾袋規範', path: '/info/bag-regulations', render: renderBag },
+        { key: 'bulky', label: '大型廢棄物', path: '/info/bulky-waste',    render: renderBulky },
+        { key: 'ann',   label: '環保公告',   path: '/info/announcements',  render: renderAnn },
+    ];
+
+    let activeCity = CITIES[0];
+    let activeTab = TABS[0].key;
+
+    // 統一的後端呼叫方式：自動帶上 X-Line-User-Id（資訊類為公開 API，後端會忽略）
+    async function api(path, options = {}) {
+        const headers = Object.assign(
+            { 'Content-Type': 'application/json', 'X-Line-User-Id': lineUserId || '' },
+            options.headers || {}
+        );
+        const res = await fetch(`/api${path}`, { ...options, headers });
+        return res.json();
+    }
+
+    // 防 XSS：插入 DOM 前轉義
+    function esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    // 時間字串簡化為 YYYY-MM-DD HH:MM
+    function fmtTime(s) {
+        if (!s) return '';
+        return esc(String(s).replace('T', ' ').slice(0, 16));
+    }
+
+    const statusEl = document.getElementById('status');
+    const listEl = document.getElementById('list');
+
+    // --- 各分頁的卡片渲染（欄位對應 app/api/info.py 的回傳）---
+    function renderBag(items) {
+        return items.map(r => `
+            <div class="card">
+                <div class="card-title">${esc(r.bag_size)}</div>
+                <div class="card-sub">${esc(r.volume_liters)} 公升 · NT$ ${esc(r.price)}</div>
+                ${r.purchase_locations ? `<div class="kv"><b>購買地點：</b>${esc(r.purchase_locations)}</div>` : ''}
+                ${r.notes ? `<div class="kv">${esc(r.notes)}</div>` : ''}
+            </div>`).join('');
+    }
+    function renderBulky(items) {
+        return items.map(i => `
+            <div class="card">
+                <div class="card-title">${esc(i.title)}</div>
+                <div class="card-body">${esc(i.content)}</div>
+                ${i.updated_at ? `<div class="card-foot">更新：${fmtTime(i.updated_at)}</div>` : ''}
+            </div>`).join('');
+    }
+    function renderAnn(items) {
+        return items.map(a => `
+            <div class="card">
+                <div class="card-title">${esc(a.title)}<span class="badge">${esc(a.target_city || '全體')}</span></div>
+                <div class="card-body">${esc(a.content)}</div>
+                ${a.created_at ? `<div class="card-foot">${fmtTime(a.created_at)}</div>` : ''}
+            </div>`).join('');
+    }
+
+    function buildBars() {
+        document.getElementById('cityBar').innerHTML = CITIES.map(c =>
+            `<button class="city-btn ${c === activeCity ? 'active' : ''}" data-city="${esc(c)}">${esc(c)}</button>`
+        ).join('');
+        document.getElementById('tabBar').innerHTML = TABS.map(t =>
+            `<button class="tab-btn ${t.key === activeTab ? 'active' : ''}" data-tab="${esc(t.key)}">${esc(t.label)}</button>`
+        ).join('');
+    }
+
+    async function load() {
+        buildBars();
+        const tab = TABS.find(t => t.key === activeTab);
+        statusEl.style.display = 'block';
+        statusEl.innerText = '載入中…';
+        listEl.innerHTML = '';
+        try {
+            const res = await api(`${tab.path}?city=${encodeURIComponent(activeCity)}`);
+            if (res.status !== 'success') {
+                statusEl.innerText = '載入失敗：' + (res.message || '請稍後再試。');
+                return;
+            }
+            const items = res.data || [];
+            if (items.length === 0) {
+                statusEl.innerText = '查無資料';
+                return;
+            }
+            statusEl.style.display = 'none';
+            listEl.innerHTML = tab.render(items);
+        } catch (e) {
+            console.error('載入資訊失敗', e);
+            statusEl.innerText = '載入失敗，請稍後再試。';
+        }
+    }
+
+    // 事件委派：切換縣市 / 分頁
+    document.getElementById('cityBar').addEventListener('click', e => {
+        const btn = e.target.closest('button[data-city]');
+        if (!btn || btn.dataset.city === activeCity) return;
+        activeCity = btn.dataset.city;
+        load();
+    });
+    document.getElementById('tabBar').addEventListener('click', e => {
+        const btn = e.target.closest('button[data-tab]');
+        if (!btn || btn.dataset.tab === activeTab) return;
+        activeTab = btn.dataset.tab;
+        load();
+    });
+
+    // 資訊為公開資料，不強制登入；liff.init 僅為在 LINE 內整合，失敗也照常顯示
+    async function main() {
+        try {
+            await liff.init({ liffId: LIFF_ID });
+            if (liff.isLoggedIn()) {
+                const profile = await liff.getProfile();
+                lineUserId = profile.userId;
+            }
+        } catch (e) {
+            console.warn('LIFF 初始化略過（可能非 LINE 環境）', e);
+        }
+        load();
+    }
+    main();
+</script>
+
+</body>
+</html>
