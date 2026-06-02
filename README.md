@@ -10,6 +10,11 @@
 
 前置：先啟動 MySQL（XAMPP），且 `backend/config.py` 已填入 LINE 金鑰。
 
+### 環境設置
+
+把 example_config.py 改成config.py 
+填寫 config.py 
+
 ### 啟動後端
 
 PowerShell：
