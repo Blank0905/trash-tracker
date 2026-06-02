@@ -1,22 +1,23 @@
-// 📦 獨立的樣式大倉庫，將每個樣式物件都加上漂亮的換行排版
-export const styles = {
+// 📦 升級版：動態樣式大倉庫，完美支援 RWD 手機版自適應
+export const getStyles = (isMobile) => ({
   container: {
     display: 'flex',
-    height: '100vh',
+    flexDirection: isMobile ? 'column' : 'row', // 🟢 手機直排，電腦橫排
+    height: isMobile ? 'auto' : '100vh',        // 🟢 手機隨內容伸展，電腦鎖定單一視窗
     width: '100vw',
     backgroundColor: '#f8f9fa',
-    overflow: 'hidden',
+    overflowX: 'hidden',                        // 🟢 徹底鎖死橫向捲軸，防止手機左右搖晃跑偏
     fontFamily: '"PingFang TC", "Helvetica Neue", Arial, sans-serif',
   },
 
   // 側邊欄整體樣式
   sidebar: {
-    width: '260px',
+    width: isMobile ? '100%' : '260px',         // 🟢 手機版撐滿全螢幕寬度，電腦版固定 260px
     backgroundColor: '#1a237e',
     color: '#ffffff',
     display: 'flex',
     flexDirection: 'column',
-    boxShadow: '4px 0 10px rgba(0,0,0,0.1)',
+    boxShadow: isMobile ? '0 4px 10px rgba(0,0,0,0.1)' : '4px 0 10px rgba(0,0,0,0.1)',
   },
 
   sidebarHeader: {
@@ -107,16 +108,20 @@ export const styles = {
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
+    width: '100%',
+    maxWidth: '100%',
   },
 
   topBar: {
-    height: '70px',
+    height: isMobile ? 'auto' : '70px',          // 🟢 手機版自動伸展，電腦版固定 70px
     backgroundColor: '#ffffff',
     borderBottom: '1px solid #e0e0e0',
     display: 'flex',
+    flexDirection: isMobile ? 'column' : 'row', // 🟢 手機版標題與管理員資訊改為上下排，電腦橫排
     justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '0 30px',
+    alignItems: isMobile ? 'flex-start' : 'center',
+    padding: isMobile ? '15px 20px' : '0 30px',
+    gap: isMobile ? '10px' : '0',
   },
 
   pageTitleText: {
@@ -129,6 +134,8 @@ export const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '15px',
+    width: isMobile ? '100%' : 'auto',
+    justifyContent: isMobile ? 'space-between' : 'flex-end', // 🟢 手機版登出按鈕自動推至最右邊
   },
 
   userLabel: {
@@ -148,7 +155,7 @@ export const styles = {
   },
 
   contentBody: {
-    padding: '30px',
+    padding: isMobile ? '15px' : '30px',        // 🟢 手機版間距縮小，把大空間留給 MySQL 數據表
     flex: 1,
     overflowY: 'auto',
   },
@@ -162,10 +169,10 @@ export const styles = {
 
   dummyPage: {
     backgroundColor: '#ffffff',
-    padding: '50px',
+    padding: isMobile ? '30px 15px' : '50px',
     borderRadius: '12px',
     boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
-    fontSize: '18px',
+    fontSize: '16px',
     fontWeight: '500',
     color: '#1a237e',
     minHeight: '200px',
@@ -173,5 +180,6 @@ export const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     border: '2px dashed #1a237e',
+    textAlign: 'center',
   },
-};
+});

@@ -1,21 +1,34 @@
 import React, { useState, useEffect } from 'react';
-// 💡 核心改動：直接引入剛剛寫好的精美排版樣式檔！
-import { styles } from './Dashboard.styles';
+// 💡 核心變更：引入改裝後的 getStyles 函式
+import { getStyles } from './Dashboard.styles';
 
-// 引入你正在慢慢獨立開發的子資料表檔案
+// 引入子資料表檔案
 import TableAreas from './dashboard/TableAreas';
 import TableBagRegulations from './dashboard/TableBagRegulations';
-import TableFavorites from './dashboard/TableFavorites'; // 或者是 dashboard/TableFavorites
+import TableFavorites from './dashboard/TableFavorites'; 
 import TableNotifications from './dashboard/TableNotifications';
 import TableRoutes from './dashboard/TableRoutes';
 import TableStations from './dashboard/TableStations';
 import TableStationSchedules from './dashboard/TableStationSchedules';
 import TableUsers from './dashboard/TableUsers';
+import { getBackendUrl } from '../utils/api';
 
 const Dashboard = ({ onLogout }) => {
   const [activePage, setActivePage] = useState('welcome');
   const [dbConnected, setDbConnected] = useState(false);
   const [openDropdown, setOpenDropdown] = useState({ tables: true, actions: false });
+
+  // 🟢 1. 即時監聽螢幕寬度 (RWD 核心)
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // 🟢 2. 將即時狀態帶入，產出當前最適合該裝置的 styles 物件
+  const styles = getStyles(isMobile);
 
   const adminEmail = localStorage.getItem('admin_email') || 'admin@trash.tracker.com';
 
@@ -23,7 +36,8 @@ const Dashboard = ({ onLogout }) => {
   useEffect(() => {
     const checkConnection = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/db-status');
+        const baseUrl = await getBackendUrl();
+        const response = await fetch(`${baseUrl}/api/db-status`);
         const data = await response.json();
         setDbConnected(data.connected);
       } catch (err) {
@@ -64,6 +78,7 @@ const Dashboard = ({ onLogout }) => {
   };
 
   return (
+    // 💡 這裡的結構完全恢復成原汁原味的乾淨程式碼！所有 RWD 判定都已被封裝進 styles 裡了
     <div style={styles.container}>
       {/* ─── 左側導覽列 Sidebar ─── */}
       <div style={styles.sidebar}>

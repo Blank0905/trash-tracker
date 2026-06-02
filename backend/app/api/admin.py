@@ -1,106 +1,95 @@
-"""管理後台 API（負責人：P3）
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import db_admin  # 匯入剛剛寫好的資料庫操控層
 
-除 /login 外皆需 X-Admin-User（admin_required）。
-登入＝簡易版：帳密查 DB（check_password_hash），不發 token。
-安全版（JWT）見「開發分工與接口規格.md」第 6 節，標記「以後做」。
-"""
-from flask import Blueprint, request
-from app.utils.responses import ok, err
-from app.utils.auth import admin_required
-# from werkzeug.security import check_password_hash
-# from app.db import get_db_connection
-# from app.services import line_service
+app = Flask(__name__)
+CORS(app)  # 🔴 關鍵：允許前端跨網域存取 API
 
-bp = Blueprint('admin', __name__, url_prefix='/api/admin')
+@app.route('/api/db-status', methods=['GET'])
+def db_status():
+    """1. 連線狀態檢查端點 (對應前端的紅綠燈)"""
+    is_alive = db_admin.check_db_health()
+    return jsonify({"connected": is_alive})
 
+@app.route('/api/db/browse', methods=['GET'])
+def api_browse():
+    """2. 萬能資料瀏覽 API"""
+    table = request.args.get('table')
+    page = int(request.args.get('page', 1))
+    limit = int(request.args.get('limit', 500))
+    search = request.args.get('search', '')
+    sort = request.args.get('sort', 'none')
+    
+    if not table:
+        return jsonify({"error": "Missing 'table' parameter"}), 400
+        
+    try:
+        data = db_admin.browse_table(table, page, limit, search, sort)
+        return jsonify(data)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
 
-@bp.route('/login', methods=['POST'])
-def login():
-    """管理員登入。body: { username*, password* }
-    成功 data: { user_id, username, role }；失敗或非管理員回 401。
-    """
-    data = request.get_json(silent=True) or {}
-    username = data.get('username')
-    password = data.get('password')
-    if not username or not password:
-        return err('缺少帳號或密碼', 400)
-    # TODO(P3): 查 users WHERE username=%s AND role IN ('admin','developer')
-    #           用 check_password_hash(user['password_hash'], password) 驗證；
-    #           失敗回 err('帳號或密碼錯誤', 401)
-    return err('登入功能尚未實作', 501)
+@app.route('/api/db/structure', methods=['GET'])
+def api_structure():
+    """3. 萬能資料表結構 API"""
+    table = request.args.get('table')
+    
+    if not table:
+        return jsonify({"error": "Missing 'table' parameter"}), 400
+        
+    try:
+        structure = db_admin.get_table_structure(table)
+        return jsonify(structure)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
 
+if __name__ == '__main__':
+    # 啟動在 Port 8000
+    app.run(host='0.0.0.0', port=8000, debug=True)
 
-@bp.route('/users', methods=['GET'])
-@admin_required
-def list_users():
-    """使用者列表。query: status?, role?, q?（關鍵字）
-    data: [{ user_id, line_user_id, username, email, role, status, created_at }]
-    """
-    # TODO(P3): SELECT ... FROM users [WHERE 篩選]
-    return ok([], count=0)
-
-
-@bp.route('/users/<int:user_id>', methods=['PATCH'])
-@admin_required
-def update_user(user_id):
-    """更新使用者。body: { role?, status? }（status='suspended' 即停權）"""
-    data = request.get_json(silent=True) or {}
-    # TODO(P3): UPDATE users SET role=?, status=? WHERE user_id=?
-    return ok(None)
-
-
-@bp.route('/announcements', methods=['GET'])
-@admin_required
-def list_announcements():
-    """全部公告（含未推播）。"""
-    # TODO(P3): SELECT * FROM announcements ORDER BY created_at DESC
-    return ok([], count=0)
-
-
-@bp.route('/announcements', methods=['POST'])
-@admin_required
-def create_announcement():
-    """新增公告。body: { title*, content*, target_city? }（target_city 省略=全體）"""
-    data = request.get_json(silent=True) or {}
-    if not data.get('title') or not data.get('content'):
-        return err('缺少 title 或 content', 400)
-    # TODO(P3): INSERT INTO announcements (title, content, target_city, created_by) ...
-    return ok({'announcement_id': None}, status_code=201)
-
-
-@bp.route('/announcements/<int:announcement_id>', methods=['PATCH'])
-@admin_required
-def update_announcement(announcement_id):
-    """編輯公告。body: { title?, content?, target_city? }"""
-    data = request.get_json(silent=True) or {}
-    # TODO(P3): UPDATE announcements SET ... WHERE announcement_id=?
-    return ok(None)
-
-
-@bp.route('/announcements/<int:announcement_id>', methods=['DELETE'])
-@admin_required
-def delete_announcement(announcement_id):
-    """刪除公告。"""
-    # TODO(P3): DELETE FROM announcements WHERE announcement_id=?
-    return ok(None)
-
-
-@bp.route('/announcements/<int:announcement_id>/push', methods=['POST'])
-@admin_required
-def push_announcement(announcement_id):
-    """依 target_city 對綁定使用者群發 LINE，並標記 is_pushed/pushed_at。
-    data: { sent_count }
-    """
-    # TODO(P3): 取對象 line_user_id（target_city 為 NULL→全體）→ line_service.multicast_text(...)
-    #           UPDATE announcements SET is_pushed=1, pushed_at=NOW()
-    return ok({'sent_count': 0})
-
-
-@bp.route('/sync-log', methods=['GET'])
-@admin_required
-def sync_log():
-    """ETL/Open Data 同步紀錄。query: source?, limit?=50
-    data: [{ log_id, source, status, records_affected, message, started_at, finished_at }]
-    """
-    # TODO(P3): SELECT * FROM api_sync_log [WHERE source=%s] ORDER BY finished_at DESC LIMIT %s
-    return ok([], count=0)
+@app.route('/api/auth/admin/login', methods=['POST'])
+def api_admin_login():
+    req_data = request.get_json()
+    email = req_data.get('email')
+    password = req_data.get('password') # 前端傳過來的明文密碼
+    
+    if not email or !password:
+        return jsonify({"message": "請填寫所有欄位"}), 400
+        
+    conn = db_admin.get_connection()
+    try:
+        with conn.cursor() as cursor:
+            # 依據你的實體 SQL：查詢符合 email 且 role 為 admin 的使用者
+            sql = "SELECT `user_id`, `username`, `email`, `password_hash`, `role` FROM `users` WHERE `email` = %s"
+            cursor.execute(sql, [email])
+            user = cursor.fetchone()
+            
+            if not user:
+                return jsonify({"message": "帳號不存在或權限不足"}), 401
+                
+            # 🛠️ 密碼比對邏輯：
+            # 實際專題通常使用 bcrypt.check_password_hash(user['password_hash'], password)
+            # 這裡先示範最直覺的字串比對，請根據你們資料庫存放的是明文還是雜湊值調整
+            if user['password_hash'] != password:
+                return jsonify({"message": "密碼輸入錯誤"}), 401
+                
+            if user['role'] != 'admin':
+                return jsonify({"message": "此權限無法登入管理後台"}), 403
+                
+            # 完全符合條件，打包符合 phpMyAdmin 要求的 Token 回傳
+            return jsonify({
+                "access_token": f"mock_jwt_token_for_user_{user['user_id']}",
+                "token_type": "bearer",
+                "user": {
+                    "user_id": user['user_id'],
+                    "username": user['username'],
+                    "email": user['email'],
+                    "role": user['role']
+                }
+            }), 200
+    finally:
+        conn.close()
