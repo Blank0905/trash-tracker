@@ -129,3 +129,92 @@ def set_credentials():
         return err(str(e), 500)
     finally:
         conn.close()
+
+
+# ─── 以下為全新加裝的管理者高階控制端點 ───
+
+@bp.route('/list', methods=['GET'])
+def get_users_list():
+    """
+    📊 讀取實體資料庫的所有用戶清單
+    前端 UsersManage.jsx 呼叫目標
+    """
+    conn = get_db_connection()
+    try:
+        # 強制使用 DictCursor，將撈出來的資料自動封裝成前端 React 最愛的 {} 物件型態
+        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+            sql = "SELECT user_id, username, email, role, status FROM users ORDER BY user_id ASC"
+            cursor.execute(sql)
+            users_data = cursor.fetchall()
+            
+        return jsonify({"users": users_data}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"資料庫讀取失敗: {str(e)}"}), 500
+    finally:
+        conn.close()
+
+
+@bp.route('/promote', methods=['POST'])
+def promote_user():
+    """
+    🔼 權限升等：將指定的一般用戶提升為管理員 (Admin)
+    """
+    data = request.get_json(silent=True) or {}
+    user_id = data.get('user_id')
+    
+    if not user_id:
+        return jsonify({"status": "error", "message": "缺少必要參數 user_id"}), 400
+        
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            sql = "UPDATE users SET role = 'admin' WHERE user_id = %s"
+            cursor.execute(sql, (user_id,))
+            conn.commit()
+            
+        return jsonify({"status": "success", "message": "權限變更成功"}), 200
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "message": f"後端執行失敗: {str(e)}"}), 500
+    finally:
+        conn.close()
+
+
+@bp.route('/suspend', methods=['POST'])
+def suspend_user():
+    """
+    🚫 違規懲處：將違規用戶黑名單停權
+    🛡️ 安全限制：管理員同級互不侵犯保護機制
+    """
+    data = request.get_json(silent=True) or {}
+    user_id = data.get('user_id')
+    
+    if not user_id:
+        return jsonify({"status": "error", "message": "缺少必要參數 user_id"}), 400
+        
+    conn = get_db_connection()
+    try:
+        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+            # 1. 第一重防禦：先向資料庫調閱該目標使用者的真實權限
+            check_sql = "SELECT role FROM users WHERE user_id = %s"
+            cursor.execute(check_sql, (user_id,))
+            target_user = cursor.fetchone()
+            
+            if not target_user:
+                return jsonify({"status": "error", "message": "找不到該使用者"}), 404
+                
+            # 2. 🚨 核心平權捍衛：若目標身份已經是 admin，後端硬性攔截並駁回，不允許互相停權！
+            if target_user['role'] == 'admin':
+                return jsonify({"status": "error", "message": "同級安全保護：管理員之間不得互相停權對方！"}), 403
+                
+            # 3. 安全通關，執行停權
+            update_sql = "UPDATE users SET status = 'suspended' WHERE user_id = %s"
+            cursor.execute(update_sql, (user_id,))
+            conn.commit()
+            
+        return jsonify({"status": "success", "message": "該用戶已成功移入黑名單停權"}), 200
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "message": f"後端執行失敗: {str(e)}"}), 500
+    finally:
+        conn.close()

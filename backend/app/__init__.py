@@ -138,6 +138,7 @@ def create_app():
     from app.api.notifications import bp as notifications_bp
     from app.api.info import bp as info_bp
     from app.api.pages import bp as pages_bp
+    from app.api.users import bp as users_bp
 
     for blueprint in (
         stations_bp, users_bp, line_bp, favorites_bp,
