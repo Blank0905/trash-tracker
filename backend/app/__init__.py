@@ -134,12 +134,11 @@ def create_app(config_class=Config):
     from app.api.favorites import bp as favorites_bp
     from app.api.notifications import bp as notifications_bp
     from app.api.info import bp as info_bp
-    from app.api.admin import bp as admin_bp
     from app.api.pages import bp as pages_bp
 
     for blueprint in (
         stations_bp, users_bp, line_bp, favorites_bp,
-        notifications_bp, info_bp, admin_bp, pages_bp,
+        notifications_bp, info_bp, pages_bp,
     ):
         app.register_blueprint(blueprint)
 
