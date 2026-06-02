@@ -9,9 +9,10 @@
    檔案：`frontend/src/pages/dashboard/ActionAddDelete.jsx`、`frontend/src/pages/dashboard/UsersManage.jsx`  
    內容：目前是 OLE 二進位，不是 JSX，建置會壞。  
    處理：兩檔原為偽裝成 .jsx 的 OLE2 Office 文件（各 59904 bytes、內容相同）。已重建為乾淨佔位 JSX 元件，並把 `Dashboard.jsx` 的 inline dummy 改成實際掛載這兩個元件。真功能（改 role、新增/刪除）待 P2-11 後端寫入 API 完成後補上。未跑完整 build（前端 node_modules 未安裝），但檔案型態已從 OLE2 變回合法 UTF-8 JSX。
-3. 對齊前後端連線 port。  
+3. ~~對齊前後端連線 port。~~ ✅ 已完成  
    檔案：`frontend/src/utils/api.js`、`backend/run.py`  
-   內容：前端打 `8000`，後端預設 `5000`，需統一（或改成環境變數）。
+   內容：前端打 `8000`，後端預設 `5000`，需統一（或改成環境變數）。  
+   處理：統一用 `5000`（對齊 `run.py` 預設與所有專案文件：README `--port=5000`、ARCHITECTURE `localhost:5000/health`、接口規格 `localhost:5000/api`）。`api.js` 的 `publicUrl`/`localUrl` 改為 `5000`；`run.py` 已是 `5000` 無需改。全前端已無殘留 `8000`。
 
 ## P1 高優先（安全與核心正確性）
 4. 移除硬編碼金鑰，全部改環境變數。  

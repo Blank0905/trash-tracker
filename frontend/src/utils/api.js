@@ -5,8 +5,8 @@ export const getBackendUrl = async () => {
   // 如果已經探測過，直接回傳快取結果
   if (cachedBackendUrl) return cachedBackendUrl;
 
-  const publicUrl = "http://knsdmty.sytes.net:8000";
-  const localUrl = "http://localhost:8000";
+  const publicUrl = "http://knsdmty.sytes.net:5000";
+  const localUrl = "http://localhost:5000";
 
   try {
     // 💡 核心機制：1秒快攻探測
