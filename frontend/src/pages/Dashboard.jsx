@@ -11,6 +11,8 @@ import TableRoutes from './dashboard/TableRoutes';
 import TableStations from './dashboard/TableStations';
 import TableStationSchedules from './dashboard/TableStationSchedules';
 import TableUsers from './dashboard/TableUsers';
+import UsersManage from './dashboard/UsersManage';
+import ActionAddDelete from './dashboard/ActionAddDelete';
 import { getBackendUrl } from '../utils/api';
 
 const Dashboard = ({ onLogout }) => {
@@ -69,8 +71,8 @@ const Dashboard = ({ onLogout }) => {
       case 'table-station_schedules': return <TableStationSchedules />;
       case 'table-users': return <TableUsers />;
       
-      case 'users-manage': return <div style={styles.dummyPage}>👥 使用者權限與帳號管理頁面 (UsersManage.jsx)</div>;
-      case 'action-add-delete': return <div style={styles.dummyPage}>➕/❌ 快速維護面板 (ActionAddDelete.jsx)</div>;
+      case 'users-manage': return <UsersManage />;
+      case 'action-add-delete': return <ActionAddDelete />;
       case 'rules-announcements': return <div style={styles.dummyPage}>📢 規則與公告發布頁面 (RulesAnnouncements.jsx)</div>;
       
       default: return <div>頁面建構中...</div>;
