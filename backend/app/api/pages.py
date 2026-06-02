@@ -11,6 +11,23 @@ from config import Config
 bp = Blueprint('pages', __name__)
 
 
+@bp.route('/liff', methods=['GET'])
+@bp.route('/liff/', methods=['GET'])
+def liff_entry():
+    """LIFF 入口頁。
+
+    LIFF Endpoint URL 設為 .../liff。當使用者點帶子路徑的 LIFF 連結（如 .../credentials），
+    LINE 不會直接開 /liff/credentials，而是開 /liff?liff.state=%2Fcredentials；
+    本頁載入 LIFF SDK 並 liff.init() 後，SDK 會自動依 liff.state 重導到 /liff/credentials。
+    入口頁沿用 index.html（它已含 liff.init）。
+    """
+    return render_template(
+        'liff/index.html',
+        liff_id=Config.LINE_LIFF_ID,
+        google_maps_api_key=Config.GOOGLE_MAPS_API_KEY,
+    )
+
+
 @bp.route('/liff/<page>', methods=['GET'])
 def liff_page(page):
     try:

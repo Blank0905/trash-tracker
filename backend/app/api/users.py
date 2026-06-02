@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, g
 from werkzeug.security import generate_password_hash
 from app.db import get_db_connection
-from app.utils.responses import ok
+from app.utils.responses import ok, err
 from app.utils.auth import line_required
 import pymysql
 
@@ -80,3 +80,52 @@ def get_me():
         'role': u['role'],
         'status': u['status'],
     })
+
+
+@bp.route('/credentials', methods=['PUT'])
+@line_required
+def set_credentials():
+    """設定 / 更新本人的 email 與密碼（credentials.html 表單送出目標）。
+
+    body: { "email": "a@b.com", "password": "至少6碼" }
+    email 與其他人重複時回 409。
+    """
+    data = request.get_json(silent=True) or {}
+    email = (data.get('email') or '').strip()
+    password = data.get('password')
+
+    if not email or not password:
+        return err('請提供 email 與密碼', 400)
+    if len(password) < 6:
+        return err('密碼至少需 6 碼', 400)
+
+    user_id = g.current_user['user_id']
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            # email 為 UNIQUE，不可與其他使用者重複
+            cursor.execute(
+                "SELECT user_id FROM users WHERE email = %s AND user_id != %s",
+                (email, user_id)
+            )
+            if cursor.fetchone():
+                return err('此 email 已被使用', 409)
+
+            cursor.execute(
+                "UPDATE users SET email = %s, password_hash = %s WHERE user_id = %s",
+                (email, generate_password_hash(password), user_id)
+            )
+            conn.commit()
+            return ok(None)
+
+    except pymysql.err.IntegrityError as e:
+        conn.rollback()
+        # 1062 = Duplicate entry（email UNIQUE 撞號的兜底）
+        if e.args and e.args[0] == 1062:
+            return err('此 email 已被使用', 409)
+        return err(str(e), 500)
+    except Exception as e:
+        conn.rollback()
+        return err(str(e), 500)
+    finally:
+        conn.close()
