@@ -42,16 +42,15 @@ def list_favorites():
             data = []
 
             for row in rows:
-                fav_id, station_id, alias, station_name, latitude, longitude, arrive_time = row
-
+                # 連線池為 PyMySQL DictCursor，fetchall() 回傳的是 dict，須用欄位名取值
                 data.append({
-                    'fav_id': fav_id,
-                    'station_id': station_id,
-                    'alias': alias,
-                    'station_name': station_name,
-                    'latitude': float(latitude) if latitude is not None else None,
-                    'longitude': float(longitude) if longitude is not None else None,
-                    'arrive_time': str(arrive_time) if arrive_time is not None else None
+                    'fav_id': row['fav_id'],
+                    'station_id': row['station_id'],
+                    'alias': row['alias'],
+                    'station_name': row['station_name'],
+                    'latitude': float(row['latitude']) if row['latitude'] is not None else None,
+                    'longitude': float(row['longitude']) if row['longitude'] is not None else None,
+                    'arrive_time': str(row['arrive_time']) if row['arrive_time'] is not None else None
                 })
 
             return ok(data, count=len(data))

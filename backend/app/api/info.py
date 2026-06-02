@@ -41,16 +41,14 @@ def bag_regulations():
             data = []
 
             for row in rows:
-                reg_id, city, bag_size, volume_liters, price, purchase_locations, notes = row
-
                 data.append({
-                    'reg_id': reg_id,
-                    'city': city,
-                    'bag_size': bag_size,
-                    'volume_liters': float(volume_liters) if volume_liters is not None else None,
-                    'price': float(price) if price is not None else None,
-                    'purchase_locations': purchase_locations,
-                    'notes': notes
+                    'reg_id': row['reg_id'],
+                    'city': row['city'],
+                    'bag_size': row['bag_size'],
+                    'volume_liters': float(row['volume_liters']) if row['volume_liters'] is not None else None,
+                    'price': float(row['price']) if row['price'] is not None else None,
+                    'purchase_locations': row['purchase_locations'],
+                    'notes': row['notes']
                 })
 
             return ok(data, count=len(data))
@@ -93,14 +91,12 @@ def bulky_waste():
             data = []
 
             for row in rows:
-                info_id, city, title, content, updated_at = row
-
                 data.append({
-                    'info_id': info_id,
-                    'city': city,
-                    'title': title,
-                    'content': content,
-                    'updated_at': str(updated_at) if updated_at is not None else None
+                    'info_id': row['info_id'],
+                    'city': row['city'],
+                    'title': row['title'],
+                    'content': row['content'],
+                    'updated_at': str(row['updated_at']) if row['updated_at'] is not None else None
                 })
 
             return ok(data, count=len(data))
@@ -144,14 +140,12 @@ def announcements():
             data = []
 
             for row in rows:
-                announcement_id, title, content, target_city, created_at = row
-
                 data.append({
-                    'announcement_id': announcement_id,
-                    'title': title,
-                    'content': content,
-                    'target_city': target_city,
-                    'created_at': str(created_at) if created_at is not None else None
+                    'announcement_id': row['announcement_id'],
+                    'title': row['title'],
+                    'content': row['content'],
+                    'target_city': row['target_city'],
+                    'created_at': str(row['created_at']) if row['created_at'] is not None else None
                 })
 
             return ok(data, count=len(data))

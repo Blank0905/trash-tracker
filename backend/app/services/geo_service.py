@@ -37,7 +37,7 @@ def find_nearby_stations(lat, lng, radius_km=2.0, limit=20):
     """
     
     try:
-        with conn.cursor(dictionary=True) as cursor:
+        with conn.cursor() as cursor:
             cursor.execute(sql, (lat, lng, lat, lat_min, lat_max, lng_min, lng_max, radius_km, limit))
             results = cursor.fetchall()
     finally:
@@ -58,8 +58,8 @@ def get_station_detail(station_id):
                r.route_id, r.route_name, r.route_code,
                a.city, a.district, a.village
         FROM stations s
-        JOIN routes r USING (route_id)
-        JOIN areas a USING (areas_id)
+        JOIN routes r ON r.route_id = s.route_id
+        JOIN areas a ON a.areas_id = s.areas_id
         WHERE s.station_id = %s
     """
     #日=0, 一=1..
@@ -71,7 +71,7 @@ def get_station_detail(station_id):
     """
     
     try:
-        with conn.cursor(dictionary=True) as cursor:
+        with conn.cursor() as cursor:
             cursor.execute(station_sql, (station_id,))
             station_data = cursor.fetchone()
             
@@ -123,7 +123,7 @@ def next_arrival(station_id):
     """
     
     try:
-        with conn.cursor(dictionary=True) as cursor:
+        with conn.cursor() as cursor:
             cursor.execute(time_sql, (station_id,))
             station = cursor.fetchone()
             if not station:
@@ -186,7 +186,7 @@ def list_route_stations(route_id):
         ORDER BY sequence_order ASC
     """
     try:
-        with conn.cursor(dictionary=True) as cursor:
+        with conn.cursor() as cursor:
             cursor.execute(sql, (route_id,))
             results = cursor.fetchall()
     finally:
