@@ -15,6 +15,3 @@ class Config:
     LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN') or 'LINE_CHANNEL_ACCESS_TOKEN'
     LINE_LIFF_ID = os.environ.get('LINE_LIFF_ID') or 'LINE_LIFF_ID'
     LINE_CHANNEL_ID = os.environ.get('LINE_CHANNEL_ID') or ''  # 未來 LIFF ID Token 驗證用
-
-    # Google Maps（LIFF 地圖頁用）
-    GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY') or ''
