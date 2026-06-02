@@ -9,14 +9,14 @@ from linebot.v3.messaging import (
     TextMessage
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent, FollowEvent
-from config import Config
+import os
 from app.db import get_db_connection
 
 bp = Blueprint('line_webhook', __name__, url_prefix='/api/webhooks')
 
 # LINE Bot 設定
-configuration = Configuration(access_token=Config.LINE_CHANNEL_ACCESS_TOKEN)
-handler = WebhookHandler(Config.LINE_CHANNEL_SECRET)
+configuration = Configuration(access_token=os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", ""))
+handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET", ""))
 
 
 @bp.route('/line', methods=['POST'])
@@ -109,7 +109,7 @@ def handle_message(event):
     # LINE 會把 /credentials 接到你設定的 LIFF Endpoint URL（共同前綴 https://<ngrok>/liff）後面；
     # 其他頁同理在連結尾巴換頁名即可：.../search、.../map ...
     elif user_text == '綁定信箱':
-        liff_url = f"https://liff.line.me/{Config.LINE_LIFF_ID}/credentials"
+        liff_url = f"https://liff.line.me/{os.environ.get("LINE_LIFF_ID", "")}/credentials"
         reply_content = f"請點擊下方連結綁定電子信箱和密碼：\n{liff_url}"
 
         with ApiClient(configuration) as api_client:
@@ -123,7 +123,7 @@ def handle_message(event):
 
     # 開啟地圖頁（附近站點以 Google Maps marker 呈現）
     elif user_text == '地圖':
-        liff_url = f"https://liff.line.me/{Config.LINE_LIFF_ID}/map"
+        liff_url = f"https://liff.line.me/{os.environ.get("LINE_LIFF_ID", "")}/map"
         reply_content = f"點下方連結開啟附近垃圾車地圖：\n{liff_url}"
 
         with ApiClient(configuration) as api_client:
@@ -137,7 +137,7 @@ def handle_message(event):
 
     # 開啟清單查詢頁（附近站點清單 + 收運班表）
     elif user_text == '查詢':
-        liff_url = f"https://liff.line.me/{Config.LINE_LIFF_ID}/search"
+        liff_url = f"https://liff.line.me/{os.environ.get("LINE_LIFF_ID", "")}/search"
         reply_content = f"點下方連結查詢附近站點：\n{liff_url}"
 
         with ApiClient(configuration) as api_client:
@@ -151,7 +151,7 @@ def handle_message(event):
 
     # 開啟我的收藏（最愛）清單頁
     elif user_text in ('最愛', '收藏'):
-        liff_url = f"https://liff.line.me/{Config.LINE_LIFF_ID}/favorites"
+        liff_url = f"https://liff.line.me/{os.environ.get("LINE_LIFF_ID", "")}/favorites"
         reply_content = f"點下方連結查看你的收藏清單：\n{liff_url}"
 
         with ApiClient(configuration) as api_client:
@@ -165,7 +165,7 @@ def handle_message(event):
 
     # 開啟到站通知設定頁
     elif user_text in ('通知', '提醒'):
-        liff_url = f"https://liff.line.me/{Config.LINE_LIFF_ID}/notifications"
+        liff_url = f"https://liff.line.me/{os.environ.get("LINE_LIFF_ID", "")}/notifications"
         reply_content = f"點下方連結設定到站通知：\n{liff_url}"
 
         with ApiClient(configuration) as api_client:

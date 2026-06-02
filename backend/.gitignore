@@ -1,1 +1,2 @@
-config.py
+# 真實金鑰放 .env（不進版控），範本見 .env.example
+.env

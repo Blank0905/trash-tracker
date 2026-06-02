@@ -8,12 +8,12 @@
 
 ## 本機啟動（測試 LINE webhook）
 
-前置：先啟動 MySQL（XAMPP），且 `backend/config.py` 已填入 LINE 金鑰。
+前置：先啟動 MySQL（XAMPP），且 `backend/.env` 已填入 LINE 金鑰。
 
 ### 環境設置
 
-把 example_config.py 改成config.py 
-填寫 config.py 
+複製 `backend/.env.example` 為 `backend/.env`
+填寫 `.env`（DB / LINE / Google Maps 金鑰）
 
 ### 啟動後端
 

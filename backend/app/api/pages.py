@@ -4,9 +4,9 @@
 → 新增一個 LIFF 頁面，只要在 templates/liff/ 放一支 .html 即可，**不必修改本檔**，
    因此多位前端可同時各自加頁、互不衝突。
 """
+import os
 from flask import Blueprint, render_template, abort
 from jinja2 import TemplateNotFound
-from config import Config
 
 bp = Blueprint('pages', __name__)
 
@@ -23,7 +23,7 @@ def liff_entry():
     """
     return render_template(
         'liff/index.html',
-        liff_id=Config.LINE_LIFF_ID,
+        liff_id=os.environ.get("LINE_LIFF_ID", ""),
     )
 
 
@@ -32,7 +32,7 @@ def liff_page(page):
     try:
         return render_template(
             f'liff/{page}.html',
-            liff_id=Config.LINE_LIFF_ID,
+            liff_id=os.environ.get("LINE_LIFF_ID", ""),
         )
     except TemplateNotFound:
         abort(404)

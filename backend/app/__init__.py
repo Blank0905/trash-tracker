@@ -1,11 +1,15 @@
 from flask import Flask, request, jsonify
 from flask.json.provider import DefaultJSONProvider
 import os
+from dotenv import load_dotenv
+
+# 載入 backend/.env（須在 import app.db 之前，確保 os.environ 已有 DB 設定）
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
+
 from flask import Flask
 from flask_cors import CORS
 import decimal
 import datetime
-from config import Config
 from app.db import check_db_health, get_table_structure, browse_table, get_db_connection
 
 # 💡 核心武器：自訂 JSON 轉換器，自動把 Decimal 轉浮點數、time/timedelta 轉字串
@@ -31,7 +35,7 @@ def _start_scheduler(app):
     from app.tasks.data_sync import execute_daily_data_sync
 
     def _with_context(func):
-        # 背景執行緒需自行推入 app context（line_service 會讀 current_app.config）
+        # 背景執行緒需自行推入 app context（任務內會用到 current_app / DB 連線）
         def wrapper():
             with app.app_context():
                 func()
@@ -45,10 +49,9 @@ def _start_scheduler(app):
     app.scheduler = scheduler
 
 
-def create_app(config_class=Config):
+def create_app():
     app = Flask(__name__)
-    app.config.from_object(config_class)
-    
+
     # 注入自訂的 JSON 處理器
     app.json_provider_class = CustomJSONProvider
     app.json = CustomJSONProvider(app)

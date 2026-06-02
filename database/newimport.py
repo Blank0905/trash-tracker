@@ -20,16 +20,21 @@ def load_db_config() -> Dict[str, object]:
     }
 
     root_dir = Path(__file__).resolve().parents[1]
-    config_path = root_dir / "backend"
-    if str(config_path) not in os.sys.path:
-        os.sys.path.append(str(config_path))
-
+    env_path = root_dir / "backend" / ".env"
     try:
-        from config import DB_CONFIG  # type: ignore
+        from dotenv import load_dotenv
 
-        merged = {**default, **DB_CONFIG}
+        load_dotenv(env_path)
     except Exception:
-        merged = default
+        pass
+
+    merged = {
+        "host": os.environ.get("DB_HOST", default["host"]),
+        "port": os.environ.get("DB_PORT", default["port"]),
+        "database": os.environ.get("DB_NAME", default["database"]),
+        "user": os.environ.get("DB_USER", default["user"]),
+        "password": os.environ.get("DB_PASSWORD", default["password"]),
+    }
 
     try:
         merged["port"] = int(merged.get("port", 3306))

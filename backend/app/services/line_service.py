@@ -1,5 +1,5 @@
 import logging
-from flask import current_app
+import os
 from linebot.v3.messaging import (
     Configuration,
     ApiClient,
@@ -21,10 +21,10 @@ class LineService:
     def _get_api(self):
         """動態取得 LINE Messaging API 實例"""
         # 從 Flask config 讀取 LINE 的憑證
-        channel_access_token = current_app.config.get("LINE_CHANNEL_ACCESS_TOKEN")
+        channel_access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN")
 
         if not channel_access_token:
-            logger.error("Config 中缺少 LINE_CHANNEL_ACCESS_TOKEN 設定！")
+            logger.error("環境變數缺少 LINE_CHANNEL_ACCESS_TOKEN！")
             return None
 
         configuration = Configuration(access_token=channel_access_token)
