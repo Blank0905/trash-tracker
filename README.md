@@ -1,4 +1,4 @@
-# 北北基垃圾車動態與資源回收整合平台
+﻿# 北北基垃圾車動態與資源回收整合平台
 
 ## 資料來源 (Open Data)
 
@@ -13,11 +13,11 @@
 ### 環境設置
 
 複製 `backend/.env.example` 為 `backend/.env`
-填寫 `.env`（DB / LINE / Google Maps 金鑰）
+填寫 `.env`（DB / LINE）
 
 ### 啟動後端
 
-PowerShell：
+PowerShell： (這個我不知道有沒有用 我是用CMD的 讚讚喔)
 
 ```powershell
 cd backend
