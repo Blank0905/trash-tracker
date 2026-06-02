@@ -139,10 +139,12 @@ def create_app():
     from app.api.info import bp as info_bp
     from app.api.pages import bp as pages_bp
     from app.api.users import bp as users_bp
+    from app.api.announcements import bp as announcements_bp
+    from app.api.rules import bp as rules_bp
 
     for blueprint in (
         stations_bp, users_bp, line_bp, favorites_bp,
-        notifications_bp, info_bp, pages_bp,
+        notifications_bp, info_bp, pages_bp, announcements_bp, rules_bp
     ):
         app.register_blueprint(blueprint)
 

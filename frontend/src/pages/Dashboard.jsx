@@ -13,6 +13,7 @@ import TableStationSchedules from './dashboard/TableStationSchedules';
 import TableUsers from './dashboard/TableUsers';
 import UsersManage from './dashboard/UsersManage';
 import ActionAddDelete from './dashboard/ActionAddDelete';
+import RulesAnnouncements from './dashboard/RulesAnnouncements';
 import { getBackendUrl } from '../utils/api';
 
 const Dashboard = ({ onLogout }) => {
@@ -73,7 +74,7 @@ const Dashboard = ({ onLogout }) => {
       
       case 'users-manage': return <UsersManage />;
       case 'action-add-delete': return <ActionAddDelete />;
-      case 'rules-announcements': return <div style={styles.dummyPage}>📢 規則與公告發布頁面 (RulesAnnouncements.jsx)</div>;
+      case 'rules-announcements': return <RulesAnnouncements />;
       
       default: return <div>頁面建構中...</div>;
     }
