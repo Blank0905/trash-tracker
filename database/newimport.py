@@ -4,10 +4,9 @@ import re
 from pathlib import Path
 from typing import Dict, Optional
 
-import mysql.connector
 import numpy as np
 import pandas as pd
-from mysql.connector import Error
+import pymysql
 
 
 def load_db_config() -> Dict[str, object]:
@@ -54,14 +53,14 @@ class GarbageTruckImporter:
     ) -> None:
         print(f"連線資料庫 host={host} port={port} database={database}")
 
-        self.conn = mysql.connector.connect(
+        self.conn = pymysql.connect(
             host=host,
             port=port,
             database=database,
             user=user,
             password=password,
             charset="utf8mb4",
-            connection_timeout=60,
+            connect_timeout=60,
             read_timeout=600,
             write_timeout=600,
             autocommit=False,
@@ -437,7 +436,7 @@ def run_import() -> None:
         importer.import_keelung(resolve_csv_path("route_klepb.csv"))
         importer.conn.commit()
         print("全部資料匯入完成")
-    except Error as error:
+    except pymysql.MySQLError as error:
         if importer:
             importer.conn.rollback()
         print(f"資料庫錯誤 {error}")
