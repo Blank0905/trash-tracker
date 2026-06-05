@@ -19,7 +19,6 @@
   <script>
     // 後端注入（見 app/api/pages.py）
     const LIFF_ID = "{{ liff_id }}";
-    const GOOGLE_MAPS_API_KEY = "{{ google_maps_api_key }}";
 
     // 統一的後端呼叫方式：自動帶上 X-Line-User-Id（簡易版身分識別）
     async function api(path, options = {}) {

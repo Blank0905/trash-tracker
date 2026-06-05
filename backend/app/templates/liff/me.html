@@ -46,6 +46,12 @@
             justify-content: space-between;
             gap: 10px;
         }
+        .title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+        }
         .card-title {
             font-size: 1.05rem;
             font-weight: 600;
@@ -54,6 +60,18 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
+        /* 站名旁的改別名鉛筆鈕 */
+        .icon-btn {
+            flex-shrink: 0;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 1rem;
+            line-height: 1;
+            padding: 2px;
+            cursor: pointer;
+        }
+        .icon-btn:active { transform: scale(0.9); }
         .fav-sub {
             font-size: 0.85rem;
             color: var(--text-muted);
@@ -90,26 +108,36 @@
         .days input:disabled { cursor: not-allowed; }
         .muted { color: var(--text-muted); margin-top: 14px; font-size: 0.9rem; }
 
-        .row { margin-top: 14px; font-size: 0.9rem; }
-        select {
-            background: #2c2c2c;
-            color: var(--text-main);
-            border: 1px solid #3a3a3a;
-            border-radius: 6px;
-            padding: 4px 8px;
-            font-size: 0.9rem;
-            margin: 0 4px;
-        }
-        select:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .card-foot {
+        .row {
             display: flex;
             align-items: center;
-            justify-content: flex-end;
-            gap: 8px;
+            justify-content: space-between;
+            gap: 10px;
             margin-top: 14px;
+            font-size: 0.9rem;
         }
-        .btn-rename { background: #2c2c2c; }
+        select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-color: #2c2c2c;
+            /* 自訂下拉箭頭，取代瀏覽器原生箭頭以縮窄框寬 */
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 5px center;
+            background-size: 8px;
+            color: var(--text-main);
+            border: 1px solid #3a3a3a;
+            border-radius: 4px;
+            padding: 3px 16px 3px 6px;
+            font-size: 0.85rem;
+            margin: 0 3px;
+            width: 50px;   /* 固定寬度，避免被最寬選項「自訂…」撐大 */
+        }
+        select:disabled { opacity: 0.5; cursor: not-allowed; }
+        /* 與下拉同排的取消收藏鈕：字小一點避免換行 */
+        .row .btn-small { padding: 5px 10px; font-size: 0.78rem; }
+
         .btn-small {
             border: none;
             border-radius: 8px;
@@ -163,9 +191,9 @@
     // 建立「提前 N 分鐘」下拉；目前值若非預設則額外補一個已選中的自訂項
     function minsOptions(current) {
         const presets = MINS_PRESETS.map(m =>
-            `<option value="${m}" ${m === current ? 'selected' : ''}>${m} 分</option>`).join('');
+            `<option value="${m}" ${m === current ? 'selected' : ''}>${m}</option>`).join('');
         const custom = MINS_PRESETS.includes(current) ? ''
-            : `<option value="${current}" selected>${current} 分</option>`;
+            : `<option value="${current}" selected>${current}</option>`;
         return presets + custom + '<option value="custom">自訂…</option>';
     }
 
@@ -195,16 +223,18 @@
             return `
             <div class="card ${active ? '' : 'inactive'}" data-station-id="${s.station_id}" data-active="${active ? 1 : 0}">
                 <div class="card-head">
-                    <div class="card-title">${esc(title)}</div>
+                    <div class="title-wrap">
+                        <span class="card-title">${esc(title)}</span>
+                        <button class="icon-btn" data-action="rename" data-alias="${esc(s.alias || '')}" title="改別名">✏️</button>
+                    </div>
                     <button class="toggle ${active ? 'on' : ''}" data-action="toggle">${active ? '通知開啟' : '通知關閉'}</button>
                 </div>
                 <div class="fav-sub">${sub}</div>
                 <div class="days">${dayChecks}</div>
-                <div class="row">提前
-                    <select data-action="mins" ${active ? '' : 'disabled'}>${minsOptions(remind)}</select>
-                    分鐘提醒</div>
-                <div class="card-foot">
-                    <button class="btn-small btn-rename" data-action="rename" data-alias="${esc(s.alias || '')}">改別名</button>
+                <div class="row">
+                    <span>提前
+                        <select data-action="mins" ${active ? '' : 'disabled'}>${minsOptions(remind)}</select>
+                        分鐘提醒</span>
                     <button class="btn-small btn-delete" data-action="delete">取消收藏</button>
                 </div>
             </div>`;
