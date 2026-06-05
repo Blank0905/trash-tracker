@@ -1,6 +1,6 @@
 # 北北基垃圾車追蹤平台 — 系統架構文件
 
-> 文件版本：v2.1（2026-06-02）  
+> 文件版本：v2.2（2026-06-05）  
 > 文件定位：以目前程式碼實作為準，未實作項目明確標示為「規劃中」。
 
 ---
@@ -20,6 +20,7 @@
 - 使用者綁定與個人資料（LINE 綁定、查自身、設 email/密碼）。
 - 收藏 CRUD。
 - 到站通知 CRUD（已改為逐星期開關）。
+- 收藏＋通知整併 API（`/api/me/*`）：LIFF `me` 頁在收藏站上直接設定逐日通知。
 - LINE Webhook（加好友自動綁定 + 關鍵字導向 LIFF）。
 - LIFF 通用頁路由與 deep link 入口。
 - 背景排程（通知檢查、每日 ETL、快取清理）。
@@ -37,16 +38,17 @@
 
 ### 2.2 `app:create_app`（主入口）
 
-`backend/app/__init__.py` 目前註冊 8 個 Blueprint：
+`backend/app/__init__.py` 目前註冊的 Blueprint（節錄）：
 
 1. `stations`
 2. `users`
 3. `line_webhook`
-4. `favorites`
-5. `notifications`
+4. `favorites` #預計不用了
+5. `notifications` #預計不用了
 6. `info`
 7. `admin`
 8. `pages`
+9. `me`（收藏＋通知整併）
 
 另提供：
 
@@ -89,14 +91,15 @@
 - `POST /api/webhooks/line`
 - 已支援 `FollowEvent` 自動綁定與多關鍵字回覆（見第五章）。
 
-#### `favorites`（已實作）
+#### `favorites`（已實作；⚠️ 舊設計，由 `/api/me/*` 取代，保留待清理）
 
 - `GET/POST/PATCH/DELETE /api/favorites/...`
 
-#### `notifications`（已實作）
+#### `notifications`（已實作；⚠️ 舊設計，由 `/api/me/*` 取代，保留待清理）
 
 - `GET/POST/PATCH/DELETE /api/notifications/...`
 - 已對齊逐星期開關欄位（`notify_d0~notify_d6`）。
+- 注意：`notifications` 資料表仍由 `/api/me/*` 與背景推播共用，僅此組 API 不再使用。
 
 #### `info`（已實作）
 
@@ -115,6 +118,16 @@
 - `GET /liff`
 - `GET /liff/`
 - `GET /liff/<page>`
+
+#### `me`（已實作，整併收藏＋通知）
+
+- `GET /api/me/stations`：列出本人收藏站，每站附 `collect_days`（該站收運星期）與 `notify`（通知狀態，未設為 `null`）。
+- `POST /api/me/stations`：新增收藏 `{ station_id, alias? }`。
+- `PATCH /api/me/stations/<station_id>`：更新別名 `{ alias }`。
+- `DELETE /api/me/stations/<station_id>`：取消收藏，同交易連帶刪除該站通知。
+- `PATCH /api/me/stations/<station_id>/notify`：開關／更新通知 `{ is_active?, remind_before_mins?, notify_days? }`；首次建立時逐日預設依該站收運日（有收=1、沒收=0），`remind_before_mins` 預設 5、限 1–60 整數。
+
+供 LIFF `me` 頁使用，取代舊的 `favorites` / `notifications` API。
 
 ### 3.2 services 層（`backend/app/services`）
 
@@ -208,6 +221,7 @@
 - `search`
 - `map`
 - `notifications`
+- `me`（收藏＋通知整併頁）
 
 已無 `register.html` 註冊頁。
 
@@ -268,6 +282,7 @@
 5. `db_admin.py` 目前空檔。
 6. 兩份 `newimport.py` 仍可再整併。
 7. 未使用設定（如 `Config.SQLALCHEMY_*`、`GOOGLE_MAPS_API_KEY`）清理。
+8. 舊 `favorites` / `notifications` API 已由 `/api/me/*` 取代，待移除。
 
 ---
 

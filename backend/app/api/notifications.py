@@ -1,5 +1,8 @@
 """到站通知設定 API（負責人：P2）
 
+⚠️ 舊設計：me 頁已改用 /api/me/stations 整併 API（收藏＋通知合一），不再使用本檔。
+   保留以待清理；notifications 資料表仍由 me API 與背景推播 notifier 共用，未變動。
+
 皆需 X-Line-User-Id（line_required）。資料表：notifications。
 通知改為「逐星期」：notify_d0~d6 對應 day_of_week（0=日…6=六），不再分垃圾類別。
 """

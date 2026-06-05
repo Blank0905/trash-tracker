@@ -1,5 +1,8 @@
 """常用清運定點（收藏）API（負責人：P2）
 
+⚠️ 舊設計：me 頁已改用 /api/me/stations 整併 API（收藏＋通知合一），不再使用本檔。
+   保留以待清理（背景推播與其他頁若仍依賴 favorites 表，資料表本身不受影響）。
+
 皆需 X-Line-User-Id（line_required）；操作對象限本人（用 g.current_user['user_id']）。
 資料表：favorites（unique(user_id, station_id)）。
 """

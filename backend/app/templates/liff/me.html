@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>收藏與通知</title>
+    <!-- 引入 LINE LIFF SDK -->
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        :root {
+            --primary: #00B900; /* LINE Green */
+            --danger: #e74c3c;
+            --bg-color: #121212;
+            --surface: #1e1e1e;
+            --text-main: #ffffff;
+            --text-muted: #888888;
+        }
+        * { box-sizing: border-box; }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+        .container { width: 100%; max-width: 420px; }
+        h2 { text-align: center; font-weight: 600; letter-spacing: 1px; }
+        #status { text-align: center; color: var(--text-muted); margin: 30px 0; }
+
+        .card {
+            background-color: var(--surface);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .card.inactive .days { opacity: 0.45; }
+
+        .card-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .card-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .fav-sub {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* 通知總開關 */
+        .toggle {
+            flex-shrink: 0;
+            border: none;
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #fff;
+            background: #555;
+            cursor: pointer;
+        }
+        .toggle.on { background: var(--primary); }
+        .toggle:active { transform: scale(0.96); }
+
+        .days {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+            font-size: 0.9rem;
+        }
+        .days label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+        .days input { accent-color: var(--primary); width: 16px; height: 16px; }
+        .days input:disabled { cursor: not-allowed; }
+        .muted { color: var(--text-muted); margin-top: 14px; font-size: 0.9rem; }
+
+        .row { margin-top: 14px; font-size: 0.9rem; }
+        select {
+            background: #2c2c2c;
+            color: var(--text-main);
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 0.9rem;
+            margin: 0 4px;
+        }
+        select:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .card-foot {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 14px;
+        }
+        .btn-rename { background: #2c2c2c; }
+        .btn-small {
+            border: none;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #fff;
+            cursor: pointer;
+        }
+        .btn-delete { background: var(--danger); }
+        .btn-small:active { transform: scale(0.96); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>收藏與通知</h2>
+    <div id="status">載入中…</div>
+    <div id="list"></div>
+</div>
+
+<script>
+    // 透過 Flask 後端渲染時，自動塞入 .env 裡的 LIFF ID
+    const LIFF_ID = "{{ liff_id }}";
+    let lineUserId = null;
+
+    // day_of_week：0=日…6=六，對齊後端 notify_d{day}
+    const DOW = ['日', '一', '二', '三', '四', '五', '六'];
+    // 「提前 N 分鐘」下拉預設選項；其餘走「自訂」（1-60 整數）
+    const MINS_PRESETS = [5, 10, 15, 20];
+
+    // 統一的後端呼叫方式：自動帶上 X-Line-User-Id（簡易版身分識別）
+    async function api(path, options = {}) {
+        const headers = Object.assign(
+            { 'Content-Type': 'application/json', 'X-Line-User-Id': lineUserId || '' },
+            options.headers || {}
+        );
+        const res = await fetch(`/api${path}`, { ...options, headers });
+        return res.json();
+    }
+
+    // 防 XSS：插入 DOM 前轉義
+    function esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    const statusEl = document.getElementById('status');
+    const listEl = document.getElementById('list');
+
+    // 建立「提前 N 分鐘」下拉；目前值若非預設則額外補一個已選中的自訂項
+    function minsOptions(current) {
+        const presets = MINS_PRESETS.map(m =>
+            `<option value="${m}" ${m === current ? 'selected' : ''}>${m} 分</option>`).join('');
+        const custom = MINS_PRESETS.includes(current) ? ''
+            : `<option value="${current}" selected>${current} 分</option>`;
+        return presets + custom + '<option value="custom">自訂…</option>';
+    }
+
+    function render(items) {
+        if (!items || items.length === 0) {
+            statusEl.style.display = 'block';
+            statusEl.innerText = '尚無收藏';
+            listEl.innerHTML = '';
+            return;
+        }
+        statusEl.style.display = 'none';
+        listEl.innerHTML = items.map(s => {
+            const time = s.arrive_time ? String(s.arrive_time).slice(0, 5) : '—';
+            const title = s.alias || s.station_name;                 // 有別名優先顯示別名
+            const sub = (s.alias ? esc(s.station_name) + ' · ' : '') + '表定到站 ' + time;
+
+            const active = !!(s.notify && Number(s.notify.is_active) === 1);
+            const notifyDays = (s.notify && s.notify.notify_days) || {};
+            const remind = (s.notify && s.notify.remind_before_mins) || 5;
+            const days = s.collect_days || [];
+            // 只列出該站「有收運的星期」，每天一個開關（對應 notify_d{day}）；通知關閉時 disabled
+            const dayChecks = days.length
+                ? days.map(d => `<label><input type="checkbox" data-day="${d}" `
+                    + `${Number(notifyDays[d]) === 1 ? 'checked' : ''} ${active ? '' : 'disabled'}> 週${DOW[d]}</label>`).join('')
+                : '<div class="muted">本站近期無收運</div>';
+
+            return `
+            <div class="card ${active ? '' : 'inactive'}" data-station-id="${s.station_id}" data-active="${active ? 1 : 0}">
+                <div class="card-head">
+                    <div class="card-title">${esc(title)}</div>
+                    <button class="toggle ${active ? 'on' : ''}" data-action="toggle">${active ? '通知開啟' : '通知關閉'}</button>
+                </div>
+                <div class="fav-sub">${sub}</div>
+                <div class="days">${dayChecks}</div>
+                <div class="row">提前
+                    <select data-action="mins" ${active ? '' : 'disabled'}>${minsOptions(remind)}</select>
+                    分鐘提醒</div>
+                <div class="card-foot">
+                    <button class="btn-small btn-rename" data-action="rename" data-alias="${esc(s.alias || '')}">改別名</button>
+                    <button class="btn-small btn-delete" data-action="delete">取消收藏</button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    async function loadStations() {
+        const res = await api('/me/stations');
+        if (res.status === 'success') {
+            render(res.data);
+        } else {
+            statusEl.style.display = 'block';
+            statusEl.innerText = '載入失敗：' + (res.message || '請稍後再試。');
+        }
+    }
+
+    // 下拉/勾選改變 → 即時 PATCH（失敗則提示並重新載入校正）
+    listEl.addEventListener('change', async (e) => {
+        // 提前分鐘下拉
+        const sel = e.target.closest('select[data-action="mins"]');
+        if (sel) {
+            const stationId = sel.closest('.card').dataset.stationId;
+            let mins;
+            if (sel.value === 'custom') {
+                const input = prompt('提前幾分鐘提醒？（1-60 的整數）', '');
+                const n = parseInt(input, 10);
+                if (!Number.isInteger(n) || n < 1 || n > 60) {
+                    if (input !== null) alert('請輸入 1 到 60 的整數');
+                    loadStations();   // 還原下拉選項
+                    return;
+                }
+                mins = n;
+            } else {
+                mins = parseInt(sel.value, 10);
+            }
+            const r = await api(`/me/stations/${stationId}/notify`, {
+                method: 'PATCH',
+                body: JSON.stringify({ remind_before_mins: mins })
+            });
+            if (r.status === 'success') loadStations();   // 重載以反映自訂值進下拉
+            else { alert('更新失敗，請稍後再試。'); loadStations(); }
+            return;
+        }
+
+        // 勾選某天
+        const cb = e.target.closest('input[data-day]');
+        if (!cb) return;
+        const stationId = cb.closest('.card').dataset.stationId;
+        const day = cb.dataset.day;
+        const r = await api(`/me/stations/${stationId}/notify`, {
+            method: 'PATCH',
+            body: JSON.stringify({ notify_days: { [day]: cb.checked ? 1 : 0 } })
+        });
+        if (r.status !== 'success') {
+            alert('更新失敗，請稍後再試。');
+            loadStations();
+        }
+    });
+
+    // 通知總開關 / 取消收藏
+    listEl.addEventListener('click', async (e) => {
+        const card = e.target.closest('.card');
+        if (!card) return;
+        const stationId = card.dataset.stationId;
+
+        const toggle = e.target.closest('button[data-action="toggle"]');
+        if (toggle) {
+            // 關閉→開啟時，後端會建立通知並依該站收運日預設勾選，故重載以反映
+            const next = card.dataset.active === '1' ? 0 : 1;
+            const r = await api(`/me/stations/${stationId}/notify`, {
+                method: 'PATCH',
+                body: JSON.stringify({ is_active: next })
+            });
+            if (r.status === 'success') loadStations();
+            else alert('更新失敗，請稍後再試。');
+            return;
+        }
+
+        const rename = e.target.closest('button[data-action="rename"]');
+        if (rename) {
+            const next = prompt('輸入新的別名（留空則清除）：', rename.dataset.alias || '');
+            if (next === null) return;   // 使用者取消
+            const r = await api(`/me/stations/${stationId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ alias: next })
+            });
+            if (r.status === 'success') loadStations();
+            else alert('更新失敗：' + (r.message || '請稍後再試。'));
+            return;
+        }
+
+        const del = e.target.closest('button[data-action="delete"]');
+        if (del) {
+            if (!confirm('取消收藏會一併移除此站的通知設定，確定嗎？')) return;
+            const r = await api(`/me/stations/${stationId}`, { method: 'DELETE' });
+            if (r.status === 'success') loadStations();
+            else alert('刪除失敗：' + (r.message || '請稍後再試。'));
+        }
+    });
+
+    // LIFF 初始化 → 取得 userId → 載入收藏站（此 API 需登入）
+    async function main() {
+        await liff.init({ liffId: LIFF_ID });
+        if (!liff.isLoggedIn()) { liff.login(); return; }
+        const profile = await liff.getProfile();
+        lineUserId = profile.userId;
+        await loadStations();
+    }
+    main().catch(e => {
+        console.error('LIFF 初始化失敗', e);
+        statusEl.innerText = '無法連接到 LINE 系統，請在 LINE APP 中開啟此頁面。';
+    });
+</script>
+
+</body>
+</html>

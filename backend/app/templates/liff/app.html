@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>垃圾車追蹤</title>
+    <!-- LINE LIFF SDK -->
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <!-- Leaflet（OpenStreetMap，免 API key） -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        :root {
+            --primary: #00B900;
+            --bg-color: #121212;
+            --surface: #1e1e1e;
+            --text-main: #ffffff;
+            --text-muted: #888888;
+            --tabbar-h: 58px;
+        }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg-color); color: var(--text-main);
+        }
+
+        /* 整體：上方內容區（screen）+ 底部 tab bar。screen 不含 tab bar，故地圖不會蓋住 tab。 */
+        #app { position: fixed; inset: 0; display: flex; flex-direction: column; }
+        .screen { flex: 1; position: relative; overflow: hidden; }
+
+        /* 各分頁：絕對填滿 screen，靠 .active 切換顯示 */
+        .pane { position: absolute; inset: 0; overflow-y: auto; display: none; padding: 20px; }
+        .pane.active { display: block; }
+        .pane[data-pane="map"] { padding: 0; overflow: hidden; }  /* 地圖頁不捲動、不留白 */
+
+        /* 底部 tab bar */
+        .tabbar { flex: 0 0 var(--tabbar-h); display: flex; background: var(--surface); border-top: 1px solid #2c2c2c; }
+        .tabbar button {
+            flex: 1; background: none; border: none; color: var(--text-muted);
+            font-size: 0.7rem; cursor: pointer;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+        }
+        .tabbar button .em { font-size: 1.2rem; line-height: 1; }
+        .tabbar button.active { color: var(--primary); }
+
+        /* ---- 地圖頁（搬自 map.html，定位改為相對 .pane）---- */
+        #map { position: absolute; inset: 0; background: var(--bg-color); }
+        #topbar {
+            position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+            z-index: 1100; display: flex; gap: 8px; align-items: center;
+        }
+        #topbar select {
+            border: none; border-radius: 999px; padding: 10px 14px;
+            background: var(--surface); color: var(--text-main); font-size: 0.9rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+        #searchHere {
+            border: none; border-radius: 999px; padding: 10px 18px;
+            background: var(--primary); color: white; font-size: 0.9rem; font-weight: bold;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4); cursor: pointer;
+        }
+        #panel {
+            position: absolute; left: 0; right: 0; bottom: 0; z-index: 1200;
+            background: var(--surface); border-radius: 18px 18px 0 0; padding: 20px;
+            box-shadow: 0 -6px 20px rgba(0,0,0,0.5);
+            transform: translateY(110%); transition: transform 0.25s ease;
+        }
+        #panel.open { transform: translateY(0); }
+        .p-name { font-size: 1.1rem; font-weight: 600; margin-bottom: 14px; }
+        #p-schedule { margin-bottom: 4px; }
+        .sch-row {
+            display: flex; justify-content: space-between; gap: 12px;
+            padding: 8px 0; font-size: 0.95rem; border-bottom: 1px solid #2c2c2c;
+        }
+        .sch-day { color: var(--text-main); white-space: nowrap; }
+        .sch-types { color: var(--primary); font-weight: 600; text-align: right; }
+        .sch-empty { color: var(--text-muted); padding: 8px 0; }
+        .p-actions { display: flex; gap: 10px; margin-top: 16px; }
+        .p-actions button {
+            flex: 1; border: none; border-radius: 10px; padding: 12px;
+            font-size: 0.95rem; font-weight: bold; cursor: pointer; color: white;
+        }
+        #p-fav { background: var(--primary); }
+        #p-close { background: #2c2c2c; }
+        #locateBtn {
+            position: absolute; right: 16px; bottom: 30px; z-index: 1100;
+            width: 48px; height: 48px; border-radius: 50%;
+            border: none; background: var(--surface); color: white;
+            font-size: 1.3rem; line-height: 48px; text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5); cursor: pointer;
+        }
+        #toast {
+            position: fixed; bottom: calc(var(--tabbar-h) + 16px); left: 50%; transform: translateX(-50%);
+            z-index: 1300; background: rgba(0,0,0,0.85); color: white;
+            padding: 10px 18px; border-radius: 999px; font-size: 0.85rem;
+            opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+        }
+        #toast.show { opacity: 1; }
+
+        /* ---- 佔位（查詢/收藏/通知，待逐步整併）---- */
+        .placeholder { text-align: center; color: var(--text-muted); margin-top: 80px; }
+        .placeholder h2 { color: var(--text-main); font-weight: 600; }
+        .placeholder p { font-size: 0.9rem; line-height: 1.7; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div class="screen">
+
+        <!-- 🗺️ 地圖 -->
+        <section class="pane active" data-pane="map">
+            <div id="map"></div>
+            <div id="topbar">
+                <select id="radius">
+                    <option value="0.5">500 公尺</option>
+                    <option value="1">1 公里</option>
+                    <option value="2" selected>2 公里</option>
+                    <option value="3">3 公里</option>
+                    <option value="5">5 公里</option>
+                </select>
+                <button id="searchHere" style="display:none;">以此處搜尋</button>
+            </div>
+            <div id="panel">
+                <div class="p-name" id="p-name">站點</div>
+                <div id="p-schedule"></div>
+                <div class="p-actions">
+                    <button id="p-fav">加入最愛</button>
+                    <button id="p-close">關閉</button>
+                </div>
+            </div>
+            <button id="locateBtn" title="重新定位">📍</button>
+        </section>
+
+        <!-- 🔍 查詢（待整併：原 search.html）-->
+        <section class="pane" data-pane="search">
+            <div class="placeholder">
+                <h2>查詢</h2>
+                <p>此分頁待整併（原 search.html）。<br>下一輪把清單 + 站點明細搬進來。</p>
+            </div>
+        </section>
+
+        <!-- ⭐ 收藏（待整併：原 favorites.html）-->
+        <section class="pane" data-pane="fav">
+            <div class="placeholder">
+                <h2>收藏</h2>
+                <p>此分頁待整併（原 favorites.html）。</p>
+            </div>
+        </section>
+
+        <!-- 🔔 通知（待整併：原 notifications.html）-->
+        <section class="pane" data-pane="noti">
+            <div class="placeholder">
+                <h2>通知</h2>
+                <p>此分頁待整併（原 notifications.html）。</p>
+            </div>
+        </section>
+
+    </div>
+
+    <nav class="tabbar">
+        <button data-tab="map" class="active"><span class="em">🗺️</span>地圖</button>
+        <button data-tab="search"><span class="em">🔍</span>查詢</button>
+        <button data-tab="fav"><span class="em">⭐</span>收藏</button>
+        <button data-tab="noti"><span class="em">🔔</span>通知</button>
+    </nav>
+</div>
+
+<div id="toast"></div>
+
+<script>
+    const LIFF_ID = "{{ liff_id }}";
+    const DEFAULT_CENTER = { lat: 25.0478, lng: 121.5170 }; // 台北車站，最終後備
+    const TABS = ['map', 'search', 'fav', 'noti'];
+
+    // 全 app 共用的身分（liff.init 只跑一次，各分頁共用）
+    let lineUserId = null;
+
+    // 地圖狀態
+    let map = null;
+    let mapReady = false;     // 地圖是否已初始化（Leaflet 只能 init 一次）
+    let markers = [];
+    let userMarker = null;
+    let rangeCircle = null;
+
+    // ---- 共用工具 ----
+    async function api(path, options = {}) {
+        const headers = Object.assign(
+            { 'Content-Type': 'application/json', 'X-Line-User-Id': lineUserId || '' },
+            options.headers || {}
+        );
+        const res = await fetch(`/api${path}`, { ...options, headers });
+        return res.json();
+    }
+
+    function toast(msg) {
+        const el = document.getElementById('toast');
+        el.innerText = msg;
+        el.classList.add('show');
+        clearTimeout(el._t);
+        el._t = setTimeout(() => el.classList.remove('show'), 2500);
+    }
+
+    // ---- 分頁切換 ----
+    function activate(name) {
+        if (!TABS.includes(name)) name = 'map';
+        document.querySelectorAll('.pane').forEach(p =>
+            p.classList.toggle('active', p.dataset.pane === name));
+        document.querySelectorAll('.tabbar button').forEach(b =>
+            b.classList.toggle('active', b.dataset.tab === name));
+        // 記在 hash，之後 Rich Menu / 文字觸發可用 .../liff/app#search 直接停在指定分頁
+        if (location.hash !== '#' + name) history.replaceState(null, '', '#' + name);
+        if (name === 'map') initMap();   // 地圖採 lazy 初始化
+    }
+
+    document.querySelector('.tabbar').addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-tab]');
+        if (btn) activate(btn.dataset.tab);
+    });
+
+    // ---- 地圖頁（搬自 map.html）----
+    function currentRadius() {
+        return parseFloat(document.getElementById('radius').value) || 2;
+    }
+
+    function getGeo() {
+        return new Promise(resolve => {
+            if (!navigator.geolocation) { toast('此裝置/瀏覽器不支援定位'); return resolve(null); }
+            navigator.geolocation.getCurrentPosition(
+                pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                err => {
+                    const reason = err.code === 1 ? '定位權限被拒：請到手機設定／LINE 開啟定位權限'
+                        : err.code === 2 ? '無法取得位置：定位服務目前無法使用'
+                        : err.code === 3 ? '定位逾時：請在收得到 GPS 訊號處再試'
+                        : '定位失敗';
+                    console.error('geolocation error', err.code, err.message);
+                    toast(reason + '（已暫用預設位置）');
+                    resolve(null);
+                },
+                { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+            );
+        });
+    }
+
+    async function getFirstFavorite() {
+        const r = await api('/favorites/');
+        if (r.status === 'success' && Array.isArray(r.data) && r.data.length > 0) {
+            const f = r.data[0];
+            return { lat: +f.latitude, lng: +f.longitude };
+        }
+        return null;
+    }
+
+    function setUserMarker(pos) {
+        if (userMarker) map.removeLayer(userMarker);
+        userMarker = L.circleMarker([pos.lat, pos.lng], {
+            radius: 8, color: '#ffffff', weight: 3, fillColor: '#1a73e8', fillOpacity: 1
+        }).addTo(map).bindTooltip('你的位置');
+    }
+
+    async function searchStations(lat, lng) {
+        const radiusKm = currentRadius();
+        const r = await api(`/stations/search?lat=${lat}&lng=${lng}&radius=${radiusKm}`);
+        markers.forEach(m => map.removeLayer(m));
+        markers = [];
+        if (rangeCircle) map.removeLayer(rangeCircle);
+        rangeCircle = L.circle([lat, lng], {
+            radius: radiusKm * 1000, color: '#00B900', weight: 1, fillColor: '#00B900', fillOpacity: 0.08
+        }).addTo(map);
+        if (r.status !== 'success') { toast('搜尋失敗：' + (r.message || '')); return; }
+        r.data.forEach(s => {
+            const mk = L.marker([+s.latitude, +s.longitude]).addTo(map);
+            mk.bindTooltip(s.station_name);
+            mk.on('click', () => openStation(s.station_id, s.station_name));
+            markers.push(mk);
+        });
+        if (r.data.length === 0) toast(`附近 ${radiusKm} 公里內沒有站點`);
+    }
+
+    const DOW = ['日', '一', '二', '三', '四', '五', '六'];
+    function renderWeek(schedules, arriveTime) {
+        if (!Array.isArray(schedules) || schedules.length === 0)
+            return '<div class="sch-empty">本站無收運班表資料</div>';
+        const time = arriveTime ? arriveTime.slice(0, 5) : '';
+        const rows = schedules.slice()
+            .sort((a, b) => a.day_of_week - b.day_of_week)
+            .filter(s => s.collects_garbage || s.collects_recycling || s.collects_foodscraps)
+            .map(s => {
+                const types = [];
+                if (s.collects_garbage) types.push('一般垃圾');
+                if (s.collects_recycling) types.push('資源回收');
+                if (s.collects_foodscraps) types.push('廚餘');
+                return `<div class="sch-row"><span class="sch-day">週${DOW[s.day_of_week]} ${time}</span>`
+                     + `<span class="sch-types">${types.join('、')}</span></div>`;
+            });
+        return rows.length ? rows.join('') : '<div class="sch-empty">近 7 天無收運</div>';
+    }
+
+    async function openStation(stationId, fallbackName) {
+        const r = await api(`/stations/${stationId}`);
+        if (r.status !== 'success') { toast('讀取站點失敗：' + (r.message || '')); return; }
+        const d = r.data;
+        document.getElementById('p-name').innerText = d.station_name || fallbackName || '站點';
+        document.getElementById('p-schedule').innerHTML = renderWeek(d.schedules, d.arrive_time);
+        document.getElementById('p-fav').onclick = () => addFavorite(d.station_id);
+        document.getElementById('panel').classList.add('open');
+    }
+
+    async function addFavorite(stationId) {
+        if (!lineUserId) { liff.login(); return; }
+        const r = await api('/favorites/', { method: 'POST', body: JSON.stringify({ station_id: stationId }) });
+        if (r.status === 'success') toast('已加入最愛！');
+        else toast('加入失敗：' + (r.message || ''));   // 409＝已收藏過此站點
+    }
+
+    // 地圖初始化：第一次切到地圖分頁才執行；之後再切回只需 invalidateSize 修正尺寸
+    async function initMap() {
+        if (mapReady) { map.invalidateSize(); return; }
+        mapReady = true;   // 先佔位，避免快速連點重複初始化
+
+        const geo = await getGeo();
+        const center = geo || (await getFirstFavorite()) || DEFAULT_CENTER;
+
+        map = L.map('map', { zoomControl: true }).setView([center.lat, center.lng], 16);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 貢獻者'
+        }).addTo(map);
+        // Leaflet 在剛顯示的容器內常因尺寸未定而圖磚錯位，強制重算一次
+        setTimeout(() => map.invalidateSize(), 0);
+
+        if (geo) setUserMarker(geo);
+
+        // 綁定地圖頁控制項
+        document.getElementById('searchHere').style.display = 'block';
+        document.getElementById('searchHere').onclick = () => {
+            const c = map.getCenter();
+            searchStations(c.lat, c.lng);
+        };
+        document.getElementById('radius').addEventListener('change', () => {
+            const c = map.getCenter();
+            searchStations(c.lat, c.lng);
+        });
+        document.getElementById('locateBtn').onclick = async () => {
+            toast('定位中…');
+            const g = await getGeo();
+            if (!g) return;
+            map.setView([g.lat, g.lng], 16);
+            setUserMarker(g);
+            searchStations(g.lat, g.lng);
+        };
+        document.getElementById('p-close').onclick = () =>
+            document.getElementById('panel').classList.remove('open');
+
+        searchStations(center.lat, center.lng);
+    }
+
+    // ---- 啟動：liff.init 只跑一次，再依 hash 決定初始分頁 ----
+    async function main() {
+        try {
+            await liff.init({ liffId: LIFF_ID });
+            if (liff.isLoggedIn()) {
+                const profile = await liff.getProfile();
+                lineUserId = profile.userId;
+            }
+        } catch (e) {
+            console.warn('LIFF 初始化略過（可能非 LINE 環境）', e);
+        }
+        const start = (location.hash || '').replace('#', '');
+        activate(TABS.includes(start) ? start : 'map');
+    }
+
+    main().catch(e => {
+        console.error(e);
+        toast('初始化失敗，請在 LINE App 內開啟此頁。');
+    });
+</script>
+
+</body>
+</html>
