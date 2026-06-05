@@ -42,7 +42,7 @@ python run.py
 
 ```
 ngrok config add-authtoken <你的token>   # 只需設定一次
-ngrok http 5000
+ngrok http 8000
 ```
 
 複製 ngrok 顯示的 https 網址，到 LINE Developers Console 設定
