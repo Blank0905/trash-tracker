@@ -1,5 +1,8 @@
 import logging
+import uuid
 from datetime import datetime
+from typing import Dict, List
+
 from app.db import get_db_connection
 # 透過 app/tasks/newimport.py 的橋接（importlib 動態載入 database/newimport.py），
 # 繞過 database/ 非 package、不在 sys.path 的問題。
@@ -7,57 +10,103 @@ from app.tasks.newimport import run_import
 
 logger = logging.getLogger(__name__)
 
-def execute_daily_data_sync():
-    """
-    每日凌晨 02:00 執行的定時同步排程
-    """
-    logger.info("觸發每日凌晨 02:00 資料同步任務...")
+VALID_SOURCES = {"TPE", "NTPC", "KLU"}
+VALID_PHASES = {"download", "import"}
+VALID_STATUSES = {"success", "failed", "partial"}
 
-    started_at = datetime.now()
-    status = "success"
-    records_affected = None  # run_import 目前不回傳筆數，記 NULL
-    error_message = None
+
+def _format_dt(value: object) -> str:
+    if isinstance(value, datetime):
+        return value.strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _normalize_result(result: Dict[str, object]) -> Dict[str, object]:
+    source = str(result.get("source") or "TPE")
+    phase = str(result.get("phase") or "import")
+    status = str(result.get("status") or "failed")
+
+    if source not in VALID_SOURCES:
+        source = "TPE"
+    if phase not in VALID_PHASES:
+        phase = "import"
+    if status not in VALID_STATUSES:
+        status = "failed"
+
+    return {
+        "source": source,
+        "phase": phase,
+        "status": status,
+        "records_affected": result.get("records_affected"),
+        "message": result.get("message"),
+        "started_at": _format_dt(result.get("started_at")),
+        "finished_at": _format_dt(result.get("finished_at")),
+    }
+
+
+def _insert_sync_logs(run_id: str, phase_results: List[Dict[str, object]]) -> None:
+    conn = get_db_connection()
+    if not conn:
+        logger.error("無法建立資料庫連線，寫入 api_sync_log 失敗")
+        return
 
     try:
-        # 呼叫整併後的 newimport ETL（北北基三市一次匯入）
-        run_import()
-        logger.info("ETL 資料同步完成")
-
-    except Exception as e:
-        status = "failed"  # api_sync_log.status ENUM 僅允許 success/failed/partial
-        error_message = str(e)
-        logger.error(f"資料同步發生嚴重異常: {error_message}")
-
-    finally:
-        finished_at = datetime.now()
-
-        # 寫入日誌到 api_sync_log 資料表供管理後台監控
-        conn = get_db_connection()
-        if not conn:
-            logger.error("無法建立資料庫連線，寫入 api_sync_log 失敗")
+        normalized = [_normalize_result(item) for item in phase_results]
+        if not normalized:
+            logger.warning("本次同步無可寫入的 api_sync_log 紀錄，run_id=%s", run_id)
             return
 
-        try:
-            with conn.cursor() as cursor:
-                # ETL 一次匯入北北基三市，無法單一標源；source 暫記 'TPE'（schema ENUM 限定 TPE/NTPC/KLU）
-                source_label = "TPE"
+        sql = """
+            INSERT INTO api_sync_log
+                (run_id, source, phase, status, records_affected, message, started_at, finished_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        rows = [
+            (
+                run_id,
+                item["source"],
+                item["phase"],
+                item["status"],
+                item["records_affected"],
+                item["message"],
+                item["started_at"],
+                item["finished_at"],
+            )
+            for item in normalized
+        ]
 
-                sql = """
-                    INSERT INTO api_sync_log
-                        (source, status, records_affected, message, started_at, finished_at)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """
-                cursor.execute(sql, (
-                    source_label,
-                    status,
-                    records_affected,
-                    error_message,
-                    started_at.strftime("%Y-%m-%d %H:%M:%S"),
-                    finished_at.strftime("%Y-%m-%d %H:%M:%S")
-                ))
-                conn.commit()
-                logger.info("同步日誌 (api_sync_log) 已成功寫入 MySQL。")
-        except Exception as db_err:
-            logger.error(f"寫入 api_sync_log 失敗: {str(db_err)}")
-        finally:
-            conn.close()
+        with conn.cursor() as cursor:
+            cursor.executemany(sql, rows)
+        conn.commit()
+        logger.info("同步日誌已寫入 api_sync_log，run_id=%s，筆數=%d", run_id, len(rows))
+    except Exception as db_err:
+        logger.error("寫入 api_sync_log 失敗，run_id=%s，錯誤=%s", run_id, str(db_err))
+    finally:
+        conn.close()
+
+
+def execute_daily_data_sync():
+    """每日凌晨 02:00 執行的定時同步排程。"""
+    run_id = str(uuid.uuid4())
+    logger.info("觸發每日凌晨 02:00 資料同步任務，run_id=%s", run_id)
+
+    phase_results: List[Dict[str, object]] = []
+    try:
+        # run_import 會回傳逐城市、逐階段（download/import）的結果清單
+        phase_results = run_import()
+    except Exception as error:
+        now = datetime.now()
+        logger.error("run_import 發生未預期異常，run_id=%s，錯誤=%s", run_id, str(error))
+        phase_results = [
+            {
+                "source": "TPE",
+                "phase": "import",
+                "status": "failed",
+                "records_affected": None,
+                "message": f"run_import 未預期異常：{error}",
+                "started_at": now,
+                "finished_at": datetime.now(),
+            }
+        ]
+
+    _insert_sync_logs(run_id, phase_results)
