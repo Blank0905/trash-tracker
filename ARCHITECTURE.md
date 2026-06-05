@@ -1,6 +1,6 @@
 # 北北基垃圾車追蹤平台 — 系統架構文件
 
-> 文件版本：v2.2（2026-06-05）  
+> 文件版本：v2.3（2026-06-05）  
 > 文件定位：以目前程式碼實作為準，未實作項目明確標示為「規劃中」。
 
 ---
@@ -153,8 +153,9 @@
 
 #### `data_sync.py`（已實作）
 
-- 呼叫 ETL 入口
-- 寫入 `api_sync_log`
+- 產生單次任務 `run_id`（UUID）
+- 呼叫 ETL 入口，取得逐城市/逐階段結果
+- 寫入 `api_sync_log`（每次排程共 6 筆：3 城 download + 3 城 import）
 
 #### `newimport.py`（轉接器）
 
@@ -194,6 +195,28 @@
 1. `notify_d{今天} = 1`
 2. 該站今天在 `station_schedules` 有收運
 3. 進入提醒時間窗才推送
+
+### 4.2 `api_sync_log` 同步紀錄欄位（已擴充）
+
+- `run_id`：同一次排程任務的關聯鍵（UUID）
+- `source`：`TPE` / `NTPC` / `KLU`
+- `phase`：`download` / `import`
+- `status`：`success` / `failed` / `partial`
+- `records_affected`：下載/匯入的筆數（無法計算時為 `NULL`）
+- `message`：錯誤訊息或摘要
+- `started_at`、`finished_at`：該筆階段的起訖時間
+
+同一個 `run_id` 會對應 6 筆紀錄，方便追蹤單次排程全貌與定位失敗階段。
+
+既有資料庫升級（若表已存在）：
+
+```sql
+ALTER TABLE api_sync_log
+  ADD COLUMN run_id CHAR(36) NOT NULL AFTER log_id,
+  ADD COLUMN phase ENUM('download','import') NOT NULL AFTER source,
+  ADD KEY idx_run_id (run_id),
+  ADD KEY idx_run_source_phase (run_id, source, phase);
+```
 
 ---
 
@@ -253,15 +276,22 @@
 
 ### 7.1 資料來源
 
-- `database/台北市垃圾車清運點位資訊.csv`
-- `database/新北市垃圾車路線.csv`
-- `database/route_klepb.csv`
+每次 ETL 前會自動從各市開放資料平台下載最新 CSV，**欄位驗證通過後才覆蓋**本地檔（統一存為 UTF-8）：
+
+| 縣市 | 本地檔 | 線上來源（data.gov.tw 資料集） |
+|---|---|---|
+| 台北市 | `database/台北市垃圾車清運點位資訊.csv` | data.taipei（136515） |
+| 新北市 | `database/新北市垃圾車路線.csv` | data.ntpc.gov.tw（125664） |
+| 基隆市 | `database/route_klepb.csv` | opendata-kl.askeycloud.com（128678，UTF-8 BOM） |
+
+各來源獨立：某市下載或欄位驗證失敗時，保留該市既有本地檔、其餘照常更新（不會因單一來源掛掉而整批不更新）。寫死的下載網址見 `database/newimport.py` 的 `SOURCES`；市府若改 resource id 需手動更新。
 
 ### 7.2 ETL 現況
 
-- `database/newimport.py` 為核心實作。
+- `database/newimport.py` 為核心實作；`run_import()` 會先呼叫 `refresh_sources()` 下載並安全覆蓋來源 CSV，再執行三市匯入。
+- `run_import()` 會回傳逐城市、逐階段的結果清單（source/phase/status/records_affected/message/started_at/finished_at）。
 - `backend/app/tasks/newimport.py` 為轉接載入器。
-- `data_sync.py` 已可由排程觸發 ETL，並寫同步紀錄。
+- `data_sync.py` 會為每次排程建立 `run_id`，再把回傳結果完整寫入 `api_sync_log`。
 
 ---
 

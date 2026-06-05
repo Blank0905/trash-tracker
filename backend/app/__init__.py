@@ -142,10 +142,11 @@ def create_app():
     from app.api.announcements import bp as announcements_bp
     from app.api.rules import bp as rules_bp
     from app.api.me import bp as me_bp
+    from app.api.etl import bp as etl_bp
 
     for blueprint in (
         stations_bp, users_bp, line_bp, favorites_bp,
-        notifications_bp, info_bp, pages_bp, announcements_bp, rules_bp, me_bp
+        notifications_bp, info_bp, pages_bp, announcements_bp, rules_bp, me_bp, etl_bp
     ):
         app.register_blueprint(blueprint)
 

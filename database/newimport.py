@@ -1,12 +1,156 @@
+import io
 import math
 import os
 import re
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 import pymysql
+import requests
+
+
+# ── 開放資料來源：每次 ETL 前下載最新檔、安全覆蓋本地 CSV ──
+# 直接寫死各市 data.gov.tw 對應的 CSV 下載網址（市府改 resource id 時需手動更新此處）。
+SOURCES = [
+    {
+        "source": "TPE",
+        "name": "台北市",
+        "url": "https://data.taipei/api/dataset/6bb3304b-4f46-4bb0-8cd1-60c66dcd1cae/resource/a6e90031-7ec4-4089-afb5-361a4efe7202/download",
+        "filename": "台北市垃圾車清運點位資訊.csv",
+        "encoding": "utf-8-sig",
+        "required_columns": ["局編", "車次", "路線", "分隊", "車號", "行政區", "地點", "里別", "經度", "緯度", "抵達時間", "離開時間"],
+    },
+    {
+        "source": "NTPC",
+        "name": "新北市",
+        "url": "https://data.ntpc.gov.tw/api/datasets/edc3ad26-8ae7-4916-a00b-bc6048d19bf8/csv/file",
+        "filename": "新北市垃圾車路線.csv",
+        "encoding": "utf-8-sig",
+        "required_columns": ["lineid", "linename", "city", "name", "rank", "longitude", "latitude", "time"],
+    },
+    {
+        "source": "KLU",
+        "name": "基隆市",
+        "url": "https://opendata-kl.askeycloud.com/route_klepb.csv",
+        "filename": "route_klepb.csv",
+        "encoding": "utf-8-sig",  # 基隆來源實測為帶 BOM 的 UTF-8（data.gov.tw 標示的 Big5 已不符現況）
+        "required_columns": ["編號", "清運路線名稱", "班別", "清運點", "順序", "經度", "緯度", "預估到達時間", "預估離開時間"],
+    },
+]
+
+
+def _refresh_one(source: Dict[str, object], timeout: int = 30) -> int:
+    """下載單一來源 → 驗證欄位 → 驗證通過才覆蓋本地檔（統一存成 UTF-8）。回傳資料筆數。"""
+    resp = requests.get(
+        source["url"],
+        timeout=timeout,
+        headers={"User-Agent": "Mozilla/5.0 (trash-tracker ETL)"},
+    )
+    resp.raise_for_status()
+
+    # 依來源編碼解碼（基隆為 CP950），再以 dtype=str 讀進 DataFrame，與 ETL 讀法一致
+    text = resp.content.decode(source["encoding"], errors="strict")
+    df = pd.read_csv(io.StringIO(text), dtype=str)
+
+    missing = [c for c in source["required_columns"] if c not in df.columns]
+    if missing:
+        raise ValueError(f"來源缺少欄位 {', '.join(missing)}")
+
+    # 驗證通過才覆蓋；統一存 UTF-8（無 BOM），ETL 端維持以 UTF-8 讀取
+    dest = Path(__file__).resolve().parent / source["filename"]
+    df.to_csv(dest, index=False, encoding="utf-8")
+    return len(df)
+
+
+def _phase_result(
+    source: str,
+    phase: str,
+    status: str,
+    started_at: datetime,
+    finished_at: datetime,
+    records_affected: Optional[int] = None,
+    message: Optional[str] = None,
+) -> Dict[str, object]:
+    return {
+        "source": source,
+        "phase": phase,
+        "status": status,
+        "records_affected": records_affected,
+        "message": message,
+        "started_at": started_at,
+        "finished_at": finished_at,
+    }
+
+
+def _load_source_urls() -> Dict[str, str]:
+    """從 etl_sources 表讀各市最新下載網址；連不到或表不存在則回空 dict（全部沿用程式預設）。"""
+    config = load_db_config()
+    try:
+        conn = pymysql.connect(
+            host=config["host"],
+            port=config["port"],
+            database=config["database"],
+            user=config["user"],
+            password=config["password"],
+            charset="utf8mb4",
+            connect_timeout=10,
+        )
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT source, url FROM etl_sources")
+                return {row[0]: row[1] for row in cursor.fetchall() if row[1]}
+        finally:
+            conn.close()
+    except Exception as error:
+        print(f"[來源網址] 讀取 etl_sources 失敗，全部沿用程式預設網址（{error}）")
+        return {}
+
+
+def refresh_sources() -> List[Dict[str, object]]:
+    """ETL 前置：下載三個開放資料來源並安全覆蓋本地 CSV。
+
+    各來源獨立：某市下載或欄位驗證失敗時，保留該市既有本地檔、不影響其他市，
+    讓本次 ETL 仍以該市舊資料繼續跑（不會因單一來源掛掉而整批失敗）。
+    """
+    print("=== 更新開放資料來源 ===")
+    url_overrides = _load_source_urls()
+    results: List[Dict[str, object]] = []
+    for source in SOURCES:
+        # 後台若設定過該市網址（etl_sources）則優先採用，否則沿用程式寫死的預設
+        effective = dict(source)
+        effective["url"] = url_overrides.get(source["source"], source["url"])
+        started_at = datetime.now()
+        try:
+            count = _refresh_one(effective)
+            print(f"[更新成功] {source['name']}：{count} 筆 → {source['filename']}")
+            results.append(
+                _phase_result(
+                    source=source["source"],
+                    phase="download",
+                    status="success",
+                    records_affected=count,
+                    message=f"已更新 {source['filename']}",
+                    started_at=started_at,
+                    finished_at=datetime.now(),
+                )
+            )
+        except Exception as error:
+            print(f"[更新略過] {source['name']} 沿用既有本地檔（原因：{error}）")
+            results.append(
+                _phase_result(
+                    source=source["source"],
+                    phase="download",
+                    status="failed",
+                    records_affected=None,
+                    message=f"下載失敗，沿用本地檔：{error}",
+                    started_at=started_at,
+                    finished_at=datetime.now(),
+                )
+            )
+    return results
 
 
 def load_db_config() -> Dict[str, object]:
@@ -41,6 +185,8 @@ def load_db_config() -> Dict[str, object]:
         merged["port"] = 3306
 
     return merged
+
+
 class GarbageTruckImporter:
     def __init__(
         self,
@@ -304,7 +450,7 @@ class GarbageTruckImporter:
         if missing:
             raise ValueError(f"{source_name} 缺少欄位 {', '.join(missing)}")
 
-    def import_taipei(self, csv_path: Path) -> None:
+    def import_taipei(self, csv_path: Path) -> int:
         print(f"開始匯入 台北市 檔案={csv_path}")
         df = self._read_csv(csv_path)
         self._validate_columns(
@@ -335,8 +481,9 @@ class GarbageTruckImporter:
 
         self.conn.commit()
         print("台北市匯入完成")
+        return len(df)
 
-    def import_new_taipei(self, csv_path: Path) -> None:
+    def import_new_taipei(self, csv_path: Path) -> int:
         print(f"開始匯入 新北市 檔案={csv_path}")
         df = self._read_csv(csv_path)
         self._validate_columns(
@@ -368,8 +515,9 @@ class GarbageTruckImporter:
 
         self.conn.commit()
         print("新北市匯入完成")
+        return len(df)
 
-    def import_keelung(self, csv_path: Path) -> None:
+    def import_keelung(self, csv_path: Path) -> int:
         print(f"開始匯入 基隆市 檔案={csv_path}")
         df = self._read_csv(csv_path)
         self._validate_columns(
@@ -404,6 +552,7 @@ class GarbageTruckImporter:
 
         self.conn.commit()
         print("基隆市匯入完成")
+        return len(df)
 
     def close(self) -> None:
         self.cursor.close()
@@ -420,7 +569,18 @@ def resolve_csv_path(filename: str) -> Path:
     raise FileNotFoundError(f"找不到資料檔案 {filename}")
 
 
-def run_import() -> None:
+def _import_one_city(importer: GarbageTruckImporter, source_code: str) -> int:
+    if source_code == "TPE":
+        return importer.import_taipei(resolve_csv_path("台北市垃圾車清運點位資訊.csv"))
+    if source_code == "NTPC":
+        return importer.import_new_taipei(resolve_csv_path("新北市垃圾車路線.csv"))
+    if source_code == "KLU":
+        return importer.import_keelung(resolve_csv_path("route_klepb.csv"))
+    raise ValueError(f"不支援的來源代碼：{source_code}")
+
+
+def run_import() -> List[Dict[str, object]]:
+    results = refresh_sources()
     config = load_db_config()
     importer = None
     try:
@@ -431,25 +591,73 @@ def run_import() -> None:
             user=config["user"],
             password=config["password"],
         )
-        importer.import_taipei(resolve_csv_path("台北市垃圾車清運點位資訊.csv"))
-        importer.import_new_taipei(resolve_csv_path("新北市垃圾車路線.csv"))
-        importer.import_keelung(resolve_csv_path("route_klepb.csv"))
-        importer.conn.commit()
-        print("全部資料匯入完成")
+
+        for source in SOURCES:
+            started_at = datetime.now()
+            try:
+                count = _import_one_city(importer, source["source"])
+                results.append(
+                    _phase_result(
+                        source=source["source"],
+                        phase="import",
+                        status="success",
+                        records_affected=count,
+                        message=f"匯入完成：{source['filename']}",
+                        started_at=started_at,
+                        finished_at=datetime.now(),
+                    )
+                )
+            except Exception as error:
+                importer.conn.rollback()
+                print(f"[匯入失敗] {source['name']}：{error}")
+                results.append(
+                    _phase_result(
+                        source=source["source"],
+                        phase="import",
+                        status="failed",
+                        records_affected=None,
+                        message=str(error),
+                        started_at=started_at,
+                        finished_at=datetime.now(),
+                    )
+                )
+
+        print("全部資料匯入流程結束")
     except pymysql.MySQLError as error:
-        if importer:
-            importer.conn.rollback()
-        print(f"資料庫錯誤 {error}")
-        raise
+        print(f"資料庫連線錯誤 {error}")
+        started_at = datetime.now()
+        for source in SOURCES:
+            results.append(
+                _phase_result(
+                    source=source["source"],
+                    phase="import",
+                    status="failed",
+                    records_affected=None,
+                    message=f"資料庫連線失敗：{error}",
+                    started_at=started_at,
+                    finished_at=datetime.now(),
+                )
+            )
     except Exception as error:
-        if importer:
-            importer.conn.rollback()
-        print(f"匯入失敗 {error}")
-        raise
+        print(f"匯入流程錯誤 {error}")
+        started_at = datetime.now()
+        for source in SOURCES:
+            results.append(
+                _phase_result(
+                    source=source["source"],
+                    phase="import",
+                    status="failed",
+                    records_affected=None,
+                    message=f"匯入初始化失敗：{error}",
+                    started_at=started_at,
+                    finished_at=datetime.now(),
+                )
+            )
     finally:
         if importer:
             importer.close()
             print("資料庫連線已關閉")
+    return results
 
 
 if __name__ == "__main__":

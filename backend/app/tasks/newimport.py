@@ -11,7 +11,7 @@ def run_import():
 
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    module.run_import()
+    return module.run_import()
 
 
 if __name__ == "__main__":

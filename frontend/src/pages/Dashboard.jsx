@@ -14,6 +14,7 @@ import TableUsers from './dashboard/TableUsers';
 import UsersManage from './dashboard/UsersManage';
 import ActionAddDelete from './dashboard/ActionAddDelete';
 import RulesAnnouncements from './dashboard/RulesAnnouncements';
+import EtlSources from './dashboard/EtlSources';
 import { getBackendUrl } from '../utils/api';
 
 const Dashboard = ({ onLogout }) => {
@@ -75,7 +76,8 @@ const Dashboard = ({ onLogout }) => {
       case 'users-manage': return <UsersManage />;
       case 'action-add-delete': return <ActionAddDelete />;
       case 'rules-announcements': return <RulesAnnouncements />;
-      
+      case 'etl-sources': return <EtlSources />;
+
       default: return <div>頁面建構中...</div>;
     }
   };
@@ -131,6 +133,7 @@ const Dashboard = ({ onLogout }) => {
           <div onClick={() => setActivePage('users-manage')} style={{...styles.menuItem, ...(activePage === 'users-manage' ? styles.menuActive : {})}}>👥 2. 管理使用者</div>
           <div onClick={() => setActivePage('action-add-delete')} style={{...styles.menuItem, ...(activePage === 'action-add-delete' ? styles.menuActive : {})}}>🚧 3. 新增與刪除面板</div>
           <div onClick={() => setActivePage('rules-announcements')} style={{...styles.menuItem, ...(activePage === 'rules-announcements' ? styles.menuActive : {})}}>📢 4. 規則與公告</div>
+          <div onClick={() => setActivePage('etl-sources')} style={{...styles.menuItem, ...(activePage === 'etl-sources' ? styles.menuActive : {})}}>🔗 5. ETL 來源設定</div>
         </div>
 
         <div style={styles.sidebarFooter}>

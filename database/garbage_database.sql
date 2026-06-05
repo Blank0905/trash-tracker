@@ -46,7 +46,9 @@ CREATE TABLE `announcements` (
 
 CREATE TABLE `api_sync_log` (
   `log_id` int(11) NOT NULL,
+  `run_id` char(36) NOT NULL COMMENT '同一次排程的關聯鍵(UUID)',
   `source` enum('TPE','NTPC','KLU') NOT NULL COMMENT '台北/新北/基隆',
+  `phase` enum('download','import') NOT NULL COMMENT 'download=下載CSV, import=匯入DB',
   `status` enum('success','failed','partial') NOT NULL,
   `records_affected` int(11) DEFAULT NULL,
   `message` text DEFAULT NULL COMMENT '錯誤訊息或摘要',
@@ -223,6 +225,8 @@ ALTER TABLE `announcements`
 --
 ALTER TABLE `api_sync_log`
   ADD PRIMARY KEY (`log_id`),
+  ADD KEY `idx_run_id` (`run_id`),
+  ADD KEY `idx_run_source_phase` (`run_id`,`source`,`phase`),
   ADD KEY `idx_source` (`source`),
   ADD KEY `idx_finished_at` (`finished_at`);
 
@@ -412,6 +416,28 @@ ALTER TABLE `stations`
 --
 ALTER TABLE `station_schedules`
   ADD CONSTRAINT `station_schedules_ibfk_1` FOREIGN KEY (`station_id`) REFERENCES `stations` (`station_id`) ON DELETE CASCADE;
+
+-- --------------------------------------------------------
+
+--
+-- 資料表結構 `etl_sources`（ETL 各市 CSV 下載網址；三市固定，僅 url 可由後台修改）
+--
+
+CREATE TABLE `etl_sources` (
+  `source` enum('TPE','NTPC','KLU') NOT NULL COMMENT '台北/新北/基隆',
+  `url` varchar(500) NOT NULL COMMENT 'CSV 下載網址',
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `updated_by` varchar(100) DEFAULT NULL COMMENT '最後修改的管理員'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+ALTER TABLE `etl_sources`
+  ADD PRIMARY KEY (`source`);
+
+INSERT INTO `etl_sources` (`source`, `url`) VALUES
+('TPE', 'https://data.taipei/api/dataset/6bb3304b-4f46-4bb0-8cd1-60c66dcd1cae/resource/a6e90031-7ec4-4089-afb5-361a4efe7202/download'),
+('NTPC', 'https://data.ntpc.gov.tw/api/datasets/edc3ad26-8ae7-4916-a00b-bc6048d19bf8/csv/file'),
+('KLU', 'https://opendata-kl.askeycloud.com/route_klepb.csv');
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
