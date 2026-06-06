@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>垃圾袋規範</title>
+    <!-- 引入 LINE LIFF SDK -->
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        :root {
+            --primary: #00B900; /* LINE Green */
+            --bg-color: #121212;
+            --surface: #1e1e1e;
+            --text-main: #ffffff;
+            --text-muted: #888888;
+        }
+        * { box-sizing: border-box; }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+        .container { width: 100%; max-width: 420px; }
+        h2 { text-align: center; font-weight: 600; letter-spacing: 1px; }
+
+        /* 縣市選單 */
+        .city-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+        .city-btn {
+            flex: 1;
+            border: 1px solid #2c2c2c;
+            background: var(--surface);
+            color: var(--text-muted);
+            border-radius: 10px;
+            padding: 10px 0;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .city-btn.active {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+            font-weight: 600;
+        }
+
+        #status { text-align: center; color: var(--text-muted); margin: 30px 0; }
+
+        .card {
+            background-color: var(--surface);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .card-title { font-size: 1.05rem; font-weight: 600; }
+        .card-sub { font-size: 0.85rem; color: var(--primary); margin-top: 4px; }
+        .kv { font-size: 0.85rem; color: var(--text-muted); margin-top: 6px; }
+        .kv b { color: var(--text-main); font-weight: 600; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>垃圾袋規範</h2>
+    <div class="city-bar" id="cityBar"></div>
+    <div id="status">載入中…</div>
+    <div id="list"></div>
+</div>
+
+<script>
+    // 後端注入（見 app/api/pages.py）
+    const LIFF_ID = "{{ liff_id }}";
+    let lineUserId = null;
+
+    // city 值需與 DB 的 ENUM 全名一致（台北市 / 新北市 / 基隆市）
+    const CITIES = ['台北市', '新北市', '基隆市'];
+    let activeCity = CITIES[0];
+
+    // 支援用網址參數指定初始縣市，例如 /bag?city=新北市
+    const wantCity = new URLSearchParams(location.search).get('city');
+    if (wantCity && CITIES.includes(wantCity)) activeCity = wantCity;
+
+    // 統一的後端呼叫方式：自動帶上 X-Line-User-Id（資訊類為公開 API，後端會忽略）
+    async function api(path, options = {}) {
+        const headers = Object.assign(
+            { 'Content-Type': 'application/json', 'X-Line-User-Id': lineUserId || '' },
+            options.headers || {}
+        );
+        const res = await fetch(`/api${path}`, { ...options, headers });
+        return res.json();
+    }
+
+    // 防 XSS：插入 DOM 前轉義
+    function esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    const statusEl = document.getElementById('status');
+    const listEl = document.getElementById('list');
+
+    // 卡片渲染（欄位對應 app/api/info.py 的 bag-regulations 回傳）
+    function renderBag(items) {
+        return items.map(r => `
+            <div class="card">
+                <div class="card-title">${esc(r.bag_size)}</div>
+                <div class="card-sub">${esc(r.volume_liters)} 公升 · NT$ ${esc(r.price)}</div>
+                ${r.purchase_locations ? `<div class="kv"><b>購買地點：</b>${esc(r.purchase_locations)}</div>` : ''}
+                ${r.notes ? `<div class="kv">${esc(r.notes)}</div>` : ''}
+            </div>`).join('');
+    }
+
+    function buildCityBar() {
+        document.getElementById('cityBar').innerHTML = CITIES.map(c =>
+            `<button class="city-btn ${c === activeCity ? 'active' : ''}" data-city="${esc(c)}">${esc(c)}</button>`
+        ).join('');
+    }
+
+    async function load() {
+        buildCityBar();
+        statusEl.style.display = 'block';
+        statusEl.innerText = '載入中…';
+        listEl.innerHTML = '';
+        try {
+            const res = await api(`/info/bag-regulations?city=${encodeURIComponent(activeCity)}`);
+            if (res.status !== 'success') {
+                statusEl.innerText = '載入失敗：' + (res.message || '請稍後再試。');
+                return;
+            }
+            const items = res.data || [];
+            if (items.length === 0) {
+                statusEl.innerText = '查無資料';
+                return;
+            }
+            statusEl.style.display = 'none';
+            listEl.innerHTML = renderBag(items);
+        } catch (e) {
+            console.error('載入垃圾袋規範失敗', e);
+            statusEl.innerText = '載入失敗，請稍後再試。';
+        }
+    }
+
+    // 切換縣市
+    document.getElementById('cityBar').addEventListener('click', e => {
+        const btn = e.target.closest('button[data-city]');
+        if (!btn || btn.dataset.city === activeCity) return;
+        activeCity = btn.dataset.city;
+        load();
+    });
+
+    // 資訊為公開資料，不強制登入；liff.init 僅為在 LINE 內整合，失敗也照常顯示
+    async function main() {
+        try {
+            await liff.init({ liffId: LIFF_ID });
+            if (liff.isLoggedIn()) {
+                const profile = await liff.getProfile();
+                lineUserId = profile.userId;
+            }
+        } catch (e) {
+            console.warn('LIFF 初始化略過（可能非 LINE 環境）', e);
+        }
+        load();
+    }
+    main();
+</script>
+
+</body>
+</html>
