@@ -20,6 +20,7 @@ import ActionAddDelete from './dashboard/ActionAddDelete';
 import RulesAnnouncements from './dashboard/RulesAnnouncements';
 import EtlSources from './dashboard/EtlSources';
 import SyncLog from './dashboard/SyncLog';
+import HomeOverview from './dashboard/HomeOverview';
 import { getBackendUrl } from '../utils/api';
 
 const Dashboard = ({ onLogout }) => {
@@ -62,12 +63,7 @@ const Dashboard = ({ onLogout }) => {
   const renderContent = () => {
     switch (activePage) {
       case 'welcome':
-        return (
-          <div style={styles.welcomeCard}>
-            <h2>📊 歡迎使用垃圾車清運管理後台</h2>
-            <p style={{ marginTop: '10px', color: '#666' }}>請點擊左側功能選單，開始進行資料庫調度和客製化管理。</p>
-          </div>
-        );
+        return <HomeOverview dbConnected={dbConnected} onNavigate={setActivePage} />;
       
       case 'table-areas': return <TableAreas />;
       case 'table-bag_regulations': return <TableBagRegulations />;
@@ -97,58 +93,42 @@ const Dashboard = ({ onLogout }) => {
     <div style={styles.container}>
       {/* ─── 左側導覽列 Sidebar ─── */}
       <div style={styles.sidebar}>
-        <div style={styles.sidebarHeader}>
-          <span style={styles.sidebarLogo}>🗑️ Trash Tracker</span>
+        <div style={styles.sidebarHeader} onClick={() => setActivePage('welcome')}>
+          <span style={{ ...styles.sidebarLogo, cursor: 'pointer' }} title="回首頁">🗑️ Trash Tracker</span>
         </div>
 
         <div style={styles.menuList}>
-          <div 
-            onClick={() => setActivePage('welcome')} 
-            style={{...styles.menuItem, ...(activePage === 'welcome' ? styles.menuActive : {})}}
-          >
-            🏠 後台首頁
-          </div>
-
           <div>
             <div 
               onClick={() => setOpenDropdown({ ...openDropdown, tables: !openDropdown.tables })} 
               style={styles.menuItemHeader}
             >
-              📁 1. 顯示資料表 {openDropdown.tables ? '▼' : '►'}
+              📁 顯示資料表 {openDropdown.tables ? '▼' : '►'}
             </div>
             {openDropdown.tables && (
               <div style={styles.submenuBox}>
                 {[
-                  { id: 'announcements', name: 'announcements (公告)' },
-                  { id: 'api_sync_log', name: 'api_sync_log (同步紀錄)' },
-                  { id: 'areas', name: 'areas (區域)' },
-                  { id: 'bag_regulations', name: 'bag_regulations' },
-                  { id: 'bulky_waste_info', name: 'bulky_waste_info (大型廢棄物)' },
-                  { id: 'etl_sources', name: 'etl_sources (ETL 來源)' },
-                  { id: 'favorites', name: 'favorites (收藏)' },
-                  { id: 'notifications', name: 'notifications' },
-                  { id: 'routes', name: 'routes (路線)' },
-                  { id: 'stations', name: 'stations (站點)' },
-                  { id: 'station_schedules', name: 'station_schedules' },
-                  { id: 'users', name: 'users (用戶)' }
-                ].map(table => (
-                  <div 
-                    key={table.id}
-                    onClick={() => setActivePage(`table-${table.id}`)} 
-                    style={{...styles.submenuItem, ...(activePage === `table-${table.id}` ? styles.submenuActive : {})}}
+                  'announcements', 'api_sync_log', 'areas', 'bag_regulations',
+                  'bulky_waste_info', 'etl_sources', 'favorites', 'notifications',
+                  'routes', 'stations', 'station_schedules', 'users'
+                ].map(tid => (
+                  <div
+                    key={tid}
+                    onClick={() => setActivePage(`table-${tid}`)}
+                    style={{...styles.submenuItem, ...(activePage === `table-${tid}` ? styles.submenuActive : {})}}
                   >
-                    📄 {table.name}
+                    📄 {tid}
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          <div onClick={() => setActivePage('users-manage')} style={{...styles.menuItem, ...(activePage === 'users-manage' ? styles.menuActive : {})}}>👥 2. 管理使用者</div>
-          <div onClick={() => setActivePage('action-add-delete')} style={{...styles.menuItem, ...(activePage === 'action-add-delete' ? styles.menuActive : {})}}>🚧 3. 新增與刪除面板</div>
-          <div onClick={() => setActivePage('rules-announcements')} style={{...styles.menuItem, ...(activePage === 'rules-announcements' ? styles.menuActive : {})}}>📢 4. 規則與公告</div>
-          <div onClick={() => setActivePage('etl-sources')} style={{...styles.menuItem, ...(activePage === 'etl-sources' ? styles.menuActive : {})}}>🔗 5. ETL 來源設定</div>
-          <div onClick={() => setActivePage('sync-log')} style={{...styles.menuItem, ...(activePage === 'sync-log' ? styles.menuActive : {})}}>🔄 6. API 同步紀錄</div>
+          <div onClick={() => setActivePage('users-manage')} style={{...styles.menuItem, ...(activePage === 'users-manage' ? styles.menuActive : {})}}>👥 管理使用者</div>
+          <div onClick={() => setActivePage('action-add-delete')} style={{...styles.menuItem, ...(activePage === 'action-add-delete' ? styles.menuActive : {})}}>🚧 新增與刪除面板</div>
+          <div onClick={() => setActivePage('rules-announcements')} style={{...styles.menuItem, ...(activePage === 'rules-announcements' ? styles.menuActive : {})}}>📢 規則與公告</div>
+          <div onClick={() => setActivePage('etl-sources')} style={{...styles.menuItem, ...(activePage === 'etl-sources' ? styles.menuActive : {})}}>🔗 ETL 來源設定</div>
+          <div onClick={() => setActivePage('sync-log')} style={{...styles.menuItem, ...(activePage === 'sync-log' ? styles.menuActive : {})}}>🔄 API 同步紀錄</div>
         </div>
 
         <div style={styles.sidebarFooter}>
