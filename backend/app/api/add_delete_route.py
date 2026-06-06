@@ -5,23 +5,32 @@ import pymysql
 # 🟢 獨立的後台管理藍圖，前綴採用 /api/admin/routes
 bp = Blueprint('add_delete_route', __name__, url_prefix='/api/admin/routes')
 
+
+def _clean_text(value):
+    if value is None:
+        return ''
+    return str(value).strip()
+
 # ==========================================
 # 1. 📋 [後台專用] 讀取目前系統中現存路線一覽
 # ==========================================
 @bp.route('/list', methods=['GET'])
 def get_routes_list():
     """撈取所有路線，並支援選填 city, district, route_name 進行動態篩選"""
-    # 🟢 從 URL 參數撈取選填的篩選條件
     city = request.args.get('city')
     district = request.args.get('district')
     route_name = request.args.get('route_name')
+    latest = request.args.get('latest')
+    limit = request.args.get('limit', '50')
+
+    has_filter = (city and city != '全部') or (district and district.strip() != '') or (route_name and route_name.strip() != '')
+    latest_mode = latest == '1' or not has_filter
 
     conn = get_db_connection()
     try:
         with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-            # 🟢 基底 SQL 語法，利用 WHERE 1=1 方便後面動態串接 AND
             sql = """
-                SELECT r.route_id, r.areas_id, r.route_code, r.route_name, 
+                SELECT r.route_id, r.areas_id, r.route_code, r.route_name,
                        r.car_number, r.team, r.trip_number,
                        a.city, a.district
                 FROM routes r
@@ -30,27 +39,31 @@ def get_routes_list():
             """
             params = []
 
-            # 🟢 動態拼接安全防禦線
             if city and city != '全部':
                 sql += " AND a.city = %s"
                 params.append(city)
-                
-            if district and district != '':
+
+            if district and district.strip() != '':
                 sql += " AND a.district = %s"
                 params.append(district)
-                
-            if route_name:
-                # 模糊查詢，前後補上 %
+
+            if route_name and route_name.strip() != '':
                 sql += " AND r.route_name LIKE %s"
                 params.append(f"%{route_name}%")
 
-            # 排序
             sql += " ORDER BY r.route_id DESC"
 
-            # 執行帶有動態參數的查詢
+            if latest_mode:
+                try:
+                    limit_value = max(1, min(50, int(limit)))
+                except (TypeError, ValueError):
+                    limit_value = 50
+                sql += " LIMIT %s"
+                params.append(limit_value)
+
             cursor.execute(sql, params)
             routes = cursor.fetchall()
-            
+
         return jsonify({"status": "success", "routes": routes}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": f"後台收運路線篩選失敗: {str(e)}"}), 500
@@ -59,25 +72,26 @@ def get_routes_list():
 
 
 # ==========================================
-# 2. 🌍 [後台專用] 讀取級聯選單區域清單 (village 為空)
+# 2. 🌍 [後台專用] 讀取「沒村里」的行政區清單
 # ==========================================
 @bp.route('/areas/village-null', methods=['GET'])
-def get_areas_village_null():
+def get_areas_districts():
     """撈取村里為空的頂層行政區，供後台表單做『縣市->行政區』連動"""
     conn = get_db_connection()
     try:
         with conn.cursor(pymysql.cursors.DictCursor) as cursor:
             sql = """
-                SELECT areas_id, city, district 
-                FROM areas 
+                SELECT MIN(areas_id) AS areas_id, city, district
+                FROM areas
                 WHERE village IS NULL OR village = ''
+                GROUP BY city, district
                 ORDER BY city ASC, district ASC
             """
             cursor.execute(sql)
             areas = cursor.fetchall()
         return jsonify({"status": "success", "areas": areas}), 200
     except Exception as e:
-        return jsonify({"status": "error", "message": f"後台級聯區域撈取失敗: {str(e)}"}), 500
+        return jsonify({"status": "error", "message": f"後台行政區撈取失敗: {str(e)}"}), 500
     finally:
         conn.close()
 
@@ -89,17 +103,20 @@ def get_areas_village_null():
 def create_route():
     data = request.get_json(silent=True) or {}
     areas_id = data.get('areas_id')
-    route_code = data.get('route_code')
-    route_name = data.get('route_name')
-    car_number = data.get('car_number')
-    team = data.get('team')
-    trip_number = data.get('trip_number')
+    route_code = _clean_text(data.get('route_code'))
+    route_name = _clean_text(data.get('route_name'))
+    car_number = _clean_text(data.get('car_number'))
+    team = _clean_text(data.get('team'))
+    trip_number = _clean_text(data.get('trip_number'))
 
-    # 🛡️ 必填安全檢查
-    if not areas_id or not route_code or not route_name:
+    try:
+        areas_id = int(areas_id)
+    except (TypeError, ValueError):
+        return jsonify({"status": "error", "message": "區域 ID 必須是有效整數！"}), 400
+
+    if areas_id <= 0 or not route_code or not route_name:
         return jsonify({"status": "error", "message": "區域 ID、路線代碼與路線名稱為核心必填欄位！"}), 400
 
-    # 🛡️ 字數限制防禦（對齊前端 30 字上限限制）
     for field_name, value in [('路線代碼', route_code), ('路線名稱', route_name), ('車牌號碼', car_number), ('所屬車隊', team), ('車次班次', trip_number)]:
         if value and len(str(value)) > 30:
             return jsonify({"status": "error", "message": f"欄位【{field_name}】超出 30 字元上限！"}), 400
@@ -107,12 +124,47 @@ def create_route():
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
+            print(f"[create_route] payload={data}")
+            duplicate_sql = """
+                SELECT route_id
+                FROM routes
+                WHERE areas_id = %s
+                  AND route_code = %s
+                  AND route_name = %s
+                  AND COALESCE(car_number, '') = COALESCE(%s, '')
+                  AND COALESCE(team, '') = COALESCE(%s, '')
+                  AND COALESCE(trip_number, '') = COALESCE(%s, '')
+                LIMIT 1
+            """
+            cursor.execute(duplicate_sql, (
+                areas_id,
+                route_code,
+                route_name,
+                car_number if car_number else None,
+                team if team else None,
+                trip_number if trip_number else None
+            ))
+            duplicate_route = cursor.fetchone()
+            if duplicate_route:
+                print("[create_route] blocked_reason=duplicate_route")
+                return jsonify({
+                    "status": "error",
+                    "error_type": "duplicate",
+                    "blocked_reason": "duplicate_route",
+                    "duplicate_key": {
+                        "areas_id": areas_id,
+                        "route_code": route_code,
+                        "route_name": route_name
+                    },
+                    "message": "資料完全重複，已存在相同路線記錄，禁止重複新增！"
+                }), 409
+
             insert_sql = """
                 INSERT INTO routes (areas_id, route_code, route_name, car_number, team, trip_number)
                 VALUES (%s, %s, %s, %s, %s, %s)
             """
             cursor.execute(insert_sql, (
-                int(areas_id),
+                areas_id,
                 route_code,
                 route_name,
                 car_number if car_number else None,
@@ -123,6 +175,7 @@ def create_route():
         return jsonify({"status": "success", "message": "全新收運路線已安全寫入資料庫！"}), 201
     except Exception as e:
         conn.rollback()
+        print(f"[create_route] error={type(e).__name__}: {e}")
         return jsonify({"status": "error", "message": f"資料庫寫入失敗: {str(e)}"}), 500
     finally:
         conn.close()
@@ -137,27 +190,44 @@ def delete_route(route_id):
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
-            # A. 物理蒸發該路線下所有站點的『每週班次日程 (station_schedules)』
             delete_schedules_sql = """
-                DELETE FROM station_schedules 
+                DELETE FROM station_schedules
                 WHERE station_id IN (SELECT station_id FROM stations WHERE route_id = %s)
             """
             cursor.execute(delete_schedules_sql, [route_id])
 
-            # B. 物理蒸發該路線下的所有『清運站點本體 (stations)』
             delete_stations_sql = "DELETE FROM stations WHERE route_id = %s"
             cursor.execute(delete_stations_sql, [route_id])
 
-            # C. 最後抹除『收運路線本體 (routes)』
             delete_route_sql = "DELETE FROM routes WHERE route_id = %s"
             cursor.execute(delete_route_sql, [route_id])
 
-            # 🟢 整個事務完全成功，一體化 Commit 提交
             conn.commit()
-            
+
         return jsonify({"status": "success", "message": "收運路線及連帶之站點班次數據已安全連鎖清除！"}), 200
     except Exception as e:
         conn.rollback()
         return jsonify({"status": "error", "message": f"連鎖刪除失敗: {str(e)}"}), 500
+    finally:
+        conn.close()
+
+
+@bp.route('/areas/all', methods=['GET'])
+def get_all_areas():
+    """撈取資料庫內完整的縣市、行政區、村里資料，供站點端與搜尋端進行三級級聯連動"""
+    conn = get_db_connection()
+    try:
+        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+            sql = """
+                SELECT areas_id, city, district, village
+                FROM areas
+                WHERE village IS NOT NULL AND village != ''
+                ORDER BY city ASC, district ASC, village ASC
+            """
+            cursor.execute(sql)
+            areas = cursor.fetchall()
+        return jsonify({"status": "success", "areas": areas}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"後台村里區域撈取失敗: {str(e)}"}), 500
     finally:
         conn.close()
