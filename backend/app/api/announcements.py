@@ -65,12 +65,11 @@ def _build_push_flex_contents(title: str, content: str, target_city: str = None)
         "header": {
             "type": "box",
             "layout": "vertical",
-            "backgroundColor": "#0F766E",
-            "paddingAll": "16px",
+            "backgroundColor": "#13E636",
+            "paddingAll": "6px",
             "contents": [
-                {"type": "text", "text": "垃圾車追蹤系統", "size": "xs", "color": "#CCFBF1"},
-                {"type": "text", "text": "系統公告", "size": "lg", "weight": "bold", "color": "#FFFFFF", "margin": "sm"},
-                {"type": "text", "text": f"適用範圍：{scope_text}", "size": "xs", "color": "#CCFBF1", "margin": "sm", "wrap": True},
+                {"type": "text", "text": "系統公告", "size": "sm", "weight": "bold", "color": "#FFFFFF"},
+                {"type": "text", "text": f"適用範圍：{scope_text}", "size": "xs", "color": "#CCFBF1", "margin": "xs", "wrap": True},
             ],
         },
         "body": {
