@@ -120,6 +120,14 @@
     let activeCity = CITIES[0];
     let activeTab = TABS[0].key;
 
+    // 支援用網址參數指定初始分頁/縣市，例如 /info?tab=bulky&city=新北市
+    // （bot 入口連結會帶 tab，讓「垃圾袋規範」「大型廢棄物」各自落到對應分頁）
+    const initParams = new URLSearchParams(location.search);
+    const wantTab = initParams.get('tab');
+    if (wantTab && TABS.some(t => t.key === wantTab)) activeTab = wantTab;
+    const wantCity = initParams.get('city');
+    if (wantCity && CITIES.includes(wantCity)) activeCity = wantCity;
+
     // 統一的後端呼叫方式：自動帶上 X-Line-User-Id（資訊類為公開 API，後端會忽略）
     async function api(path, options = {}) {
         const headers = Object.assign(

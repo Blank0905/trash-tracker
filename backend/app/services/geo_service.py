@@ -183,7 +183,7 @@ def list_route_stations(route_id):
         SELECT station_id, station_name, latitude, longitude, sequence_order, arrive_time
         FROM stations
         WHERE route_id = %s
-        ORDER BY sequence_order ASC
+        ORDER BY (sequence_order IS NULL), sequence_order ASC, arrive_time ASC
     """
     try:
         with conn.cursor() as cursor:

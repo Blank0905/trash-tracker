@@ -9,6 +9,8 @@
     <!-- Leaflet（OpenStreetMap，免 API key、免信用卡） -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- 在路線上加方向箭頭 -->
+    <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
     <style>
         :root {
             --primary: #00B900;
@@ -25,7 +27,7 @@
         #map { position: fixed; inset: 0; background: var(--bg-color); }
         #map .placeholder { padding: 24px; color: var(--text-muted); }
 
-        /* 頂部控制列：半徑選擇 + 以地圖中心搜尋（z-index 需高於 Leaflet 圖層） */
+        /* 頂部控制列：半徑選擇（z-index 需高於 Leaflet 圖層） */
         #topbar {
             position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
             z-index: 1100; display: flex; gap: 8px; align-items: center;
@@ -37,14 +39,8 @@
             font-size: 0.9rem;
             box-shadow: 0 4px 12px rgba(0,0,0,0.4);
         }
-        #searchHere {
-            border: none; border-radius: 999px;
-            padding: 10px 18px;
-            background: var(--primary); color: white;
-            font-size: 0.9rem; font-weight: bold;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-            cursor: pointer;
-        }
+        /* 可拖動的搜尋大頭針（divIcon）：去掉 Leaflet 預設的白底外框 */
+        .search-pin { background: none; border: none; }
 
         /* 底部站點資訊面板 */
         #panel {
@@ -74,6 +70,7 @@
             padding: 12px; font-size: 0.95rem; font-weight: bold;
             cursor: pointer; color: white;
         }
+        #p-route { background: #1a73e8; }
         #p-fav { background: var(--primary); }
         #p-close { background: #2c2c2c; }
 
@@ -83,10 +80,29 @@
             z-index: 1100;
             width: 48px; height: 48px; border-radius: 50%;
             border: none; background: var(--surface); color: white;
-            font-size: 1.3rem; line-height: 48px; text-align: center;
+            display: flex; align-items: center; justify-content: center; padding: 0;
             box-shadow: 0 4px 12px rgba(0,0,0,0.5);
             cursor: pointer;
         }
+        #locateBtn svg { width: 24px; height: 24px; }
+
+        /* 可拖曳的「搜尋點」圖釘按鈕：壓住拖到地圖某處放開 → 在該處放標記並搜尋 */
+        #dragPin {
+            position: fixed; right: 16px; bottom: 88px;
+            z-index: 1100;
+            width: 48px; height: 48px; border-radius: 50%;
+            border: none; background: var(--surface);
+            display: flex; align-items: center; justify-content: center; padding: 0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            cursor: grab; touch-action: none;     /* touch-action:none：觸控拖曳不被當成捲動 */
+        }
+        #dragPin svg { width: 26px; height: 34px; pointer-events: none; }
+        /* 拖曳過程中跟著手指/游標的分身（針尖對準落點） */
+        .pin-ghost {
+            position: fixed; z-index: 2000; pointer-events: none;
+            transform: translate(-50%, -100%);
+        }
+        .pin-ghost svg { width: 32px; height: 42px; display: block; }
 
         #toast {
             position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
@@ -110,19 +126,34 @@
         <option value="3">3 公里</option>
         <option value="5">5 公里</option>
     </select>
-    <button id="searchHere" style="display:none;">以此處搜尋</button>
 </div>
 
 <div id="panel">
     <div class="p-name" id="p-name">站點</div>
     <div id="p-schedule"></div>
     <div class="p-actions">
+        <button id="p-route">顯示路線</button>
         <button id="p-fav">加入最愛</button>
         <button id="p-close">關閉</button>
     </div>
 </div>
 
-<button id="locateBtn" title="重新定位">📍</button>
+<button id="dragPin" title="拖我到地圖上選搜尋點" aria-label="拖曳設定搜尋點">
+    <svg viewBox="0 0 24 32">
+        <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 20 12 20s12-11 12-20C24 5.4 18.6 0 12 0z" fill="#e53935" stroke="#fff" stroke-width="2"/>
+        <circle cx="12" cy="12" r="5" fill="#fff"/>
+    </svg>
+</button>
+<button id="locateBtn" title="定位我的位置" aria-label="定位我的位置">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <circle cx="12" cy="12" r="6"/>
+        <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/>
+        <line x1="12" y1="1.5" x2="12" y2="4.5"/>
+        <line x1="12" y1="19.5" x2="12" y2="22.5"/>
+        <line x1="1.5" y1="12" x2="4.5" y2="12"/>
+        <line x1="19.5" y1="12" x2="22.5" y2="12"/>
+    </svg>
+</button>
 <div id="toast"></div>
 
 <script>
@@ -133,8 +164,12 @@
     let lineUserId = null;
     let map = null;
     let markers = [];        // 站點 marker
+    let searchMarker = null; // 拖放到地圖上的搜尋大頭針（紅）
+    let searchCenter = null; // 目前查詢中心 {lat,lng}（改半徑時沿用）
     let userMarker = null;   // 使用者目前位置圖標
     let rangeCircle = null;  // 搜尋範圍圓圈
+    let routeLayer = null;   // 目前顯示的行駛路線（polyline + 該路線站點）
+    let currentRouteId = null;
 
     // 目前選取的搜尋半徑（公里）
     function currentRadius() {
@@ -193,6 +228,27 @@
         return null;
     }
 
+    // 紅色搜尋大頭針圖示（與站點藍針、自己藍點區隔）
+    const searchPinIcon = L.divIcon({
+        className: 'search-pin',
+        html: '<svg width="32" height="42" viewBox="0 0 24 32">'
+            + '<path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 20 12 20s12-11 12-20C24 5.4 18.6 0 12 0z" fill="#e53935" stroke="#fff" stroke-width="2"/>'
+            + '<circle cx="12" cy="12" r="5" fill="#fff"/></svg>',
+        iconSize: [32, 42], iconAnchor: [16, 42]
+    });
+
+    // 放置／移動搜尋大頭針：拖放後以新位置重新搜尋
+    function placeSearchMarker(pos) {
+        if (searchMarker) { searchMarker.setLatLng([pos.lat, pos.lng]); return; }
+        searchMarker = L.marker([pos.lat, pos.lng], {
+            icon: searchPinIcon, draggable: true, zIndexOffset: 1000
+        }).addTo(map).bindTooltip('搜尋點（可拖動微調）');
+        searchMarker.on('dragend', () => {
+            const p = searchMarker.getLatLng();
+            searchStations(p.lat, p.lng);
+        });
+    }
+
     // 使用者目前位置圖標（藍點）；只有 GPS 真的定位成功才畫
     function setUserMarker(pos) {
         if (userMarker) map.removeLayer(userMarker);
@@ -204,6 +260,7 @@
 
     // 鄰近搜尋：畫搜尋範圍圓圈 + 站點 marker
     async function searchStations(lat, lng) {
+        searchCenter = { lat, lng };       // 記住查詢中心，改半徑時沿用
         const radiusKm = currentRadius();
         const r = await api(`/stations/search?lat=${lat}&lng=${lng}&radius=${radiusKm}`);
 
@@ -258,6 +315,11 @@
         document.getElementById('p-name').innerText = d.station_name || fallbackName || '站點';
         document.getElementById('p-schedule').innerHTML = renderWeek(d.schedules, d.arrive_time);
         document.getElementById('p-fav').onclick = () => addFavorite(d.station_id);
+        // 記住此站所屬路線，供「顯示路線」用；按鈕文字依該路線是否正在顯示
+        currentRouteId = d.route ? d.route.route_id : null;
+        const routeBtn = document.getElementById('p-route');
+        routeBtn.style.display = currentRouteId ? 'block' : 'none';
+        routeBtn.innerText = (routeLayer && routeLayer._forRoute === currentRouteId) ? '隱藏路線' : '顯示路線';
         document.getElementById('panel').classList.add('open');
     }
 
@@ -267,21 +329,63 @@
         else toast('加入失敗：' + (r.message || '')); // 409＝已收藏過此站點
     }
 
+    // 清掉目前顯示的行駛路線
+    function clearRoute() {
+        if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+    }
+
+    // 畫出某條路線：站點依序連成折線 + 各站小圓點（編號＝行駛順序）
+    async function showRoute(routeId) {
+        const r = await api(`/stations/by-route/${routeId}`);
+        if (r.status !== 'success' || !Array.isArray(r.data) || r.data.length === 0) {
+            toast('讀取路線失敗或此路線無站點');
+            return;
+        }
+        clearRoute();
+        const pts = r.data.map(s => [s.latitude, s.longitude]);
+        const line = L.polyline(pts, { color: '#1a73e8', weight: 4, opacity: 0.8 });
+        // 沿線加方向箭頭，標示行駛方向（站點順序＝行駛順序）
+        const arrows = L.polylineDecorator(line, {
+            patterns: [{
+                offset: 12,
+                repeat: 80,
+                symbol: L.Symbol.arrowHead({
+                    pixelSize: 10,
+                    polygon: false,
+                    pathOptions: { color: '#ffffff', weight: 3, opacity: 0.9 }
+                })
+            }]
+        });
+        const dots = r.data.map((s, i) =>
+            L.circleMarker([s.latitude, s.longitude], {
+                radius: 4, color: '#fff', weight: 1, fillColor: '#1a73e8', fillOpacity: 1
+            }).bindTooltip(`${i + 1}. ${s.station_name}`));
+        routeLayer = L.layerGroup([line, arrows, ...dots]).addTo(map);
+        routeLayer._forRoute = routeId;   // 記住目前顯示的是哪條路線
+        map.fitBounds(line.getBounds(), { padding: [40, 40] });
+    }
+
+    // 「顯示/隱藏路線」切換
+    document.getElementById('p-route').onclick = async () => {
+        if (!currentRouteId) { toast('此站無路線資訊'); return; }
+        const btn = document.getElementById('p-route');
+        if (routeLayer && routeLayer._forRoute === currentRouteId) {
+            clearRoute();
+            btn.innerText = '顯示路線';
+        } else {
+            btn.innerText = '載入中…';
+            await showRoute(currentRouteId);
+            btn.innerText = routeLayer ? '隱藏路線' : '顯示路線';
+        }
+    };
+
     document.getElementById('p-close').onclick = () =>
         document.getElementById('panel').classList.remove('open');
 
-    // 以目前地圖中心搜尋
-    document.getElementById('searchHere').onclick = () => {
-        if (!map) return;
-        const c = map.getCenter(); // Leaflet 的 LatLng：.lat / .lng 是屬性
-        searchStations(c.lat, c.lng);
-    };
-
-    // 改搜尋半徑 → 立即以目前地圖中心重查
+    // 改搜尋半徑 → 立即以目前查詢中心重查
     document.getElementById('radius').addEventListener('change', () => {
-        if (!map) return;
-        const c = map.getCenter();
-        searchStations(c.lat, c.lng);
+        if (!searchCenter) return;
+        searchStations(searchCenter.lat, searchCenter.lng);
     });
 
     // 右下角 📍：手動重新定位（手勢觸發，成功率高於頁面載入時的自動定位）
@@ -292,8 +396,51 @@
         if (!geo) return;
         map.setView([geo.lat, geo.lng], 16);
         setUserMarker(geo);
+        // 定位＝以「我」為中心，移除先前手動拖放的搜尋針（避免兩個搜尋點指示）
+        if (searchMarker) { map.removeLayer(searchMarker); searchMarker = null; }
         searchStations(geo.lat, geo.lng);
     };
+
+    // 「搜尋點」圖釘按鈕：壓住往地圖拖、放開處放紅針並搜尋（滑鼠＋觸控皆支援）
+    (function () {
+        const btn = document.getElementById('dragPin');
+        let ghost = null, startX = 0, startY = 0, moved = false;
+
+        const startGhost = e => {
+            if (!map) return;
+            e.preventDefault();
+            btn.setPointerCapture(e.pointerId);   // 之後 move/up 都鎖定在此按鈕
+            startX = e.clientX; startY = e.clientY; moved = false;
+            ghost = document.createElement('div');
+            ghost.className = 'pin-ghost';
+            ghost.innerHTML = btn.innerHTML;
+            document.body.appendChild(ghost);
+            moveGhost(e);
+        };
+        const moveGhost = e => {
+            if (!ghost) return;
+            if (Math.hypot(e.clientX - startX, e.clientY - startY) > 8) moved = true;
+            ghost.style.left = e.clientX + 'px';
+            ghost.style.top = e.clientY + 'px';
+        };
+        const endGhost = e => {
+            if (!ghost) return;
+            ghost.remove(); ghost = null;
+            if (!moved) { toast('壓住圖釘拖到地圖上放開，即可選搜尋點'); return; }
+            const rect = map.getContainer().getBoundingClientRect();
+            const inside = e.clientX >= rect.left && e.clientX <= rect.right
+                        && e.clientY >= rect.top && e.clientY <= rect.bottom;
+            if (!inside) return;   // 放在地圖外 → 取消
+            const ll = map.containerPointToLatLng(
+                L.point(e.clientX - rect.left, e.clientY - rect.top));
+            placeSearchMarker({ lat: ll.lat, lng: ll.lng });
+            searchStations(ll.lat, ll.lng);
+        };
+        btn.addEventListener('pointerdown', startGhost);
+        btn.addEventListener('pointermove', moveGhost);
+        btn.addEventListener('pointerup', endGhost);
+        btn.addEventListener('pointercancel', () => { if (ghost) { ghost.remove(); ghost = null; } });
+    })();
 
     // 主流程
     async function main() {
@@ -315,7 +462,7 @@
         // 只有實際 GPS 定位成功才畫「使用者位置」
         if (geo) setUserMarker(geo);
 
-        document.getElementById('searchHere').style.display = 'block';
+        // 一開始不放搜尋針（圖釘住在右下按鈕裡，由使用者拖放到地圖上）
         searchStations(center.lat, center.lng);
     }
 
