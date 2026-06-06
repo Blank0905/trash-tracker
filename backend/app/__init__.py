@@ -118,6 +118,10 @@ def create_app():
         req_data = request.get_json() or {}
         email = req_data.get('email')
         password = req_data.get('password')
+
+        #有點不愛打@gmail.com 所以自動補齊xixi
+        if email and '@' not in email:
+            email = f"{email}@gmail.com"
         
         if not email or not password:
             return jsonify({"message": "請填寫所有欄位"}), 400
