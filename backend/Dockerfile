@@ -2,11 +2,13 @@ FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+# 容器時區設台灣，讓所有 datetime.now() 都回台灣時間（slim 預設無 OS tzdata，需一併安裝）
+ENV TZ=Asia/Taipei
 
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential \
+    && apt-get install -y --no-install-recommends build-essential tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt .
