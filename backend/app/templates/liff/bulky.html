@@ -60,12 +60,11 @@
             margin-bottom: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
-        .card-title { font-size: 1.05rem; font-weight: 600; }
         .card-foot { font-size: 0.78rem; color: var(--text-muted); margin-top: 10px; }
         /* Markdown 渲染後的內文樣式 */
         .md-body { font-size: 0.9rem; margin-top: 10px; line-height: 1.7; word-break: break-word; }
         .md-body p { margin: 0 0 10px; }
-        .md-body h1, .md-body h2, .md-body h3 { font-size: 1rem; font-weight: 700; margin: 14px 0 8px; }
+        .md-body h1, .md-body h2, .md-body h3 { font-size: 1rem; font-weight: 700; margin: 14px 0 8px; text-align: left; }
         .md-body ul, .md-body ol { margin: 0 0 10px; padding-left: 20px; }
         .md-body li { margin: 4px 0; }
         .md-body a { color: var(--primary); text-decoration: underline; word-break: break-all; }
@@ -79,7 +78,7 @@
 <body>
 
 <div class="container">
-    <h2>大型廢棄物清運</h2>
+    <h2 id="pageTitle">大型廢棄物清運</h2>
     <div class="city-bar" id="cityBar"></div>
     <div id="status">載入中…</div>
     <div id="list"></div>
@@ -140,7 +139,6 @@
     function renderBulky(items) {
         return items.map(i => `
             <div class="card">
-                <div class="card-title">${esc(i.title)}</div>
                 <div class="md-body">${mdToSafeHtml(i.content)}</div>
                 ${i.updated_at ? `<div class="card-foot">更新：${fmtTime(i.updated_at)}</div>` : ''}
             </div>`).join('');
@@ -152,8 +150,11 @@
         ).join('');
     }
 
+    const titleEl = document.getElementById('pageTitle');
+
     async function load() {
         buildCityBar();
+        titleEl.innerText = '大型廢棄物清運';   // 預設標題，載入成功後換成該市標題
         statusEl.style.display = 'block';
         statusEl.innerText = '載入中…';
         listEl.innerHTML = '';
@@ -169,6 +170,8 @@
                 return;
             }
             statusEl.style.display = 'none';
+            // 把該市標題拉到最上面的大標；卡片內只留 Markdown 內容
+            titleEl.innerText = items[0].title || '大型廢棄物清運';
             listEl.innerHTML = renderBulky(items);
         } catch (e) {
             console.error('載入大型廢棄物清運失敗', e);
