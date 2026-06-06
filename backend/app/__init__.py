@@ -11,6 +11,8 @@ from flask_cors import CORS
 import decimal
 import datetime
 from app.db import check_db_health, get_table_structure, browse_table, get_db_connection
+#這邊是雜湊後要登入所以加的
+from werkzeug.security import check_password_hash
 
 # 💡 核心武器：自訂 JSON 轉換器，自動把 Decimal 轉浮點數、time/timedelta 轉字串
 class CustomJSONProvider(DefaultJSONProvider):
@@ -48,6 +50,22 @@ def _start_scheduler(app):
     scheduler.start()
     app.scheduler = scheduler
 
+#阿因為我想要雜湊過或本來預設的都可以用 所以才這樣寫
+def verify_password(input_password: str, stored_password: str) -> bool:
+    if not stored_password:
+        return False
+
+    #  照你的超讚邏輯：先嘗試跑 Flask 官方的雜湊驗證（完美支援 scrypt）
+    try:
+        if check_password_hash(stored_password, input_password):
+            return True
+    except Exception:
+        # 如果資料庫裡是純文字（如 abc123），check_password_hash 會因為格式不符而噴錯
+        # 這時候我們直接 pass，讓程式碼往下走純文字比對
+        pass
+
+    #  備用方案：如果雜湊沒過，或是舊的明文資料，就直接進行字串比對
+    return input_password == stored_password
 
 def create_app():
     app = Flask(__name__)
@@ -100,6 +118,10 @@ def create_app():
         req_data = request.get_json() or {}
         email = req_data.get('email')
         password = req_data.get('password')
+
+        #有點不愛打@gmail.com 所以自動補齊xixi
+        if email and '@' not in email:
+            email = f"{email}@gmail.com"
         
         if not email or not password:
             return jsonify({"message": "請填寫所有欄位"}), 400
@@ -111,7 +133,9 @@ def create_app():
                 cursor.execute(sql, [email])
                 user = cursor.fetchone()
                 
-                if not user or user['password_hash'] != password:
+                # 這裡改成用 verify_password 函式
+                # 如果找不到使用者，或者密碼驗證失敗（不管是明文還是雜湊），都阻擋掉
+                if not user or not verify_password(password, user['password_hash']):
                     return jsonify({"message": "帳號或密碼輸入錯誤"}), 401
                     
                 if user['role'] != 'admin':
