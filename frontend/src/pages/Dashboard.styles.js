@@ -160,13 +160,6 @@ export const getStyles = (isMobile) => ({
     overflowY: 'auto',
   },
 
-  welcomeCard: {
-    backgroundColor: '#ffffff',
-    padding: '30px',
-    borderRadius: '12px',
-    boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
-  },
-
   dummyPage: {
     backgroundColor: '#ffffff',
     padding: isMobile ? '30px 15px' : '50px',
