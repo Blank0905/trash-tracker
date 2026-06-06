@@ -1,6 +1,4 @@
 import os
-import re
-import unicodedata
 
 import pymysql
 from dbutils.pooled_db import PooledDB
@@ -51,7 +49,6 @@ PRIMARY_KEYS = {
 
 MAX_BROWSE_LIMIT = 500
 _TEXT_TYPE_HINTS = ('char', 'text', 'enum', 'set', 'json')
-_BOPOMOFO_TONE_TRANSLATE = str.maketrans('', '', '˙ˊˇˋ˪˫')
 
 
 def get_db_connection():
@@ -96,28 +93,14 @@ def _clamp_int(value, default, minimum, maximum):
 def _normalize_search_text(raw_value):
     if raw_value is None:
         return ''
-    return unicodedata.normalize('NFKC', str(raw_value)).strip()
+    return str(raw_value).strip()
 
 
 def _build_search_terms(raw_search):
     base = _normalize_search_text(raw_search)
     if not base:
-        return [], []
-
-    terms = []
-    condensed_terms = []
-
-    def _add(target_list, item):
-        if item and item not in target_list:
-            target_list.append(item)
-
-    _add(terms, base)
-    _add(terms, base.translate(_BOPOMOFO_TONE_TRANSLATE))
-
-    for term in terms:
-        _add(condensed_terms, re.sub(r'\s+', '', term))
-
-    return terms, condensed_terms
+        return []
+    return [base]
 
 
 def _load_table_columns(cursor, table_name):
@@ -190,7 +173,7 @@ def browse_table(table_name, page=1, limit=500, search='', sort='none', search_f
             default_sort_column = pk if pk in all_columns else (all_columns[0] if all_columns else None)
             sort_column, sort_direction = _parse_sort(sort, all_columns, default_sort_column)
 
-            search_terms, condensed_terms = _build_search_terms(search)
+            search_terms = _build_search_terms(search)
             default_search_columns = text_columns if text_columns else all_columns
             selected_search_columns = _parse_search_fields(
                 raw_fields=search_fields,
@@ -207,12 +190,6 @@ def browse_table(table_name, page=1, limit=500, search='', sort='none', search_f
 
                     for term in search_terms:
                         where_parts.append(f'{expr} COLLATE utf8mb4_unicode_ci LIKE %s')
-                        where_params.append(f'%{term}%')
-
-                    for term in condensed_terms:
-                        where_parts.append(
-                            f"REPLACE(REPLACE({expr}, ' ', ''), '　', '') COLLATE utf8mb4_unicode_ci LIKE %s"
-                        )
                         where_params.append(f'%{term}%')
 
             where_clause = f" WHERE {' OR '.join(where_parts)}" if where_parts else ''

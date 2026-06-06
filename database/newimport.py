@@ -272,6 +272,17 @@ class GarbageTruckImporter:
         except Exception:
             return None
 
+    def _safe_coord(self, val, lo: float, hi: float) -> Optional[float]:
+        """經緯度防呆：解析失敗或超出台灣合理範圍（經度 119~123、緯度 21~26）就存 NULL 並記 log。
+        避免單一壞點（如少小數點、TWD97 投影值）在 STRICT 模式下用 1264 讓整批匯入失敗。"""
+        f = self._safe_float(val)
+        if f is None:
+            return None
+        if f < lo or f > hi:
+            print(f"[座標異常] 值 {f} 超出範圍 [{lo}, {hi}]，該點座標存 NULL")
+            return None
+        return f
+
     def _safe_int(self, val) -> Optional[int]:
         try:
             cleaned = self._clean(val)
@@ -472,8 +483,8 @@ class GarbageTruckImporter:
                     route_id=route_id,
                     areas_id=station_area_id,
                     station_name=station_name,
-                    longitude=self._safe_float(row["經度"]),
-                    latitude=self._safe_float(row["緯度"]),
+                    longitude=self._safe_coord(row["經度"], 119, 123),
+                    latitude=self._safe_coord(row["緯度"], 21, 26),
                     arrive_time=self._parse_time_4digit(row["抵達時間"]),
                     leave_time=self._parse_time_4digit(row["離開時間"]),
                 )
@@ -506,8 +517,8 @@ class GarbageTruckImporter:
                     areas_id=station_area_id,
                     station_name=station_name,
                     sequence_order=self._safe_int(row["rank"]),
-                    longitude=self._safe_float(row["longitude"]),
-                    latitude=self._safe_float(row["latitude"]),
+                    longitude=self._safe_coord(row["longitude"], 119, 123),
+                    latitude=self._safe_coord(row["latitude"], 21, 26),
                     arrive_time=self._parse_time_hhmm(row["time"]),
                     memo=row.get("memo"),
                 )
@@ -547,8 +558,8 @@ class GarbageTruckImporter:
                     areas_id=station_area_id,
                     station_name=station_name,
                     sequence_order=self._safe_int(row["順序"]),
-                    longitude=self._safe_float(row["經度"]),
-                    latitude=self._safe_float(row["緯度"]),
+                    longitude=self._safe_coord(row["經度"], 119, 123),
+                    latitude=self._safe_coord(row["緯度"], 21, 26),
                     arrive_time=self._parse_time_hhmm(row["預估到達時間"]),
                     leave_time=self._parse_time_hhmm(row["預估離開時間"]),
                     stay_type=row.get("停留時間"),

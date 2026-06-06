@@ -1,8 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.db import get_db_connection
 import pymysql
-import re
-import unicodedata
 
 # 🟢 獨立的後台管理藍圖，前綴採用 /api/admin/routes
 bp = Blueprint('add_delete_route', __name__, url_prefix='/api/admin/routes')
@@ -17,33 +15,17 @@ SEARCHABLE_ROUTE_FIELDS = {
     'district': 'a.district',
 }
 
-_BOPOMOFO_TONE_TRANSLATE = str.maketrans('', '', '˙ˊˇˋ˪˫')
-
-
 def _normalize_text(raw):
     if raw is None:
         return ''
-    return unicodedata.normalize('NFKC', str(raw)).strip()
+    return str(raw).strip()
 
 
 def _build_terms(raw):
     base = _normalize_text(raw)
     if not base:
-        return [], []
-
-    terms = []
-    condensed_terms = []
-
-    def _add(target, value):
-        if value and value not in target:
-            target.append(value)
-
-    _add(terms, base)
-    _add(terms, base.translate(_BOPOMOFO_TONE_TRANSLATE))
-    for term in terms:
-        _add(condensed_terms, re.sub(r'\s+', '', term))
-
-    return terms, condensed_terms
+        return []
+    return [base]
 
 
 def _parse_search_fields(raw):
@@ -98,7 +80,7 @@ def get_routes_list():
                 
             if keyword:
                 selected_fields = _parse_search_fields(search_fields)
-                terms, condensed_terms = _build_terms(keyword)
+                terms = _build_terms(keyword)
                 term_sql_parts = []
 
                 for field in selected_fields:
@@ -106,12 +88,6 @@ def get_routes_list():
 
                     for term in terms:
                         term_sql_parts.append(f"{expr} COLLATE utf8mb4_unicode_ci LIKE %s")
-                        params.append(f"%{term}%")
-
-                    for term in condensed_terms:
-                        term_sql_parts.append(
-                            f"REPLACE(REPLACE({expr}, ' ', ''), '　', '') COLLATE utf8mb4_unicode_ci LIKE %s"
-                        )
                         params.append(f"%{term}%")
 
                 if term_sql_parts:

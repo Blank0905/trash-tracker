@@ -6,6 +6,8 @@ const TableTemplate = ({ tableName }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(500); 
   const [filterText, setFilterText] = useState('');
+  const [filterTextDraft, setFilterTextDraft] = useState('');
+  const [isComposing, setIsComposing] = useState(false);
   const [searchField, setSearchField] = useState('__all__');
   const [sortOrder, setSortOrder] = useState('none'); 
 
@@ -64,6 +66,10 @@ const TableTemplate = ({ tableName }) => {
   useEffect(() => {
     setSearchField('__all__');
   }, [tableName]);
+
+  useEffect(() => {
+    setFilterTextDraft(filterText);
+  }, [filterText]);
 
   const totalPages = Math.ceil(totalRows / pageSize) || 1;
   const pageOptions = Array.from({ length: totalPages }, (_, i) => i + 1);
@@ -163,7 +169,29 @@ const TableTemplate = ({ tableName }) => {
               </select>
 
               <span style={styles.toolbarLabel}>篩選資料列：</span>
-              <input type="text" placeholder="搜尋此資料表" value={filterText} onChange={(e) => { setFilterText(e.target.value); setCurrentPage(1); }} style={styles.input} />
+              <input
+                type="text"
+                placeholder="搜尋此資料表"
+                value={filterTextDraft}
+                onCompositionStart={() => setIsComposing(true)}
+                onCompositionEnd={(e) => {
+                  const committed = e.currentTarget.value;
+                  setIsComposing(false);
+                  setFilterTextDraft(committed);
+                  setFilterText(committed);
+                  setCurrentPage(1);
+                }}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  const composingNow = Boolean(e.nativeEvent && e.nativeEvent.isComposing);
+                  setFilterTextDraft(next);
+                  if (!isComposing && !composingNow) {
+                    setFilterText(next);
+                    setCurrentPage(1);
+                  }
+                }}
+                style={styles.input}
+              />
 
               <span style={styles.toolbarLabel}>搜尋欄位：</span>
               <select value={searchField} onChange={(e) => { setSearchField(e.target.value); setCurrentPage(1); }} style={styles.select}>
