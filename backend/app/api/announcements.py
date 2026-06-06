@@ -65,7 +65,7 @@ def _build_push_flex_contents(title: str, content: str, target_city: str = None)
         "header": {
             "type": "box",
             "layout": "vertical",
-            "backgroundColor": "#13E636",
+            "backgroundColor": "#14A32C",
             "paddingAll": "6px",
             "contents": [
                 {"type": "text", "text": "系統公告", "size": "sm", "weight": "bold", "color": "#FFFFFF"},
