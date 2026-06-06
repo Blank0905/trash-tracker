@@ -20,6 +20,28 @@ const RulesAnnouncements = () => {
   // 目前登入管理員的 user_id（登入時存於 localStorage，見 Login.jsx），作為公告 created_by；未登入則為 null
   const currentAdminId = localStorage.getItem('admin_id');
 
+  const formatDisplayTime = (rawValue) => {
+    if (rawValue == null) return '';
+    const raw = String(rawValue).trim();
+    if (!raw) return '';
+    if (raw === '剛剛') return raw;
+
+    // 防呆：後端若誤回傳 DATE_FORMAT 模板字串，不直接顯示給使用者
+    if (raw.includes('%Y') || raw.includes('%m') || raw.includes('%d') || raw.includes('%H') || raw.includes('%i')) {
+      return '時間格式錯誤';
+    }
+
+    const parsed = new Date(raw.replace(' ', 'T'));
+    if (Number.isNaN(parsed.getTime())) return raw;
+
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getDate()).padStart(2, '0');
+    const hour = String(parsed.getHours()).padStart(2, '0');
+    const minute = String(parsed.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hour}:${minute}`;
+  };
+
   // ==========================================
   // 核心功能 1：撈取公告清單
   // ==========================================
@@ -288,13 +310,16 @@ const RulesAnnouncements = () => {
                     <span style={styles.scopeBadge}>
                       {anno.target_city ? `📍 ${anno.target_city}` : '🌍 全體縣市'}
                     </span>
-                    <span style={styles.timeText}>{anno.created_at}</span>
+                    <span style={styles.timeText}>{formatDisplayTime(anno.created_at)}</span>
                   </div>
                   <h4 style={styles.annoTitle}>{anno.title}</h4>
                   <p style={styles.annoContent}>{anno.content}</p>
                   <div style={styles.pushFooter}>
                     {anno.is_pushed ? (
-                      <span style={styles.pushedTag}>📡 LINE 官方已推播通報 ({anno.pushed_at})</span>
+                      <span style={styles.pushedTag}>
+                        📡 LINE 官方已推播通報
+                        {formatDisplayTime(anno.pushed_at) ? ` (${formatDisplayTime(anno.pushed_at)})` : ''}
+                      </span>
                     ) : (
                       /* 🟢 修改點：未推播的公告，優雅加入「編輯」與「直接發送」兩顆功能按鈕 */
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
