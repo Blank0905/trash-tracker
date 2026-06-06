@@ -15,6 +15,7 @@ pool = PooledDB(
     database=os.environ.get('DB_NAME', 'garbage_database'),
     charset='utf8mb4',
     cursorclass=pymysql.cursors.DictCursor,
+    init_command="SET time_zone='+08:00'",
 )
 
 ALLOWED_TABLES = [
