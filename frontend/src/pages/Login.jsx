@@ -77,7 +77,7 @@ const Login = ({ onLoginSuccess }) => {
               <div style={styles.inputGroup}>
                 <label style={styles.label}>電子郵件 (Email)</label>
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="admin@trash.tracker.com"
