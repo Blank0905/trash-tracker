@@ -32,8 +32,8 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - ./database:/app/database:ro
-      - ./database:/database:ro
+      - ./database:/app/database
+      - ./database:/database
     ports:
       - "8000:8000"
 
