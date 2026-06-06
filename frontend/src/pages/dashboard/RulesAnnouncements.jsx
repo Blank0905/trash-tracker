@@ -16,6 +16,9 @@ const RulesAnnouncements = () => {
   const [selectedCity, setSelectedCity] = useState('台北市');
   const [ruleData, setRuleData] = useState({ title: '', content: '' });
 
+  // 目前登入管理員的 user_id（登入時存於 localStorage，見 Login.jsx），作為公告 created_by；未登入則為 null
+  const currentAdminId = localStorage.getItem('admin_id');
+
   // ==========================================
   // 核心功能 1：撈取公告清單
   // ==========================================
