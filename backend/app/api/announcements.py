@@ -4,6 +4,7 @@ from app.db import get_db_connection
 import pymysql
 import re
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 # ─── 💡 依賴規格相容性防禦線 ───
 try:
@@ -58,7 +59,7 @@ def _build_push_flex_contents(title: str, content: str, target_city: str = None)
     title_text = (title or '').strip()
     content_text = (content or '').strip()
     scope_text = target_city if target_city else "全體縣市"
-    time_text = datetime.now().strftime('%Y-%m-%d %H:%M')
+    time_text = datetime.now(ZoneInfo("Asia/Taipei")).strftime('%Y-%m-%d %H:%M')
     return {
         "type": "bubble",
         "size": "kilo",
