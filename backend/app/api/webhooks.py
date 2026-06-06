@@ -76,12 +76,21 @@ def handle_follow(event):
         line_bot_api = MessagingApi(api_client)
         display_name = _get_display_name(line_bot_api, line_user_id)
         _bind_line_user(line_user_id, display_name)
+        liff_id = os.environ.get("LINE_LIFF_ID", "")
+        info_text = (
+            "想查清運須知嗎？👇\n"
+            f"🛍 垃圾袋規範：https://liff.line.me/{liff_id}/info?tab=bag\n"
+            f"🛋 大型廢棄物清運：https://liff.line.me/{liff_id}/info?tab=bulky"
+        )
         line_bot_api.reply_message_with_http_info(
             ReplyMessageRequest(
                 replyToken=event.reply_token,
-                messages=[TextMessage(
-                    text="歡迎加入垃圾車追蹤系統！🎉 已自動完成綁定。\n\n如要綁定電子信箱，請輸入「綁定信箱」。"
-                )]
+                messages=[
+                    TextMessage(
+                        text="歡迎加入垃圾車追蹤系統！🎉 已自動完成綁定。\n\n如要綁定電子信箱，請輸入「綁定信箱」。"
+                    ),
+                    TextMessage(text=info_text),
+                ]
             )
         )
 
