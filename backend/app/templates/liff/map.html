@@ -86,6 +86,24 @@
         }
         #locateBtn svg { width: 24px; height: 24px; }
 
+        /* 可拖曳的「搜尋點」圖釘按鈕：壓住拖到地圖某處放開 → 在該處放標記並搜尋 */
+        #dragPin {
+            position: fixed; right: 16px; bottom: 88px;
+            z-index: 1100;
+            width: 48px; height: 48px; border-radius: 50%;
+            border: none; background: var(--surface);
+            display: flex; align-items: center; justify-content: center; padding: 0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            cursor: grab; touch-action: none;     /* touch-action:none：觸控拖曳不被當成捲動 */
+        }
+        #dragPin svg { width: 26px; height: 34px; pointer-events: none; }
+        /* 拖曳過程中跟著手指/游標的分身（針尖對準落點） */
+        .pin-ghost {
+            position: fixed; z-index: 2000; pointer-events: none;
+            transform: translate(-50%, -100%);
+        }
+        .pin-ghost svg { width: 32px; height: 42px; display: block; }
+
         #toast {
             position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
             z-index: 1300;
@@ -120,6 +138,12 @@
     </div>
 </div>
 
+<button id="dragPin" title="拖我到地圖上選搜尋點" aria-label="拖曳設定搜尋點">
+    <svg viewBox="0 0 24 32">
+        <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 20 12 20s12-11 12-20C24 5.4 18.6 0 12 0z" fill="#e53935" stroke="#fff" stroke-width="2"/>
+        <circle cx="12" cy="12" r="5" fill="#fff"/>
+    </svg>
+</button>
 <button id="locateBtn" title="定位我的位置" aria-label="定位我的位置">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
         <circle cx="12" cy="12" r="6"/>
@@ -140,7 +164,8 @@
     let lineUserId = null;
     let map = null;
     let markers = [];        // 站點 marker
-    let searchMarker = null; // 可拖動的搜尋大頭針（紅，代表目前查詢中心）
+    let searchMarker = null; // 拖放到地圖上的搜尋大頭針（紅）
+    let searchCenter = null; // 目前查詢中心 {lat,lng}（改半徑時沿用）
     let userMarker = null;   // 使用者目前位置圖標
     let rangeCircle = null;  // 搜尋範圍圓圈
     let routeLayer = null;   // 目前顯示的行駛路線（polyline + 該路線站點）
@@ -217,7 +242,7 @@
         if (searchMarker) { searchMarker.setLatLng([pos.lat, pos.lng]); return; }
         searchMarker = L.marker([pos.lat, pos.lng], {
             icon: searchPinIcon, draggable: true, zIndexOffset: 1000
-        }).addTo(map).bindTooltip('拖動我選擇搜尋地點');
+        }).addTo(map).bindTooltip('搜尋點（可拖動微調）');
         searchMarker.on('dragend', () => {
             const p = searchMarker.getLatLng();
             searchStations(p.lat, p.lng);
@@ -235,6 +260,7 @@
 
     // 鄰近搜尋：畫搜尋範圍圓圈 + 站點 marker
     async function searchStations(lat, lng) {
+        searchCenter = { lat, lng };       // 記住查詢中心，改半徑時沿用
         const radiusKm = currentRadius();
         const r = await api(`/stations/search?lat=${lat}&lng=${lng}&radius=${radiusKm}`);
 
@@ -356,11 +382,10 @@
     document.getElementById('p-close').onclick = () =>
         document.getElementById('panel').classList.remove('open');
 
-    // 改搜尋半徑 → 立即以搜尋大頭針所在位置重查
+    // 改搜尋半徑 → 立即以目前查詢中心重查
     document.getElementById('radius').addEventListener('change', () => {
-        if (!searchMarker) return;
-        const p = searchMarker.getLatLng();
-        searchStations(p.lat, p.lng);
+        if (!searchCenter) return;
+        searchStations(searchCenter.lat, searchCenter.lng);
     });
 
     // 右下角 📍：手動重新定位（手勢觸發，成功率高於頁面載入時的自動定位）
@@ -371,9 +396,51 @@
         if (!geo) return;
         map.setView([geo.lat, geo.lng], 16);
         setUserMarker(geo);
-        placeSearchMarker(geo);   // 搜尋大頭針一起移到我的位置
+        // 定位＝以「我」為中心，移除先前手動拖放的搜尋針（避免兩個搜尋點指示）
+        if (searchMarker) { map.removeLayer(searchMarker); searchMarker = null; }
         searchStations(geo.lat, geo.lng);
     };
+
+    // 「搜尋點」圖釘按鈕：壓住往地圖拖、放開處放紅針並搜尋（滑鼠＋觸控皆支援）
+    (function () {
+        const btn = document.getElementById('dragPin');
+        let ghost = null, startX = 0, startY = 0, moved = false;
+
+        const startGhost = e => {
+            if (!map) return;
+            e.preventDefault();
+            btn.setPointerCapture(e.pointerId);   // 之後 move/up 都鎖定在此按鈕
+            startX = e.clientX; startY = e.clientY; moved = false;
+            ghost = document.createElement('div');
+            ghost.className = 'pin-ghost';
+            ghost.innerHTML = btn.innerHTML;
+            document.body.appendChild(ghost);
+            moveGhost(e);
+        };
+        const moveGhost = e => {
+            if (!ghost) return;
+            if (Math.hypot(e.clientX - startX, e.clientY - startY) > 8) moved = true;
+            ghost.style.left = e.clientX + 'px';
+            ghost.style.top = e.clientY + 'px';
+        };
+        const endGhost = e => {
+            if (!ghost) return;
+            ghost.remove(); ghost = null;
+            if (!moved) { toast('壓住圖釘拖到地圖上放開，即可選搜尋點'); return; }
+            const rect = map.getContainer().getBoundingClientRect();
+            const inside = e.clientX >= rect.left && e.clientX <= rect.right
+                        && e.clientY >= rect.top && e.clientY <= rect.bottom;
+            if (!inside) return;   // 放在地圖外 → 取消
+            const ll = map.containerPointToLatLng(
+                L.point(e.clientX - rect.left, e.clientY - rect.top));
+            placeSearchMarker({ lat: ll.lat, lng: ll.lng });
+            searchStations(ll.lat, ll.lng);
+        };
+        btn.addEventListener('pointerdown', startGhost);
+        btn.addEventListener('pointermove', moveGhost);
+        btn.addEventListener('pointerup', endGhost);
+        btn.addEventListener('pointercancel', () => { if (ghost) { ghost.remove(); ghost = null; } });
+    })();
 
     // 主流程
     async function main() {
@@ -395,8 +462,7 @@
         // 只有實際 GPS 定位成功才畫「使用者位置」
         if (geo) setUserMarker(geo);
 
-        // 放上可拖動的搜尋大頭針，預設在地圖中心
-        placeSearchMarker(center);
+        // 一開始不放搜尋針（圖釘住在右下按鈕裡，由使用者拖放到地圖上）
         searchStations(center.lat, center.lng);
     }
 
