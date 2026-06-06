@@ -79,7 +79,7 @@ const RulesAnnouncements = () => {
 
     const baseUrl = await getBackendUrl();
 
-    //  情況 A：如果目前處於「重新編輯」模式
+    // 情況 A：如果目前處於「重新編輯」模式
     if (editingId) {
       try {
         const response = await fetch(`${baseUrl}/api/announcements/update/${editingId}`, {
@@ -93,7 +93,6 @@ const RulesAnnouncements = () => {
         fetchAnnouncements();
         setNewAnno({ title: '', content: '', target_city: '全體' });
       } catch {
-        // 編輯模式的前端 Mock 模擬
         alert('💾 [前端模擬成功] 未發布公告之修改已儲存！');
         setAnnouncements(prev => prev.map(anno => 
           anno.announcement_id === editingId 
@@ -106,8 +105,9 @@ const RulesAnnouncements = () => {
       return;
     }
 
-    // ⚪ 情況 B：原本的「發布全新公告」邏輯（維持不變）
+    // ⚪ 情況 B：原本的「發布全新公告」邏輯
     const triggerLinePush = window.confirm('公告即將送入資料庫！請選擇是否要同時一鍵發送 LINE Bot 訊息推播給所有訂閱市民？');
+    const currentAdminId = localStorage.getItem('admin_id');
 
     try {
       const response = await fetch(`${baseUrl}/api/announcements/create`, {
@@ -116,7 +116,8 @@ const RulesAnnouncements = () => {
         body: JSON.stringify({ 
           ...newAnno, 
           trigger_push: triggerLinePush ? 1 : 0,
-          created_by: currentAdminId ? parseInt(currentAdminId, 10) : null // 轉成整數送出
+          // 🟢 這樣 currentAdminId 才有定義，不會再拋出 ReferenceError 了
+          created_by: currentAdminId ? parseInt(currentAdminId, 10) : null 
         })
       });
 

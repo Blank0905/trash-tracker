@@ -2,25 +2,32 @@ from flask import Blueprint, request, jsonify
 from app.db import get_db_connection
 # 💡 依賴規格：引入 P3 的 LINE 核心群發服務
 import pymysql
+import re
 
 # ─── 💡 依賴規格相容性防禦線 ───
 try:
-    # 嘗試引入組員承諾要給的群發函式
-    from app.services.line_service import multicast_text
+    #  1. 嘗試引入組員承諾要給的實例化物件
+    from app.services.line_service import line_service
 except ImportError:
-    # 🛡️ 隊友防禦機制：如果組員程式碼還沒到位、改名或漏寫，自動開啟「精準攔截模擬器」
+    # 🛡️ 隊友防禦機制：如果組員程式碼還沒到位、改名或漏寫，自動開啟「物件導向攔截模擬器」
     import logging
-    logging.warning("⚠️ [相容警報] 無法從 line_service 讀取 multicast_text。已自動切換為後台安全模擬發送模式。")
+    logging.warning("⚠️ [相容警報] 無法從 line_service 讀取 line_service 物件。已自動切換為後台安全模擬發送模式。")
     
-    def multicast_text(line_ids, text):
-        """
-        當組員那邊掉鏈子時，這個模擬器會接管請求，確保資料庫照常寫入、前端不噴 500！
-        """
-        print("\n" + "="*50)
-        print("📡 [LINE 核心群發攔截成功] 偵測到高階公告推播調度！")
-        print(f"👥 發送對象：實體資料庫內共 {len(line_ids)} 位市民")
-        print(f"💬 訊息內文：\n{text}")
-        print("="*50 + "\n")
+    # 建立一個假的類別，模仿真實 line_service 的行為與方法名稱
+    class MockLineService:
+        def multicast_text(self, line_user_ids: list, text: str) -> bool:
+            """
+            當組員那邊掉鏈子時，這個模擬器會接管物件調度，確保主程式執行不噴 500！
+            """
+            print("\n" + "="*50)
+            print("📡 [LINE 核心群發攔截成功] 偵測到高階公告推播調度（模擬器）！")
+            print(f"👥 發送對象：實體資料庫內共 {len(line_user_ids)} 位市民")
+            print(f"💬 訊息內文：\n{text}")
+            print("="*50 + "\n")
+            return True
+
+    # 實例化假物件，讓下方的路由代碼完全不用改動
+    line_service = MockLineService()
 
 bp = Blueprint('announcements', __name__, url_prefix='/api/announcements')
 
@@ -51,7 +58,11 @@ def push_existing_announcement(anno_id):
             user_rows = cursor.fetchall()
             
             # 使用字典格式取回 line_user_id
-            line_ids = [row['line_user_id'] for row in user_rows if row.get('line_user_id')]
+            line_ids = [
+                row['line_user_id'] 
+                for row in user_rows 
+                if row.get('line_user_id') and re.match(r'^U[0-9a-fA-F]{32}$', row['line_user_id'])
+            ]
 
             if not line_ids:
                 return jsonify({"status": "error", "message": "目前沒有任何活躍的 LINE 訂閱用戶"}), 400
@@ -62,7 +73,7 @@ def push_existing_announcement(anno_id):
                 push_msg = f"📍【{db_city}限定通報】{title}\n\n{content}"
 
             # 4. 🚀 物理發射！
-            multicast_text(line_ids, push_msg)
+            line_service.multicast_text(line_ids, push_msg)
             
             # 5. 更新該公告的狀態為「已推播 (1)」並記錄時間
             update_sql = """
@@ -188,7 +199,11 @@ def create_announcement():
                     user_rows = cursor.fetchall()
                     
                     # 🟢 修正點三：因為是 DictCursor，必須用 row['line_user_id'] 讀取
-                    line_ids = [row['line_user_id'] for row in user_rows if row.get('line_user_id')]
+                    line_ids = [
+                        row['line_user_id'] 
+                        for row in user_rows 
+                        if row.get('line_user_id') and re.match(r'^U[0-9a-fA-F]{32}$', row['line_user_id'])
+                    ]
 
                     if line_ids:
                         push_msg = f"📢【系統公告】{title}\n\n{content}"
@@ -196,7 +211,7 @@ def create_announcement():
                             push_msg = f"📍【{db_city}限定通報】{title}\n\n{content}"
                         
                         # 🚀 物理發射（若 multicast_text 未實作或出錯，會被下面的 except 抓住）
-                        multicast_text(line_ids, push_msg)
+                        line_service.multicast_text(line_ids, push_msg)
                         
                         # 更新這條公告的推播歷史狀態
                         update_sql = """
