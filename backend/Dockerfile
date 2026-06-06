@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
 
 COPY backend/ .
 COPY database/ ./database/
+RUN ln -s /app/database /database
 
 EXPOSE 8000
 
