@@ -526,11 +526,17 @@ class GarbageTruckImporter:
             "基隆市資料",
         )
 
-        route_groups = df.groupby(["編號", "清運路線名稱", "班別"])
-        for route_code, route_name, team in route_groups.groups.keys():
-            group = route_groups.get_group((route_code, route_name, team))
+        # 一條清運路線 = (清運路線名稱, 班別)。
+        # 「編號」其實是全表流水號（逐清運點遞增），不可當分組鍵，
+        # 否則每個點都會各自變成一條路線；站點順序改用「順序」欄位。
+        route_groups = df.groupby(["清運路線名稱", "班別"])
+        for route_name, team in route_groups.groups.keys():
+            group = route_groups.get_group((route_name, team))
             district = self._extract_keelung_district(route_name)
             route_area_id = self._get_or_create_area("基隆市", district, None)
+            # route_code 取路線名稱開頭代碼（如「1-1」），取不到則 None
+            code_match = re.match(r"^\s*(\d+-\d+)", str(route_name))
+            route_code = code_match.group(1) if code_match else None
             route_id = self._insert_route(route_area_id, route_code, route_name, trip_number=team)
 
             for _, row in group.iterrows():

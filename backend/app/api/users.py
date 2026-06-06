@@ -167,11 +167,23 @@ def promote_user():
         
     conn = get_db_connection()
     try:
-        with conn.cursor() as cursor:
-            sql = "UPDATE users SET role = 'admin' WHERE user_id = %s"
-            cursor.execute(sql, (user_id,))
+        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+            # 限制：必須已綁定 email 與密碼才能升級為管理員（管理者需用帳密登入後台）
+            cursor.execute(
+                "SELECT email, password_hash FROM users WHERE user_id = %s", (user_id,)
+            )
+            target = cursor.fetchone()
+            if not target:
+                return jsonify({"status": "error", "message": "找不到該使用者"}), 404
+            if not target['email'] or not target['password_hash']:
+                return jsonify({
+                    "status": "error",
+                    "message": "該使用者尚未綁定電子信箱與密碼，無法升級為管理員"
+                }), 400
+
+            cursor.execute("UPDATE users SET role = 'admin' WHERE user_id = %s", (user_id,))
             conn.commit()
-            
+
         return jsonify({"status": "success", "message": "權限變更成功"}), 200
     except Exception as e:
         conn.rollback()
