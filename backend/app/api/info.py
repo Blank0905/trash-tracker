@@ -18,24 +18,15 @@ def bag_regulations():
 
     try:
         with conn.cursor() as cursor:
+            cols = """reg_id, city, category, name, volume_liters, units_per_pack,
+                      price_per_pack, unit_price, style, purchase_locations, notes"""
             if city:
                 cursor.execute(
-                    """
-                    SELECT reg_id, city, bag_size, volume_liters, price, purchase_locations, notes
-                    FROM bag_regulations
-                    WHERE city = %s
-                    ORDER BY reg_id ASC
-                    """,
+                    f"SELECT {cols} FROM bag_regulations WHERE city = %s ORDER BY reg_id ASC",
                     (city,)
                 )
             else:
-                cursor.execute(
-                    """
-                    SELECT reg_id, city, bag_size, volume_liters, price, purchase_locations, notes
-                    FROM bag_regulations
-                    ORDER BY reg_id ASC
-                    """
-                )
+                cursor.execute(f"SELECT {cols} FROM bag_regulations ORDER BY reg_id ASC")
 
             rows = cursor.fetchall()
             data = []
@@ -44,11 +35,15 @@ def bag_regulations():
                 data.append({
                     'reg_id': row['reg_id'],
                     'city': row['city'],
-                    'bag_size': row['bag_size'],
+                    'category': row['category'],
+                    'name': row['name'],
                     'volume_liters': float(row['volume_liters']) if row['volume_liters'] is not None else None,
-                    'price': float(row['price']) if row['price'] is not None else None,
+                    'units_per_pack': row['units_per_pack'],
+                    'price_per_pack': float(row['price_per_pack']) if row['price_per_pack'] is not None else None,
+                    'unit_price': float(row['unit_price']) if row['unit_price'] is not None else None,
+                    'style': row['style'],
                     'purchase_locations': row['purchase_locations'],
-                    'notes': row['notes']
+                    'notes': row['notes'],
                 })
 
             return ok(data, count=len(data))

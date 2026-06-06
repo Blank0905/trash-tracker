@@ -9,27 +9,39 @@ from app.db import get_db_connection
 bp = Blueprint('bags', __name__, url_prefix='/api/admin/bag-regulations')
 
 ALLOWED_CITIES = ('台北市', '新北市')
+ALLOWED_CATEGORIES = ('一般專用', '環保兩用')
+
+# 寫入欄位（city、name 必填；其餘可空）
+FIELDS = ('city', 'category', 'name', 'volume_liters', 'units_per_pack',
+          'price_per_pack', 'unit_price', 'style', 'purchase_locations', 'notes')
 
 
 def _clean(data):
-    """整理並驗證輸入；回傳 (fields, error_message)。"""
+    """整理並驗證輸入；回傳 (fields_dict, error_message)。"""
     city = (data.get('city') or '').strip()
-    bag_size = (data.get('bag_size') or '').strip()
+    name = (data.get('name') or '').strip()
+    category = (data.get('category') or '一般專用').strip()
     if city not in ALLOWED_CITIES:
         return None, "縣市僅限台北市或新北市"
-    if not bag_size:
-        return None, "請填寫袋子規格（bag_size）"
+    if category not in ALLOWED_CATEGORIES:
+        return None, "類別僅限一般專用或環保兩用"
+    if not name:
+        return None, "請填寫名稱（name）"
 
-    def num_or_none(v):
+    def none_if_blank(v):
         return None if v in (None, '') else v
 
     fields = {
         'city': city,
-        'bag_size': bag_size,
-        'volume_liters': num_or_none(data.get('volume_liters')),
-        'price': num_or_none(data.get('price')),
-        'purchase_locations': num_or_none(data.get('purchase_locations')),
-        'notes': num_or_none(data.get('notes')),
+        'category': category,
+        'name': name,
+        'volume_liters': none_if_blank(data.get('volume_liters')),
+        'units_per_pack': none_if_blank(data.get('units_per_pack')),
+        'price_per_pack': none_if_blank(data.get('price_per_pack')),
+        'unit_price': none_if_blank(data.get('unit_price')),
+        'style': none_if_blank(data.get('style')),
+        'purchase_locations': none_if_blank(data.get('purchase_locations')),
+        'notes': none_if_blank(data.get('notes')),
     }
     return fields, None
 
@@ -40,15 +52,14 @@ def create_bag():
     if errmsg:
         return jsonify({"status": "error", "message": errmsg}), 400
 
+    placeholders = ", ".join(["%s"] * len(FIELDS))
+    columns = ", ".join(FIELDS)
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
             cursor.execute(
-                """INSERT INTO bag_regulations
-                   (city, bag_size, volume_liters, price, purchase_locations, notes)
-                   VALUES (%s, %s, %s, %s, %s, %s)""",
-                (fields['city'], fields['bag_size'], fields['volume_liters'],
-                 fields['price'], fields['purchase_locations'], fields['notes'])
+                f"INSERT INTO bag_regulations ({columns}) VALUES ({placeholders})",
+                tuple(fields[f] for f in FIELDS)
             )
             conn.commit()
             return jsonify({"status": "success", "message": "新增成功",
@@ -66,16 +77,13 @@ def update_bag(reg_id):
     if errmsg:
         return jsonify({"status": "error", "message": errmsg}), 400
 
+    set_clause = ", ".join(f"{f}=%s" for f in FIELDS)
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
             cursor.execute(
-                """UPDATE bag_regulations
-                   SET city=%s, bag_size=%s, volume_liters=%s, price=%s,
-                       purchase_locations=%s, notes=%s
-                   WHERE reg_id=%s""",
-                (fields['city'], fields['bag_size'], fields['volume_liters'],
-                 fields['price'], fields['purchase_locations'], fields['notes'], reg_id)
+                f"UPDATE bag_regulations SET {set_clause} WHERE reg_id=%s",
+                tuple(fields[f] for f in FIELDS) + (reg_id,)
             )
             conn.commit()
             return jsonify({"status": "success", "message": "更新成功"}), 200

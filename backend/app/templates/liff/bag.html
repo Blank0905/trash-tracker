@@ -61,6 +61,11 @@
         .card-sub { font-size: 0.85rem; color: var(--primary); margin-top: 4px; }
         .kv { font-size: 0.85rem; color: var(--text-muted); margin-top: 6px; }
         .kv b { color: var(--text-main); font-weight: 600; }
+        .badge {
+            display: inline-block; font-size: 0.72rem; padding: 2px 8px;
+            border-radius: 6px; background: #2c2c2c; color: var(--text-muted);
+            margin-left: 6px; vertical-align: middle;
+        }
     </style>
 </head>
 <body>
@@ -77,8 +82,8 @@
     const LIFF_ID = "{{ liff_id }}";
     let lineUserId = null;
 
-    // city 值需與 DB 的 ENUM 全名一致（台北市 / 新北市 / 基隆市）
-    const CITIES = ['台北市', '新北市', '基隆市'];
+    // city 值需與 DB 的 ENUM 一致；bag_regulations 僅有台北市/新北市（基隆無專用垃圾袋）
+    const CITIES = ['台北市', '新北市'];
     let activeCity = CITIES[0];
 
     // 支援用網址參數指定初始縣市，例如 /bag?city=新北市
@@ -104,12 +109,24 @@
     const statusEl = document.getElementById('status');
     const listEl = document.getElementById('list');
 
+    // 容量 · 每包售價（含每包個數）· 單個單價 —— 有才顯示
+    function priceText(r) {
+        const parts = [];
+        if (r.volume_liters != null) parts.push(`${esc(r.volume_liters)} 公升`);
+        if (r.price_per_pack != null) {
+            const pack = r.units_per_pack ? `（${esc(r.units_per_pack)} 入）` : '';
+            parts.push(`每包 NT$${esc(r.price_per_pack)}${pack}`);
+        }
+        if (r.unit_price != null) parts.push(`單個 NT$${esc(r.unit_price)}`);
+        return parts.join(' · ');
+    }
+
     // 卡片渲染（欄位對應 app/api/info.py 的 bag-regulations 回傳）
     function renderBag(items) {
         return items.map(r => `
             <div class="card">
-                <div class="card-title">${esc(r.bag_size)}</div>
-                <div class="card-sub">${esc(r.volume_liters)} 公升 · NT$ ${esc(r.price)}</div>
+                <div class="card-title">${esc(r.name)}${r.category ? `<span class="badge">${esc(r.category)}</span>` : ''}${r.style ? `<span class="badge">${esc(r.style)}</span>` : ''}</div>
+                <div class="card-sub">${priceText(r)}</div>
                 ${r.purchase_locations ? `<div class="kv"><b>購買地點：</b>${esc(r.purchase_locations)}</div>` : ''}
                 ${r.notes ? `<div class="kv">${esc(r.notes)}</div>` : ''}
             </div>`).join('');

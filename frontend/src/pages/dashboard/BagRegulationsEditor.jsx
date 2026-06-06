@@ -5,7 +5,13 @@ import { getBackendUrl } from '../../utils/api';
 // 讀取沿用公開 GET /api/info/bag-regulations?city=；寫入走 /api/admin/bag-regulations。
 // city 僅台北市 / 新北市（對齊 DB enum）。每市多筆，逐列新增 / 儲存 / 刪除。
 const CITIES = ['台北市', '新北市'];
-const EMPTY_ROW = { bag_size: '', volume_liters: '', price: '', purchase_locations: '', notes: '' };
+const CATEGORIES = ['一般專用', '環保兩用'];
+const EMPTY_ROW = {
+  category: '一般專用', name: '', volume_liters: '', units_per_pack: '',
+  price_per_pack: '', unit_price: '', style: '', purchase_locations: '', notes: '',
+};
+// 載入的欄位（null → '' 方便綁定輸入框）
+const FIELDS = Object.keys(EMPTY_ROW);
 
 const BagRegulationsEditor = () => {
   const [city, setCity] = useState('台北市');
@@ -22,15 +28,11 @@ const BagRegulationsEditor = () => {
       const res = await fetch(`${baseUrl}/api/info/bag-regulations?city=${encodeURIComponent(c)}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.status === 'error') throw new Error(data.message || `HTTP ${res.status}`);
-      // 把 null 轉成 '' 方便綁定輸入框
-      setRows((data.data || []).map(r => ({
-        reg_id: r.reg_id,
-        bag_size: r.bag_size ?? '',
-        volume_liters: r.volume_liters ?? '',
-        price: r.price ?? '',
-        purchase_locations: r.purchase_locations ?? '',
-        notes: r.notes ?? '',
-      })));
+      setRows((data.data || []).map(r => {
+        const row = { reg_id: r.reg_id };
+        FIELDS.forEach(f => { row[f] = r[f] ?? ''; });
+        return row;
+      }));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -47,18 +49,12 @@ const BagRegulationsEditor = () => {
 
   const handleSave = async (idx) => {
     const row = rows[idx];
-    if (!row.bag_size.trim()) { alert('請填寫袋子規格（例如 14L、大型）'); return; }
+    if (!String(row.name).trim()) { alert('請填寫名稱（例如 14公升袋、環保兩用袋-中型）'); return; }
     setSavingIdx(idx);
     try {
       const baseUrl = await getBackendUrl();
-      const payload = {
-        city,
-        bag_size: row.bag_size,
-        volume_liters: row.volume_liters,
-        price: row.price,
-        purchase_locations: row.purchase_locations,
-        notes: row.notes,
-      };
+      const payload = { city };
+      FIELDS.forEach(f => { payload[f] = row[f]; });
       const isNew = row.reg_id == null;
       const url = isNew
         ? `${baseUrl}/api/admin/bag-regulations`
@@ -70,7 +66,7 @@ const BagRegulationsEditor = () => {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.status === 'error') throw new Error(data.message || `HTTP ${res.status}`);
-      await fetchRows(city);   // 重新載入以拿到 reg_id 與正規化後的值
+      await fetchRows(city);
     } catch (err) {
       alert('儲存失敗：' + err.message);
     } finally {
@@ -80,9 +76,8 @@ const BagRegulationsEditor = () => {
 
   const handleDelete = async (idx) => {
     const row = rows[idx];
-    // 尚未存檔的新列：直接從畫面移除
     if (row.reg_id == null) { setRows(rows.filter((_, i) => i !== idx)); return; }
-    if (!window.confirm(`確定刪除「${row.bag_size}」這筆垃圾袋規範？`)) return;
+    if (!window.confirm(`確定刪除「${row.name}」這筆垃圾袋規範？`)) return;
     try {
       const baseUrl = await getBackendUrl();
       const res = await fetch(`${baseUrl}/api/admin/bag-regulations/${row.reg_id}`, { method: 'DELETE' });
@@ -94,9 +89,16 @@ const BagRegulationsEditor = () => {
     }
   };
 
+  const inputField = (idx, key, label, opts = {}) => (
+    <label style={styles.field}>
+      <span style={styles.label}>{label}</span>
+      <input style={styles.input} value={rows[idx][key]} type={opts.type || 'text'} step={opts.step}
+        placeholder={opts.placeholder || ''} onChange={e => setField(idx, key, e.target.value)} />
+    </label>
+  );
+
   return (
     <div>
-      {/* 縣市選擇 */}
       <div style={styles.citySelectorRow}>
         <span style={{ fontWeight: 'bold', fontSize: '15px' }}>🏢 當前維護縣市：</span>
         {CITIES.map(c => (
@@ -120,30 +122,25 @@ const BagRegulationsEditor = () => {
             <div key={row.reg_id ?? `new-${idx}`} style={styles.rowCard}>
               <div style={styles.fieldGrid}>
                 <label style={styles.field}>
-                  <span style={styles.label}>袋子規格 *</span>
-                  <input style={styles.input} value={row.bag_size}
-                    onChange={e => setField(idx, 'bag_size', e.target.value)} placeholder="例：14 公升 / 大型" />
+                  <span style={styles.label}>類別</span>
+                  <select style={styles.input} value={row.category}
+                    onChange={e => setField(idx, 'category', e.target.value)}>
+                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </label>
-                <label style={styles.field}>
-                  <span style={styles.label}>容量（公升）</span>
-                  <input style={styles.input} type="number" step="0.1" value={row.volume_liters}
-                    onChange={e => setField(idx, 'volume_liters', e.target.value)} placeholder="14" />
-                </label>
-                <label style={styles.field}>
-                  <span style={styles.label}>價格（NT$）</span>
-                  <input style={styles.input} type="number" step="0.01" value={row.price}
-                    onChange={e => setField(idx, 'price', e.target.value)} placeholder="5.00" />
-                </label>
+                {inputField(idx, 'name', '名稱 *', { placeholder: '例：14公升袋 / 環保兩用袋-中型' })}
+                {inputField(idx, 'volume_liters', '容量（公升）', { type: 'number', step: '0.1', placeholder: '14' })}
+                {inputField(idx, 'units_per_pack', '每包個數', { type: 'number', placeholder: '20' })}
+                {inputField(idx, 'price_per_pack', '每包售價', { type: 'number', step: '0.01', placeholder: '100' })}
+                {inputField(idx, 'unit_price', '單個單價', { type: 'number', step: '0.01', placeholder: '5' })}
+                {inputField(idx, 'style', '式樣', { placeholder: '提耳式 / 平口式…' })}
               </div>
-              <label style={styles.fieldFull}>
-                <span style={styles.label}>購買地點</span>
-                <input style={styles.input} value={row.purchase_locations}
-                  onChange={e => setField(idx, 'purchase_locations', e.target.value)} placeholder="便利商店、超市、區公所…" />
-              </label>
+              {inputField(idx, 'purchase_locations', '購買地點', { placeholder: '便利商店、超市…' })}
               <label style={styles.fieldFull}>
                 <span style={styles.label}>備註</span>
-                <textarea style={{ ...styles.input, resize: 'vertical', minHeight: '48px' }} rows="2" value={row.notes}
-                  onChange={e => setField(idx, 'notes', e.target.value)} placeholder="其他說明（可留空）" />
+                <textarea style={{ ...styles.input, resize: 'vertical', minHeight: '44px' }} rows="2"
+                  value={row.notes} placeholder="尺寸、零售說明…（可留空）"
+                  onChange={e => setField(idx, 'notes', e.target.value)} />
               </label>
               <div style={styles.rowActions}>
                 <span style={styles.regTag}>{row.reg_id == null ? '🆕 未儲存' : `reg_id: ${row.reg_id}`}</span>
@@ -172,11 +169,11 @@ const styles = {
   errorBox: { padding: '16px', backgroundColor: '#fff5f5', color: '#e53e3e', borderRadius: '8px', border: '1px solid #fed7d7' },
   retryBtn: { padding: '4px 12px', backgroundColor: '#e53e3e', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
   rowCard: { border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', marginBottom: '14px', backgroundColor: '#f8fafc' },
-  fieldGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '12px' },
+  fieldGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '12px' },
   field: { display: 'flex', flexDirection: 'column', gap: '6px' },
-  fieldFull: { display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' },
+  fieldFull: { display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px', marginTop: '12px' },
   label: { fontSize: '13px', color: '#475569', fontWeight: '600' },
-  input: { padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' },
+  input: { padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', backgroundColor: '#fff' },
   rowActions: { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' },
   regTag: { fontSize: '12px', color: '#94a3b8', marginRight: 'auto', fontFamily: 'monospace' },
   saveBtn: { padding: '8px 18px', backgroundColor: '#1a237e', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' },
