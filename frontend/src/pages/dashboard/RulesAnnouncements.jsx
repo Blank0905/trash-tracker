@@ -8,6 +8,9 @@ const RulesAnnouncements = () => {
   // 📢 Tab 1：公告推播狀態
   const [announcements, setAnnouncements] = useState([]);
   const [newAnno, setNewAnno] = useState({ title: '', content: '', target_city: '全體' });
+  
+  // 🟢 新增：用來記錄目前正在「重新編輯」哪一則歷史公告的 ID（Null 代表新建公告）
+  const [editingId, setEditingId] = useState(null);
 
   // 📜 Tab 2：清運法規狀態
   const [selectedCity, setSelectedCity] = useState('台北市');
@@ -51,7 +54,6 @@ const RulesAnnouncements = () => {
         setRuleData({ title: data.title, content: data.content });
       }
     } catch {
-      // API 未通前的 Mock 狀態也同步清空 content，確保畫面一律呈現漂亮的虛擬提示
       setRuleData({ title: `${city}大型廢棄物清運指南及法規`, content: '' });
     } finally {
       setLoading(false);
@@ -64,21 +66,57 @@ const RulesAnnouncements = () => {
   }, [activeTab, selectedCity]);
 
   // ==========================================
-  // 核心功能 3：發布新公告
+  // 核心功能 3：發布新公告（或儲存修改公告）
   // ==========================================
   const handleCreateAnnouncement = async (e) => {
     e.preventDefault();
     if (!newAnno.title || !newAnno.content) return alert('請填寫公告標題與內容');
 
+    const baseUrl = await getBackendUrl();
+
+    //  情況 A：如果目前處於「重新編輯」模式
+    if (editingId) {
+      try {
+        const response = await fetch(`${baseUrl}/api/announcements/update/${editingId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newAnno)
+        });
+        if (!response.ok) throw new Error();
+        alert('公告修改成功！');
+        setEditingId(null);
+        fetchAnnouncements();
+        setNewAnno({ title: '', content: '', target_city: '全體' });
+      } catch {
+        // 編輯模式的前端 Mock 模擬
+        alert('💾 [前端模擬成功] 未發布公告之修改已儲存！');
+        setAnnouncements(prev => prev.map(anno => 
+          anno.announcement_id === editingId 
+            ? { ...anno, title: newAnno.title, content: newAnno.content, target_city: newAnno.target_city === '全體' ? null : newAnno.target_city }
+            : anno
+        ));
+        setEditingId(null);
+        setNewAnno({ title: '', content: '', target_city: '全體' });
+      }
+      return;
+    }
+
+    // ⚪ 情況 B：原本的「發布全新公告」邏輯（維持不變）
     const triggerLinePush = window.confirm('公告即將送入資料庫！請選擇是否要同時一鍵發送 LINE Bot 訊息推播給所有訂閱市民？');
 
     try {
-      const baseUrl = await getBackendUrl();
-      await fetch(`${baseUrl}/api/announcements/create`, {
+      const response = await fetch(`${baseUrl}/api/announcements/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newAnno, trigger_push: triggerLinePush ? 1 : 0 })
+        body: JSON.stringify({ 
+          ...newAnno, 
+          trigger_push: triggerLinePush ? 1 : 0,
+          created_by: currentAdminId ? parseInt(currentAdminId, 10) : null // 轉成整數送出
+        })
       });
+
+      if (!response.ok) throw new Error('後端服務異常');
+
       alert('發布成功！');
       fetchAnnouncements();
       setNewAnno({ title: '', content: '', target_city: '全體' });
@@ -94,6 +132,38 @@ const RulesAnnouncements = () => {
         created_at: '剛剛'
       }, ...announcements]);
       setNewAnno({ title: '', content: '', target_city: '全體' });
+    }
+  };
+
+  // ==========================================
+  //  新增功能：針對未推播歷史公告進行「直接發送」
+  // ==========================================
+  const handleResendPush = async (annoId) => {
+    const confirmPush = window.confirm('確定要將這則歷史公告一鍵群發給所有 LINE 訂閱市民嗎？');
+    if (!confirmPush) return;
+
+    try {
+      const baseUrl = await getBackendUrl();
+      const response = await fetch(`${baseUrl}/api/announcements/push/${annoId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || '補發失敗');
+      }
+
+      alert('📡 LINE 推播成功補發！');
+      fetchAnnouncements();
+    } catch (err) {
+      // 補發推播的前端 Mock 模擬
+      alert(`🎉 [前端模擬成功] LINE 推播已成功補發！`);
+      setAnnouncements(prev => prev.map(anno => 
+        anno.announcement_id === annoId 
+          ? { ...anno, is_pushed: 1, pushed_at: '剛剛' } 
+          : anno
+      ));
     }
   };
 
@@ -121,7 +191,7 @@ const RulesAnnouncements = () => {
       {/* 頂部切換 Tabs */}
       <div style={styles.tabContainer}>
         <button 
-          onClick={() => setActiveTab('announcements')} 
+          onClick={() => { setActiveTab('announcements'); setEditingId(null); setNewAnno({ title: '', content: '', target_city: '全體' }); }} 
           style={{...styles.tabButton, ...(activeTab === 'announcements' ? styles.tabActive : {})}}
         >
           📢 即時公告推播 (Announcements)
@@ -140,7 +210,8 @@ const RulesAnnouncements = () => {
       {!loading && activeTab === 'announcements' && (
         <div style={styles.gridContainer}>
           <div style={styles.formPanel}>
-            <h3 style={styles.panelTitle}>✍️ 發布新公告</h3>
+            {/* 🟢 動態切換表單標題 */}
+            <h3 style={styles.panelTitle}>{editingId ? '✏️ 重新編輯未發布公告' : '✍️ 發布新公告'}</h3>
             <form onSubmit={handleCreateAnnouncement} style={styles.form}>
               <div style={styles.inputGroup}>
                 <label style={styles.label}>公告主題</label>
@@ -178,7 +249,21 @@ const RulesAnnouncements = () => {
                 />
               </div>
 
-              <button type="submit" style={styles.submitBtn}>🚀 確定發布（可選擇群發 LINE）</button>
+              {/* 🟢 動態調整按鈕區域，並在編輯模式下多增加一個取消按鈕 */}
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button type="submit" style={{ ...styles.submitBtn, flex: 1, backgroundColor: editingId ? '#0284c7' : '#1a237e' }}>
+                  {editingId ? '💾 儲存修改' : '🚀 確定發布（可選擇群發 LINE）'}
+                </button>
+                {editingId && (
+                  <button 
+                    type="button" 
+                    onClick={() => { setEditingId(null); setNewAnno({ title: '', content: '', target_city: '全體' }); }} 
+                    style={{ ...styles.submitBtn, backgroundColor: '#94a3b8' }}
+                  >
+                    取消編輯
+                  </button>
+                )}
+              </div>
             </form>
           </div>
 
@@ -186,7 +271,7 @@ const RulesAnnouncements = () => {
             <h3 style={styles.panelTitle}>📂 歷史公告發布存檔紀錄</h3>
             <div style={styles.timeline}>
               {announcements.map((anno) => (
-                <div key={anno.announcement_id} style={styles.timelineCard}>
+                <div key={anno.announcement_id} style={{ ...styles.timelineCard, border: editingId === anno.announcement_id ? '2px solid #0284c7' : '1px solid #e2e8f0' }}>
                   <div style={styles.timelineHeader}>
                     <span style={styles.scopeBadge}>
                       {anno.target_city ? `📍 ${anno.target_city}` : '🌍 全體縣市'}
@@ -199,7 +284,29 @@ const RulesAnnouncements = () => {
                     {anno.is_pushed ? (
                       <span style={styles.pushedTag}>📡 LINE 官方已推播通報 ({anno.pushed_at})</span>
                     ) : (
-                      <span style={styles.unpushedTag}>🔕 僅存放於後台系統，未發送推播</span>
+                      /* 🟢 修改點：未推播的公告，優雅加入「編輯」與「直接發送」兩顆功能按鈕 */
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <span style={styles.unpushedTag}>🔕 僅存放於後台系統，未發送推播</span>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingId(anno.announcement_id);
+                              setNewAnno({ title: anno.title, content: anno.content, target_city: anno.target_city || '全體' });
+                            }}
+                            style={{ padding: '5px 12px', backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+                          >
+                            ✏️ 點選編輯
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleResendPush(anno.announcement_id)}
+                            style={{ padding: '5px 12px', backgroundColor: '#0284c7', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+                          >
+                            🚀 直接發送 LINE 推播
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -236,7 +343,6 @@ const RulesAnnouncements = () => {
               />
             </div>
 
-            {/* 🟢 終極修正：合併樣式物件，將 label 優雅擺在對話框正上方，並給予 20px 上間距 */}
             <div style={{ ...styles.inputGroup, marginTop: '20px' }}>
               <label style={styles.label}>大型垃圾清運細則與步驟指南（支援多行自由格式）</label>
               <textarea 
@@ -269,15 +375,15 @@ const styles = {
   listPanel: { flex: '1.2', minWidth: '350px' },
   panelTitle: { margin: '0 0 15px 0', color: '#334155', fontSize: '16px', fontWeight: 'bold', borderBottom: '2px solid #cbd5e1', paddingBottom: '8px' },
   form: { display: 'flex', flexDirection: 'column', gap: '15px' },
-  inputGroup: { display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }, // 🟢 確保寬度吃滿 100%
-  label: { fontSize: '14px', color: '#475569', fontWeight: 'bold', marginBottom: '4px' }, // 🟢 優化標題字體與底邊距
+  inputGroup: { display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }, 
+  label: { fontSize: '14px', color: '#475569', fontWeight: 'bold', marginBottom: '4px' }, 
   input: { padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', width: '100%', boxSizing: 'border-box' },
   select: { padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', backgroundColor: '#fff', width: '100%', boxSizing: 'border-box' },
-  textarea: { padding: '14px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', resize: 'vertical', width: '100%', boxSizing: 'border-box', fontFamily: 'monospace', lineHeight: '1.6' }, // 🟢 強制對話框拉寬到 100%
+  textarea: { padding: '14px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', resize: 'vertical', width: '100%', boxSizing: 'border-box', fontFamily: 'monospace', lineHeight: '1.6' }, 
   submitBtn: { padding: '12px', backgroundColor: '#1a237e', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', transition: 'background-color 0.2s' },
   timeline: { display: 'flex', flexDirection: 'column', gap: '15px', maxHeight: '550px', overflowY: 'auto', paddingRight: '5px' },
   timelineCard: { backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '15px', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' },
-  timelineHeader: { display: 'flex', justifycontent: 'space-between', alignItems: 'center', marginBottom: '8px' },
+  timelineHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }, // 修正原檔 typo (justifycontent -> justifyContent)
   scopeBadge: { backgroundColor: '#f1f5f9', color: '#475569', fontSize: '12px', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' },
   timeText: { fontSize: '12px', color: '#94a3b8' },
   annoTitle: { margin: '0 0 6px 0', fontSize: '15px', color: '#1e293b', fontWeight: 'bold' },

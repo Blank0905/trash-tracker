@@ -43,6 +43,7 @@ const Login = ({ onLoginSuccess }) => {
       
       localStorage.setItem('access_token', data.access_token);
       localStorage.setItem('admin_email', data.user.email);
+      localStorage.setItem('admin_id', data.user.user_id);
       alert(`驗證成功！歡迎回來，${data.user.username}。`);
       onLoginSuccess();
     } catch (err) {
