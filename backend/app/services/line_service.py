@@ -4,11 +4,14 @@ from linebot.v3.messaging import (
     Configuration,
     ApiClient,
     MessagingApi,
+    Message,
+    FlexMessage,
     TextMessage,
     PushMessageRequest,
     ReplyMessageRequest,
     MulticastRequest
 )
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +78,18 @@ class LineService:
         """
         同時群發文字訊息給多個使用者 (P4 管理者公告推播專用)
         """
+        return self.multicast_messages(line_user_ids, [TextMessage(text=text)])
+
+    def multicast_messages(self, line_user_ids: list, messages: List[Message]) -> bool:
+        """
+        同時群發多型訊息（Text / Flex ...）給多個使用者。
+        """
         if not line_user_ids:
             logger.warning("群發對象列表為空，跳過發送")
+            return False
+
+        if not messages:
+            logger.warning("群發訊息內容為空，跳過發送")
             return False
 
         api = self._get_api()
@@ -93,14 +106,31 @@ class LineService:
                 # 組裝 v3 的多人群發請求
                 multicast_request = MulticastRequest(
                     to=chunk,
-                    messages=[TextMessage(text=text)]
+                    messages=messages
                 )
                 api.multicast(multicast_request)
 
-            logger.info(f"成功群發公告訊息給 {len(line_user_ids)} 位使用者")
+            logger.info(f"成功群發訊息給 {len(line_user_ids)} 位使用者")
             return True
         except Exception as e:
-            logger.error(f"LINE multicast_text 發生異常: {str(e)}")
+            logger.error(f"LINE multicast_messages 發生異常: {str(e)}")
+            return False
+
+    def multicast_flex(self, line_user_ids: list, alt_text: str, contents: dict, fallback_text: Optional[str] = None) -> bool:
+        """
+        群發 Flex Message；若失敗可回退為文字訊息。
+        """
+        try:
+            flex_message = FlexMessage.from_dict({
+                "type": "flex",
+                "altText": alt_text,
+                "contents": contents,
+            })
+            return self.multicast_messages(line_user_ids, [flex_message])
+        except Exception as e:
+            logger.error(f"LINE multicast_flex 發生異常: {str(e)}")
+            if fallback_text:
+                return self.multicast_text(line_user_ids, fallback_text)
             return False
 
 # 實例化單例物件供外部直接 import 使用

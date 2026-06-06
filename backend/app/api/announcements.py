@@ -3,6 +3,8 @@ from app.db import get_db_connection
 # 💡 依賴規格：引入 P3 的 LINE 核心群發服務
 import pymysql
 import re
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 # ─── 💡 依賴規格相容性防禦線 ───
 try:
@@ -26,10 +28,83 @@ except ImportError:
             print("="*50 + "\n")
             return True
 
+        def multicast_flex(self, line_user_ids: list, alt_text: str, contents: dict, fallback_text: str = None) -> bool:
+            """
+            模擬 Flex 訊息群發。
+            """
+            print("\n" + "="*50)
+            print("📡 [LINE Flex 群發攔截成功] 偵測到公告卡片推播（模擬器）！")
+            print(f"👥 發送對象：實體資料庫內共 {len(line_user_ids)} 位市民")
+            print(f"🪪 Alt Text：{alt_text}")
+            print(f"🧱 Flex 內容：{contents}")
+            if fallback_text:
+                print(f"📝 文字備援：\n{fallback_text}")
+            print("="*50 + "\n")
+            return True
+
     # 實例化假物件，讓下方的路由代碼完全不用改動
     line_service = MockLineService()
 
 bp = Blueprint('announcements', __name__, url_prefix='/api/announcements')
+
+
+def _build_push_text(title: str, content: str, target_city: str = None) -> str:
+    scope = f"{target_city}限定通報" if target_city else "系統公告"
+    title_text = (title or '').strip()
+    content_text = (content or '').strip()
+    return f"📢【{scope}】\n\n【{title_text}】\n{content_text}\n\n— 垃圾車追蹤系統"
+
+
+def _build_push_flex_contents(title: str, content: str, target_city: str = None) -> dict:
+    title_text = (title or '').strip()
+    content_text = (content or '').strip()
+    scope_text = target_city if target_city else "全體縣市"
+    time_text = datetime.now(ZoneInfo("Asia/Taipei")).strftime('%Y-%m-%d %H:%M')
+    return {
+        "type": "bubble",
+        "size": "kilo",
+        "header": {
+            "type": "box",
+            "layout": "vertical",
+            "backgroundColor": "#14A32C",
+            "paddingAll": "6px",
+            "contents": [
+                {"type": "text", "text": "系統公告", "size": "sm", "weight": "bold", "color": "#FFFFFF"},
+                {"type": "text", "text": f"適用範圍：{scope_text}", "size": "xs", "color": "#CCFBF1", "margin": "xs", "wrap": True},
+            ],
+        },
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {"type": "text", "text": title_text, "size": "xl", "weight": "bold", "color": "#111827", "wrap": True},
+                {"type": "separator", "margin": "md"},
+                {"type": "text", "text": content_text, "size": "md", "color": "#374151", "wrap": True, "margin": "md", "lineSpacing": "4px"},
+            ],
+        },
+        "footer": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {"type": "text", "text": f"發佈時間：{time_text}", "size": "xs", "color": "#6B7280"},
+            ],
+        },
+    }
+
+
+def _push_announcement_to_line(line_ids: list, title: str, content: str, target_city: str = None) -> bool:
+    push_text = _build_push_text(title, content, target_city)
+    flex_contents = _build_push_flex_contents(title, content, target_city)
+    alt_text = f"【系統公告】{(title or '').strip()}"
+
+    if hasattr(line_service, 'multicast_flex'):
+        return line_service.multicast_flex(
+            line_user_ids=line_ids,
+            alt_text=alt_text,
+            contents=flex_contents,
+            fallback_text=push_text
+        )
+    return line_service.multicast_text(line_ids, push_text)
 
 @bp.route('/push/<int:anno_id>', methods=['POST'])
 def push_existing_announcement(anno_id):
@@ -67,14 +142,11 @@ def push_existing_announcement(anno_id):
             if not line_ids:
                 return jsonify({"status": "error", "message": "目前沒有任何活躍的 LINE 訂閱用戶"}), 400
 
-            # 3. 組合 LINE 訊息
-            push_msg = f"📢【系統公告】{title}\n\n{content}"
-            if db_city:
-                push_msg = f"📍【{db_city}限定通報】{title}\n\n{content}"
-
-            # 4. 🚀 物理發射！
-            line_service.multicast_text(line_ids, push_msg)
-            
+            # 3. 🚀 物理發射（Flex 卡片 + 文字備援）
+            sent_ok = _push_announcement_to_line(line_ids, title, content, db_city)
+            if not sent_ok:
+                return jsonify({"status": "error", "message": "LINE 推播發送失敗，請稍後再試"}), 502
+             
             # 5. 更新該公告的狀態為「已推播 (1)」並記錄時間
             update_sql = """
                 UPDATE announcements 
@@ -147,8 +219,8 @@ def get_announcements_list():
             # 使用 DATE_FORMAT 將時間格式化為前端 React 最友善的字串格式
             sql = """
                 SELECT announcement_id, title, content, target_city, is_pushed, 
-                       DATE_FORMAT(pushed_at, '%%Y-%%m-%%d %%H:%%i') as pushed_at, 
-                       DATE_FORMAT(created_at, '%%Y-%%m-%%d %%H:%%i') as created_at 
+                       DATE_FORMAT(pushed_at, '%Y-%m-%d %H:%i') as pushed_at, 
+                       DATE_FORMAT(created_at, '%Y-%m-%d %H:%i') as created_at 
                 FROM announcements 
                 ORDER BY announcement_id DESC
             """
@@ -206,21 +278,18 @@ def create_announcement():
                     ]
 
                     if line_ids:
-                        push_msg = f"📢【系統公告】{title}\n\n{content}"
-                        if db_city:
-                            push_msg = f"📍【{db_city}限定通報】{title}\n\n{content}"
-                        
-                        # 🚀 物理發射（若 multicast_text 未實作或出錯，會被下面的 except 抓住）
-                        line_service.multicast_text(line_ids, push_msg)
-                        
-                        # 更新這條公告的推播歷史狀態
-                        update_sql = """
-                            UPDATE announcements 
-                            SET is_pushed = 1, pushed_at = NOW() 
-                            WHERE announcement_id = %s
-                        """
-                        cursor.execute(update_sql, (new_anno_id,))
-                        conn.commit() # 更新成功才 commit 狀態
+                        sent_ok = _push_announcement_to_line(line_ids, title, content, db_city)
+                        if sent_ok:
+                            # 更新這條公告的推播歷史狀態
+                            update_sql = """
+                                UPDATE announcements 
+                                SET is_pushed = 1, pushed_at = NOW() 
+                                WHERE announcement_id = %s
+                            """
+                            cursor.execute(update_sql, (new_anno_id,))
+                            conn.commit() # 更新成功才 commit 狀態
+                        else:
+                            print("⚠️ [LINE 推播失敗] 發送回傳 False，公告僅存檔未標記已推播")
                         
                 except Exception as line_err:
                     # LINE 功能有任何閃失，只在後端印出警告，不連累前方的公告存檔

@@ -5,11 +5,49 @@ import pymysql
 # 🟢 獨立的後台管理藍圖，前綴採用 /api/admin/routes
 bp = Blueprint('add_delete_route', __name__, url_prefix='/api/admin/routes')
 
-
 def _clean_text(value):
     if value is None:
         return ''
     return str(value).strip()
+
+SEARCHABLE_ROUTE_FIELDS = {
+    'route_name': 'r.route_name',
+    'route_code': 'r.route_code',
+    'car_number': 'r.car_number',
+    'team': 'r.team',
+    'trip_number': 'r.trip_number',
+    'city': 'a.city',
+    'district': 'a.district',
+}
+
+
+def _normalize_text(raw):
+    if raw is None:
+        return ''
+    return str(raw).strip()
+
+
+def _build_terms(raw):
+    base = _normalize_text(raw)
+    if not base:
+        return []
+    return [base]
+
+
+def _parse_search_fields(raw):
+    if not raw:
+        return ['route_name']
+
+    fields = [f.strip() for f in str(raw).split(',') if f.strip()]
+    invalid = [f for f in fields if f not in SEARCHABLE_ROUTE_FIELDS]
+    if invalid:
+        raise ValueError(f"無效 search_fields 欄位: {', '.join(invalid)}")
+
+    deduped = []
+    for field in fields:
+        if field not in deduped:
+            deduped.append(field)
+    return deduped
 
 # ==========================================
 # 1. 📋 [後台專用] 讀取目前系統中現存路線一覽
@@ -19,11 +57,13 @@ def get_routes_list():
     """撈取所有路線，並支援選填 city, district, route_name 進行動態篩選"""
     city = request.args.get('city')
     district = request.args.get('district')
-    route_name = request.args.get('route_name')
+    route_name = _normalize_text(request.args.get('route_name'))
+    keyword = _normalize_text(request.args.get('keyword') or request.args.get('q') or route_name)
+    search_fields = request.args.get('search_fields')
     latest = request.args.get('latest')
     limit = request.args.get('limit', '50')
 
-    has_filter = (city and city != '全部') or (district and district.strip() != '') or (route_name and route_name.strip() != '')
+    has_filter = (city and city != '全部') or (district and district.strip() != '') or bool(keyword)
     latest_mode = latest == '1' or not has_filter
 
     conn = get_db_connection()
@@ -47,9 +87,20 @@ def get_routes_list():
                 sql += " AND a.district = %s"
                 params.append(district)
 
-            if route_name and route_name.strip() != '':
-                sql += " AND r.route_name LIKE %s"
-                params.append(f"%{route_name}%")
+            if keyword:
+                selected_fields = _parse_search_fields(search_fields)
+                terms = _build_terms(keyword)
+                term_sql_parts = []
+
+                for field in selected_fields:
+                    expr = SEARCHABLE_ROUTE_FIELDS[field]
+
+                    for term in terms:
+                        term_sql_parts.append(f"{expr} COLLATE utf8mb4_unicode_ci LIKE %s")
+                        params.append(f"%{term}%")
+
+                if term_sql_parts:
+                    sql += " AND (" + " OR ".join(term_sql_parts) + ")"
 
             sql += " ORDER BY r.route_id DESC"
 
@@ -65,6 +116,8 @@ def get_routes_list():
             routes = cursor.fetchall()
 
         return jsonify({"status": "success", "routes": routes}), 200
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
     except Exception as e:
         return jsonify({"status": "error", "message": f"後台收運路線篩選失敗: {str(e)}"}), 500
     finally:

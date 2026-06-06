@@ -1,9 +1,15 @@
 import logging
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from app.db import get_db_connection
 from app.services.line_service import line_service
 
 logger = logging.getLogger(__name__)
+
+# 一律用台灣時區算「現在」：容器系統時間常是 UTC，但站點 arrive_time 是台灣時間，
+# 直接用 datetime.now() 會差 8 小時。取台灣牆鐘時間後去掉 tzinfo，
+# 即可與「日期 + arrive_time」組出的 naive datetime 直接比較。
+TAIPEI_TZ = ZoneInfo("Asia/Taipei")
 
 # 記憶體去重組合：儲存 (noti_id, date_str)，避免 60 秒內重複推播
 # 註：此為單程序簡易去重，符合現階段規格需求
@@ -19,7 +25,7 @@ def check_and_send_notifications():
     """
     logger.info("開始執行到站推播排程檢查...")
 
-    now = datetime.now()
+    now = datetime.now(TAIPEI_TZ).replace(tzinfo=None)
     current_date_str = now.strftime("%Y-%m-%d")
 
     # Python weekday(): 一=0, 二=1..., 日=6
@@ -115,7 +121,7 @@ def check_and_send_notifications():
 # 每日凌晨清理過期的 set，避免記憶體無限膨脹
 def clear_expired_notified_set():
     global notified_set
-    current_date_str = datetime.now().strftime("%Y-%m-%d")
+    current_date_str = datetime.now(TAIPEI_TZ).strftime("%Y-%m-%d")
     # 只保留當天的紀錄，以前的直接砍掉
     notified_set = {item for item in notified_set if item[1] == current_date_str}
     logger.info("已完成過期通知去重快取的清理。")

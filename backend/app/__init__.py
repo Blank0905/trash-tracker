@@ -92,12 +92,13 @@ def create_app():
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', 500))
         search = request.args.get('search', '')
+        search_fields = request.args.get('search_fields', '')
         sort = request.args.get('sort', 'none')
         if not table:
             return jsonify({"error": "缺少 table 參數"}), 400
         try:
             # 這裡會回傳字典 {"total": X, "data": [...]}
-            result = browse_table(table, page, limit, search, sort)
+            result = browse_table(table, page, limit, search, sort, search_fields)
             return jsonify(result)
         except Exception as e:
             return jsonify({"error": str(e)}), 400

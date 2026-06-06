@@ -6,6 +6,9 @@ const TableTemplate = ({ tableName }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(500); 
   const [filterText, setFilterText] = useState('');
+  const [filterTextDraft, setFilterTextDraft] = useState('');
+  const [isComposing, setIsComposing] = useState(false);
+  const [searchField, setSearchField] = useState('__all__');
   const [sortOrder, setSortOrder] = useState('none'); 
 
   const [browseData, setBrowseData] = useState([]); 
@@ -24,7 +27,18 @@ const TableTemplate = ({ tableName }) => {
         const baseUrl = await getBackendUrl(); 
 
         if (currentTab === 'browse') {
-          const url = `${baseUrl}/api/db/browse?table=${tableName}&page=${currentPage}&limit=${pageSize}&search=${filterText}&sort=${sortOrder}`;
+          const params = new URLSearchParams({
+            table: tableName,
+            page: String(currentPage),
+            limit: String(pageSize),
+            search: filterText,
+            sort: sortOrder,
+          });
+          if (searchField !== '__all__') {
+            params.set('search_fields', searchField);
+          }
+
+          const url = `${baseUrl}/api/db/browse?${params.toString()}`;
           const res = await fetch(url);
           if (!res.ok) throw new Error(`無法取得 ${tableName} 的瀏覽資料`);
           
@@ -47,7 +61,15 @@ const TableTemplate = ({ tableName }) => {
     };
 
     fetchTableData();
-  }, [tableName, currentTab, currentPage, pageSize, filterText, sortOrder]);
+  }, [tableName, currentTab, currentPage, pageSize, filterText, searchField, sortOrder]);
+
+  useEffect(() => {
+    setSearchField('__all__');
+  }, [tableName]);
+
+  useEffect(() => {
+    setFilterTextDraft(filterText);
+  }, [filterText]);
 
   const totalPages = Math.ceil(totalRows / pageSize) || 1;
   const pageOptions = Array.from({ length: totalPages }, (_, i) => i + 1);
@@ -147,7 +169,35 @@ const TableTemplate = ({ tableName }) => {
               </select>
 
               <span style={styles.toolbarLabel}>篩選資料列：</span>
-              <input type="text" placeholder="搜尋此資料表" value={filterText} onChange={(e) => { setFilterText(e.target.value); setCurrentPage(1); }} style={styles.input} />
+              <input
+                type="text"
+                placeholder="搜尋此資料表"
+                value={filterTextDraft}
+                onCompositionStart={() => setIsComposing(true)}
+                onCompositionEnd={(e) => {
+                  const committed = e.currentTarget.value;
+                  setIsComposing(false);
+                  setFilterTextDraft(committed);
+                  setFilterText(committed);
+                  setCurrentPage(1);
+                }}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  const composingNow = Boolean(e.nativeEvent && e.nativeEvent.isComposing);
+                  setFilterTextDraft(next);
+                  if (!isComposing && !composingNow) {
+                    setFilterText(next);
+                    setCurrentPage(1);
+                  }
+                }}
+                style={styles.input}
+              />
+
+              <span style={styles.toolbarLabel}>搜尋欄位：</span>
+              <select value={searchField} onChange={(e) => { setSearchField(e.target.value); setCurrentPage(1); }} style={styles.select}>
+                <option value="__all__">全部文字欄位</option>
+                {tableColumns.map(col => <option key={col} value={col}>{col}</option>)}
+              </select>
 
               <span style={styles.toolbarLabel}>依主鍵排序：</span>
               <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} style={styles.select}>
