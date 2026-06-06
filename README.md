@@ -6,6 +6,9 @@
 - [新北市垃圾車路線](https://data.gov.tw/dataset/125664)
 - [基隆市環保局垃圾清運相關資料](https://data.gov.tw/dataset/128678)
 
+- [台北市垃圾袋規範](https://www.dep.gov.taipei/News_Content.aspx?n=9D5081C3BFCC977A&sms=6B5660C29DA370A7&s=C7D8C02586900F63)
+- [新北市垃圾袋規範](https://www.epd.ntpc.gov.tw/StaticPage/baginfo)
+
 ## 本機啟動（測試 LINE webhook）
 
 前置：先啟動 MySQL（XAMPP），且 `backend/.env` 已填入 LINE 金鑰。

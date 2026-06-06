@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getBackendUrl } from '../../utils/api';
+import BagRegulationsEditor from './BagRegulationsEditor';
 
 const RulesAnnouncements = () => {
   const [activeTab, setActiveTab] = useState('announcements'); 
@@ -65,7 +66,8 @@ const RulesAnnouncements = () => {
 
   useEffect(() => {
     if (activeTab === 'announcements') fetchAnnouncements();
-    else fetchCityRule(selectedCity);
+    else if (activeTab === 'rules') fetchCityRule(selectedCity);
+    // 'bags' 分頁由 BagRegulationsEditor 自行載入，這裡不處理
   }, [activeTab, selectedCity]);
 
   // ==========================================
@@ -200,11 +202,17 @@ const RulesAnnouncements = () => {
         >
           📢 即時公告推播 (Announcements)
         </button>
-        <button 
-          onClick={() => setActiveTab('rules')} 
+        <button
+          onClick={() => setActiveTab('rules')}
           style={{...styles.tabButton, ...(activeTab === 'rules' ? styles.tabActive : {})}}
         >
           📜 清運法規與大型垃圾指南 (Rules)
+        </button>
+        <button
+          onClick={() => setActiveTab('bags')}
+          style={{...styles.tabButton, ...(activeTab === 'bags' ? styles.tabActive : {})}}
+        >
+          🛍 垃圾袋規範 (Bags)
         </button>
       </div>
 
@@ -364,6 +372,9 @@ const RulesAnnouncements = () => {
           </div>
         </div>
       )}
+
+      {/* ─── TAB 3：垃圾袋規範（多列 CRUD，元件自行載入） ─── */}
+      {!loading && activeTab === 'bags' && <BagRegulationsEditor />}
     </div>
   );
 };
