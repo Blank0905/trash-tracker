@@ -2,7 +2,9 @@ services:
   db:
     image: mysql:8.0
     restart: unless-stopped
+    command: ["--default-time-zone=+08:00"]
     environment:
+      TZ: Asia/Taipei
       MYSQL_DATABASE: ${DB_NAME:-garbage_database}
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-trashtracker}
     volumes:
