@@ -11,10 +11,15 @@ import TableRoutes from './dashboard/TableRoutes';
 import TableStations from './dashboard/TableStations';
 import TableStationSchedules from './dashboard/TableStationSchedules';
 import TableUsers from './dashboard/TableUsers';
+import TableAnnouncements from './dashboard/TableAnnouncements';
+import TableApiSyncLog from './dashboard/TableApiSyncLog';
+import TableBulkyWasteInfo from './dashboard/TableBulkyWasteInfo';
+import TableEtlSources from './dashboard/TableEtlSources';
 import UsersManage from './dashboard/UsersManage';
 import ActionAddDelete from './dashboard/ActionAddDelete';
 import RulesAnnouncements from './dashboard/RulesAnnouncements';
 import EtlSources from './dashboard/EtlSources';
+import SyncLog from './dashboard/SyncLog';
 import { getBackendUrl } from '../utils/api';
 
 const Dashboard = ({ onLogout }) => {
@@ -72,11 +77,16 @@ const Dashboard = ({ onLogout }) => {
       case 'table-stations': return <TableStations />;
       case 'table-station_schedules': return <TableStationSchedules />;
       case 'table-users': return <TableUsers />;
-      
+      case 'table-announcements': return <TableAnnouncements />;
+      case 'table-api_sync_log': return <TableApiSyncLog />;
+      case 'table-bulky_waste_info': return <TableBulkyWasteInfo />;
+      case 'table-etl_sources': return <TableEtlSources />;
+
       case 'users-manage': return <UsersManage />;
       case 'action-add-delete': return <ActionAddDelete />;
       case 'rules-announcements': return <RulesAnnouncements />;
       case 'etl-sources': return <EtlSources />;
+      case 'sync-log': return <SyncLog />;
 
       default: return <div>頁面建構中...</div>;
     }
@@ -109,8 +119,12 @@ const Dashboard = ({ onLogout }) => {
             {openDropdown.tables && (
               <div style={styles.submenuBox}>
                 {[
+                  { id: 'announcements', name: 'announcements (公告)' },
+                  { id: 'api_sync_log', name: 'api_sync_log (同步紀錄)' },
                   { id: 'areas', name: 'areas (區域)' },
                   { id: 'bag_regulations', name: 'bag_regulations' },
+                  { id: 'bulky_waste_info', name: 'bulky_waste_info (大型廢棄物)' },
+                  { id: 'etl_sources', name: 'etl_sources (ETL 來源)' },
                   { id: 'favorites', name: 'favorites (收藏)' },
                   { id: 'notifications', name: 'notifications' },
                   { id: 'routes', name: 'routes (路線)' },
@@ -134,6 +148,7 @@ const Dashboard = ({ onLogout }) => {
           <div onClick={() => setActivePage('action-add-delete')} style={{...styles.menuItem, ...(activePage === 'action-add-delete' ? styles.menuActive : {})}}>🚧 3. 新增與刪除面板</div>
           <div onClick={() => setActivePage('rules-announcements')} style={{...styles.menuItem, ...(activePage === 'rules-announcements' ? styles.menuActive : {})}}>📢 4. 規則與公告</div>
           <div onClick={() => setActivePage('etl-sources')} style={{...styles.menuItem, ...(activePage === 'etl-sources' ? styles.menuActive : {})}}>🔗 5. ETL 來源設定</div>
+          <div onClick={() => setActivePage('sync-log')} style={{...styles.menuItem, ...(activePage === 'sync-log' ? styles.menuActive : {})}}>🔄 6. API 同步紀錄</div>
         </div>
 
         <div style={styles.sidebarFooter}>

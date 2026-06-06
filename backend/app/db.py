@@ -26,14 +26,17 @@ def get_db_connection():
 # ==========================================
 
 ALLOWED_TABLES = [
-    'areas', 'bag_regulations', 'favorites', 'notifications', 
-    'routes', 'stations', 'station_schedules', 'users'
+    'areas', 'bag_regulations', 'favorites', 'notifications',
+    'routes', 'stations', 'station_schedules', 'users',
+    'announcements', 'api_sync_log', 'bulky_waste_info', 'etl_sources'
 ]
 
 PRIMARY_KEYS = {
     'areas': 'areas_id', 'bag_regulations': 'reg_id', 'favorites': 'fav_id',
     'notifications': 'noti_id', 'routes': 'route_id', 'stations': 'station_id',
-    'station_schedules': 'schedule_id', 'users': 'user_id'
+    'station_schedules': 'schedule_id', 'users': 'user_id',
+    'announcements': 'announcement_id', 'api_sync_log': 'log_id',
+    'bulky_waste_info': 'info_id', 'etl_sources': 'source'
 }
 
 def check_db_health():
