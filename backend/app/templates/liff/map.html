@@ -9,6 +9,8 @@
     <!-- Leaflet（OpenStreetMap，免 API key、免信用卡） -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- 在路線上加方向箭頭 -->
+    <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
     <style>
         :root {
             --primary: #00B900;
@@ -74,6 +76,7 @@
             padding: 12px; font-size: 0.95rem; font-weight: bold;
             cursor: pointer; color: white;
         }
+        #p-route { background: #1a73e8; }
         #p-fav { background: var(--primary); }
         #p-close { background: #2c2c2c; }
 
@@ -117,6 +120,7 @@
     <div class="p-name" id="p-name">站點</div>
     <div id="p-schedule"></div>
     <div class="p-actions">
+        <button id="p-route">顯示路線</button>
         <button id="p-fav">加入最愛</button>
         <button id="p-close">關閉</button>
     </div>
@@ -135,6 +139,8 @@
     let markers = [];        // 站點 marker
     let userMarker = null;   // 使用者目前位置圖標
     let rangeCircle = null;  // 搜尋範圍圓圈
+    let routeLayer = null;   // 目前顯示的行駛路線（polyline + 該路線站點）
+    let currentRouteId = null;
 
     // 目前選取的搜尋半徑（公里）
     function currentRadius() {
@@ -258,6 +264,11 @@
         document.getElementById('p-name').innerText = d.station_name || fallbackName || '站點';
         document.getElementById('p-schedule').innerHTML = renderWeek(d.schedules, d.arrive_time);
         document.getElementById('p-fav').onclick = () => addFavorite(d.station_id);
+        // 記住此站所屬路線，供「顯示路線」用；按鈕文字依該路線是否正在顯示
+        currentRouteId = d.route ? d.route.route_id : null;
+        const routeBtn = document.getElementById('p-route');
+        routeBtn.style.display = currentRouteId ? 'block' : 'none';
+        routeBtn.innerText = (routeLayer && routeLayer._forRoute === currentRouteId) ? '隱藏路線' : '顯示路線';
         document.getElementById('panel').classList.add('open');
     }
 
@@ -266,6 +277,56 @@
         if (r.status === 'success') toast('已加入最愛！');
         else toast('加入失敗：' + (r.message || '')); // 409＝已收藏過此站點
     }
+
+    // 清掉目前顯示的行駛路線
+    function clearRoute() {
+        if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+    }
+
+    // 畫出某條路線：站點依序連成折線 + 各站小圓點（編號＝行駛順序）
+    async function showRoute(routeId) {
+        const r = await api(`/stations/by-route/${routeId}`);
+        if (r.status !== 'success' || !Array.isArray(r.data) || r.data.length === 0) {
+            toast('讀取路線失敗或此路線無站點');
+            return;
+        }
+        clearRoute();
+        const pts = r.data.map(s => [s.latitude, s.longitude]);
+        const line = L.polyline(pts, { color: '#1a73e8', weight: 4, opacity: 0.8 });
+        // 沿線加方向箭頭，標示行駛方向（站點順序＝行駛順序）
+        const arrows = L.polylineDecorator(line, {
+            patterns: [{
+                offset: 12,
+                repeat: 80,
+                symbol: L.Symbol.arrowHead({
+                    pixelSize: 10,
+                    polygon: false,
+                    pathOptions: { color: '#ffffff', weight: 3, opacity: 0.9 }
+                })
+            }]
+        });
+        const dots = r.data.map((s, i) =>
+            L.circleMarker([s.latitude, s.longitude], {
+                radius: 4, color: '#fff', weight: 1, fillColor: '#1a73e8', fillOpacity: 1
+            }).bindTooltip(`${i + 1}. ${s.station_name}`));
+        routeLayer = L.layerGroup([line, arrows, ...dots]).addTo(map);
+        routeLayer._forRoute = routeId;   // 記住目前顯示的是哪條路線
+        map.fitBounds(line.getBounds(), { padding: [40, 40] });
+    }
+
+    // 「顯示/隱藏路線」切換
+    document.getElementById('p-route').onclick = async () => {
+        if (!currentRouteId) { toast('此站無路線資訊'); return; }
+        const btn = document.getElementById('p-route');
+        if (routeLayer && routeLayer._forRoute === currentRouteId) {
+            clearRoute();
+            btn.innerText = '顯示路線';
+        } else {
+            btn.innerText = '載入中…';
+            await showRoute(currentRouteId);
+            btn.innerText = routeLayer ? '隱藏路線' : '顯示路線';
+        }
+    };
 
     document.getElementById('p-close').onclick = () =>
         document.getElementById('panel').classList.remove('open');
