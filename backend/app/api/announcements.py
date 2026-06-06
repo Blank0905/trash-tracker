@@ -147,8 +147,8 @@ def get_announcements_list():
             # 使用 DATE_FORMAT 將時間格式化為前端 React 最友善的字串格式
             sql = """
                 SELECT announcement_id, title, content, target_city, is_pushed, 
-                       DATE_FORMAT(pushed_at, '%%Y-%%m-%%d %%H:%%i') as pushed_at, 
-                       DATE_FORMAT(created_at, '%%Y-%%m-%%d %%H:%%i') as created_at 
+                       DATE_FORMAT(pushed_at, '%Y-%m-%d %H:%i') as pushed_at, 
+                       DATE_FORMAT(created_at, '%Y-%m-%d %H:%i') as created_at 
                 FROM announcements 
                 ORDER BY announcement_id DESC
             """
