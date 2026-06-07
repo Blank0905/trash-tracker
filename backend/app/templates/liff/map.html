@@ -293,8 +293,7 @@
             transform: translateY(110%);
             transition: transform 0.34s cubic-bezier(0.32, 0.72, 0.2, 1);
             max-height: 78vh;
-            overflow-y: auto;
-            overscroll-behavior: contain;
+            overflow: hidden;   /* 不捲動 → 避免瀏覽器把下滑攔截為內容捲動，下滑關閉手勢更靈敏 */
         }
         #panel.open { transform: translateY(0); }
         /* 上緣 handle bar：示意可上下拉動 */
@@ -878,24 +877,20 @@
     }
     document.getElementById('p-close').onclick = closePanel;   // 保留綁定避免破壞 JS 結構
 
-    // 向下滑關閉 panel：只在 panel 已捲到頂時才視為「想關閉」（否則是滾動內容）
+    // 向下滑關閉 panel：詳細資訊不需要捲動，任何下滑都直接觸發關閉
     (function () {
         const panel = document.getElementById('panel');
         let startY = null;
-        const THRESHOLD = 60;   // 下滑超過 60px 就關閉
+        const THRESHOLD = 30;   // 下滑超過 30px 就關閉（小門檻 = 容易觸發）
 
         panel.addEventListener('pointerdown', (e) => {
-            // 只在內容已捲到最頂時才開始監測下滑關閉手勢
-            if (panel.scrollTop <= 0) startY = e.clientY;
+            startY = e.clientY;
         });
         panel.addEventListener('pointermove', (e) => {
             if (startY === null) return;
             const dy = e.clientY - startY;
             if (dy > THRESHOLD) {
                 closePanel();
-                startY = null;
-            } else if (dy < 0) {
-                // 使用者改成往上滑（要看更多內容） → 取消關閉手勢
                 startY = null;
             }
         });
