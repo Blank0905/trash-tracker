@@ -1,151 +1,322 @@
-<!DOCTYPE html> # 沒用
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>站點查詢</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0c0b">
+    <title>附近站點清單</title>
     <!-- 引入 LINE LIFF SDK -->
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <style>
+        /* ===== Design tokens（與 map.html / me.html / bag.html / bulky.html 一致） ===== */
         :root {
-            --primary: #00B900; /* LINE Green */
-            --danger: #e74c3c;
-            --bg-color: #121212;
-            --surface: #1e1e1e;
-            --text-main: #ffffff;
-            --text-muted: #888888;
+            --bg:            #0a0c0b;
+            --surface:       #14181a;
+            --surface-2:     #1c2024;
+            --surface-glass: rgba(20, 24, 26, 0.78);
+            --border:        #262d31;
+            --border-strong: #3a4046;
+
+            --text:      #eef0ec;
+            --text-dim:  #a8b0ac;
+            --text-mute: #606a66;
+
+            --brand:       #00B900;
+            --brand-light: #2bd84e;
+            --brand-soft:  rgba(0, 185, 0, 0.12);
+            --brand-tint:  rgba(0, 185, 0, 0.22);
+            --brand-glow:  0 0 24px rgba(0, 185, 0, 0.35);
+
+            --font-cjk:  'PingFang TC', -apple-system, BlinkMacSystemFont, 'Microsoft JhengHei', 'Heiti TC', 'Noto Sans CJK TC', sans-serif;
+            --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, 'Cascadia Code', Consolas, 'Liberation Mono', Menlo, monospace;
         }
-        * { box-sizing: border-box; }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { margin: 0; }
         body {
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
+            min-height: 100vh;
+            font-family: var(--font-cjk);
+            font-feature-settings: "tnum" 1, "kern" 1;
+            color: var(--text);
+            background: var(--bg);
+            background-image:
+                radial-gradient(ellipse 80% 40% at 50% -10%, rgba(0,185,0,0.05), transparent 60%);
+            padding:
+                calc(env(safe-area-inset-top, 0px) + 18px)
+                18px
+                calc(env(safe-area-inset-bottom, 0px) + 84px); /* 底部留空間給「返回地圖」浮動按鈕 */
             display: flex;
             justify-content: center;
             align-items: flex-start;
-            min-height: 100vh;
         }
-        .container { width: 100%; max-width: 420px; }
-        h2 { text-align: center; font-weight: 600; letter-spacing: 1px; }
-        #status { text-align: center; color: var(--text-muted); margin: 30px 0; }
 
-        .searchbar { display: flex; gap: 8px; margin-bottom: 16px; }
-        select {
-            background: #2c2c2c;
-            color: var(--text-main);
-            border: 1px solid #3a3a3a;
-            border-radius: 10px;
-            padding: 0 10px;
-            font-size: 0.9rem;
-        }
-        .btn {
-            border: none;
-            border-radius: 10px;
-            padding: 12px 16px;
-            font-size: 0.95rem;
-            font-weight: bold;
-            color: #fff;
-            cursor: pointer;
-        }
-        .btn.primary { background: var(--primary); flex: 1; }
-        .btn:active { transform: scale(0.98); }
+        .container { width: 100%; max-width: 460px; }
 
-        /* 搜尋結果清單 */
-        .item {
-            background-color: var(--surface);
+        /* === Eyebrow + Title === */
+        .page-eyebrow {
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 14px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: 500;
+            letter-spacing: 0.26em;
+            text-transform: uppercase;
+            color: var(--text-mute);
+        }
+        .page-eyebrow::before {
+            content: '';
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--brand);
+            box-shadow: var(--brand-glow);
+            animation: pulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .page-eyebrow .line {
+            flex: 1; height: 1px;
+            background: linear-gradient(90deg, var(--border), transparent);
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50%      { opacity: 0.35; transform: scale(0.8); }
+        }
+
+        h2 {
+            margin: 0 0 6px;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.01em;
+            line-height: 1.2;
+        }
+        .page-sub {
+            margin: 0 0 18px;
+            color: var(--text-dim);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        /* === Query summary：顯示「中心點 / 半徑 / 結果數」 === */
+        .query-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
             border-radius: 14px;
-            padding: 16px;
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            cursor: pointer;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            position: relative;
+            overflow: hidden;
         }
-        .item:active { transform: scale(0.99); }
-        .item-main { min-width: 0; }
-        .item-title {
-            font-size: 1.05rem;
+        .query-card::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 14px; bottom: 14px;
+            width: 3px;
+            background: linear-gradient(180deg, var(--brand-light), var(--brand));
+            border-radius: 0 2px 2px 0;
+        }
+        .query-item { min-width: 0; }
+        .query-label {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            font-weight: 500;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: var(--text-mute);
+            margin-bottom: 4px;
+        }
+        .query-value {
+            font-family: var(--font-mono);
+            font-size: 13px;
             font-weight: 600;
+            letter-spacing: 0.01em;
+            color: var(--text);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .item-sub { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
-        .item-dist { flex-shrink: 0; font-size: 0.9rem; color: var(--primary); font-weight: 600; }
+        .query-value.brand { color: var(--brand-light); }
 
-        /* 站點明細 */
-        .back {
-            background: none;
-            border: none;
-            color: var(--primary);
-            font-size: 0.95rem;
-            cursor: pointer;
-            padding: 0;
-            margin-bottom: 8px;
-        }
-        .d-title { font-size: 1.3rem; font-weight: 600; margin: 6px 0; }
-        .d-sub { color: var(--text-muted); font-size: 0.9rem; }
-        .d-route { font-size: 0.9rem; margin-top: 8px; }
-        .d-time { font-size: 0.9rem; margin-top: 6px; color: var(--text-muted); }
-        .d-label { margin-top: 16px; font-weight: 600; }
-        .d-note { color: var(--text-muted); margin: 16px 0; }
-
-        .next-box {
-            background: #10240f;
-            border: 1px solid var(--primary);
-            border-radius: 10px;
-            padding: 12px;
-            margin-top: 14px;
-        }
-        .next-when { font-weight: 600; }
-        .next-types { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
-
-        .sched { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.85rem; }
-        .sched th, .sched td {
+        /* === Status text === */
+        #status {
             text-align: center;
-            padding: 6px 2px;
-            border-bottom: 1px solid #2c2c2c;
-            color: var(--text-muted);
+            color: var(--text-mute);
+            margin: 36px 0;
+            font-size: 13px;
+            letter-spacing: 0.02em;
+            padding: 28px 20px;
+            background: var(--surface);
+            border: 1px dashed var(--border);
+            border-radius: 14px;
         }
-        .sched th.rowh { text-align: left; color: var(--text-main); font-weight: 600; white-space: nowrap; }
-        .sched td.on { color: var(--primary); font-weight: bold; }
+        #status.error {
+            color: #ff8a8a;
+            border-color: rgba(255, 94, 91, 0.3);
+            background: rgba(255, 94, 91, 0.05);
+        }
 
-        .d-actions { display: flex; gap: 10px; margin-top: 20px; }
-        .btn.act { flex: 1; background: #2c2c2c; }
+        /* === 列表 item === */
+        #list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .item {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 13px 14px 13px 18px;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            gap: 12px;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.18s ease;
+        }
+        .item:active { border-color: var(--border-strong); }
+        /* 左側細條，依距離遠近呼吸（前幾筆比較亮，後面慢慢淡） */
+        .item::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 13px; bottom: 13px;
+            width: 3px;
+            background: var(--brand);
+            border-radius: 0 2px 2px 0;
+            opacity: var(--rank-opacity, 0.7);
+        }
+
+        /* 序號：左側 mono 編號，呼應「ops console row id」 */
+        .item-rank {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-mute);
+            letter-spacing: 0.02em;
+            min-width: 22px;
+        }
+
+        .item-main { min-width: 0; }
+        .item-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: -0.005em;
+            line-height: 1.3;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .item-sub {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-mute);
+            margin-top: 4px;
+            letter-spacing: 0.02em;
+        }
+        .item-sub .time-dot { color: var(--brand-light); }
+
+        /* 距離藥丸：mono 字體、LINE 綠 soft 背景 */
+        .item-dist {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--brand-light);
+            background: var(--brand-soft);
+            border: 1px solid var(--brand-tint);
+            padding: 5px 10px;
+            border-radius: 999px;
+            letter-spacing: 0.02em;
+            white-space: nowrap;
+        }
+
+        /* === 浮動「返回地圖」按鈕 === */
+        .back-fab {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+            z-index: 1100;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 22px;
+            background: var(--surface-glass);
+            backdrop-filter: blur(20px) saturate(160%);
+            -webkit-backdrop-filter: blur(20px) saturate(160%);
+            border: 1px solid var(--border-strong);
+            border-radius: 999px;
+            color: var(--text);
+            font-family: var(--font-cjk);
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            box-shadow: 0 14px 36px rgba(0,0,0,0.55), 0 4px 10px rgba(0,0,0,0.4);
+            cursor: pointer;
+            transition: transform 0.12s ease, background 0.2s ease;
+        }
+        .back-fab:active {
+            transform: translateX(-50%) scale(0.96);
+            background: var(--surface-2);
+        }
+        .back-fab svg {
+            width: 16px; height: 16px;
+            color: var(--brand-light);
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>站點查詢</h2>
 
-    <div id="main">
-        <div class="searchbar">
-            <select id="radius">
-                <option value="1">1 公里</option>
-                <option value="2" selected>2 公里</option>
-                <option value="3">3 公里</option>
-                <option value="5">5 公里</option>
-            </select>
-            <button id="searchBtn" class="btn primary">📍 用目前位置搜尋</button>
-        </div>
-        <div id="status">按上方按鈕，用目前位置搜尋附近站點</div>
-        <div id="list"></div>
+    <div class="page-eyebrow">
+        SEARCH · 附近站點
+        <span class="line"></span>
     </div>
 
-    <div id="detail" style="display:none"></div>
+    <h2>附近清運站點</h2>
+    <p class="page-sub">以你目前在地圖上的搜尋中心為原點，列出範圍內所有站點，依距離由近到遠排序。</p>
+
+    <div class="query-card">
+        <div class="query-item">
+            <div class="query-label">中心點</div>
+            <div class="query-value" id="qCenter">—</div>
+        </div>
+        <div class="query-item">
+            <div class="query-label">半徑</div>
+            <div class="query-value brand" id="qRadius">—</div>
+        </div>
+        <div class="query-item">
+            <div class="query-label">共計</div>
+            <div class="query-value brand" id="qCount">—</div>
+        </div>
+    </div>
+
+    <div id="status">載入中…</div>
+    <div id="list"></div>
 </div>
 
+<!-- 浮動「返回地圖」按鈕：固定底部居中 -->
+<button class="back-fab" id="backBtn" aria-label="返回地圖">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="14 7 9 12 14 17"/>
+    </svg>
+    返回地圖
+</button>
+
 <script>
-    // 透過 Flask 後端渲染時，自動塞入 config.py 裡的 LIFF ID
+    // 後端注入（見 app/api/pages.py）
     const LIFF_ID = "{{ liff_id }}";
     let lineUserId = null;
 
-    // 統一的後端呼叫方式：自動帶上 X-Line-User-Id（簡易版身分識別）
+    // === URL params：lat / lng / radius 由 map.html 帶過來 ===
+    const url = new URLSearchParams(location.search);
+    const lat = parseFloat(url.get('lat'));
+    const lng = parseFloat(url.get('lng'));
+    const radius = parseFloat(url.get('radius')) || 0.2;
+    const MAX_STATIONS = 200;   // 與 map.html 一致
+
+    // 統一的後端呼叫方式：自動帶上 X-Line-User-Id（這裡的 stations/search 為公開，但保留一致風格）
     async function api(path, options = {}) {
         const headers = Object.assign(
             { 'Content-Type': 'application/json', 'X-Line-User-Id': lineUserId || '' },
@@ -161,167 +332,99 @@
             ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
-    const DAYS_SHORT = ['日', '一', '二', '三', '四', '五', '六'];
-    const DAYS_LONG = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
-    const TYPE_LABEL = { garbage: '一般垃圾', recycling: '資源回收', food: '廚餘', foodscraps: '廚餘' };
-
-    const mainEl = document.getElementById('main');
-    const statusEl = document.getElementById('status');
-    const listEl = document.getElementById('list');
-    const detailEl = document.getElementById('detail');
-
-    function setStatus(msg) { statusEl.style.display = 'block'; statusEl.innerText = msg; }
-    function showDetail() { mainEl.style.display = 'none'; detailEl.style.display = 'block'; window.scrollTo(0, 0); }
-    function closeDetail() { detailEl.style.display = 'none'; mainEl.style.display = 'block'; }
-
     function fmtTime(t) { return t ? String(t).slice(0, 5) : ''; }
     function fmtDist(km) {
-        if (km == null || isNaN(km)) return '';
-        return km < 1 ? Math.round(km * 1000) + ' 公尺' : Number(km).toFixed(1) + ' 公里';
+        if (km == null || isNaN(km)) return '—';
+        return km < 1 ? Math.round(km * 1000) + ' m' : Number(km).toFixed(1) + ' km';
+    }
+    function fmtRadius(km) {
+        return km < 1 ? Math.round(km * 1000) + ' m' : Number(km).toFixed(1) + ' km';
     }
 
-    // --- 搜尋 ---
-    function search() {
-        if (!navigator.geolocation) { setStatus('此裝置不支援定位'); return; }
-        setStatus('定位中…');
-        listEl.innerHTML = '';
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-            const { latitude, longitude } = pos.coords;
-            const radius = document.getElementById('radius').value;
-            setStatus('搜尋附近站點…');
-            const res = await api(`/stations/search?lat=${latitude}&lng=${longitude}&radius=${radius}&limit=20`);
-            if (res.status === 'success') renderResults(res.data);
-            else setStatus('搜尋失敗：' + (res.message || '請稍後再試。'));
-        }, (err) => {
-            console.error('定位失敗', err);
-            setStatus('無法取得定位，請允許定位權限後再試。');
-        }, { enableHighAccuracy: true, timeout: 10000 });
-    }
+    const statusEl = document.getElementById('status');
+    const listEl = document.getElementById('list');
+    const qCenterEl = document.getElementById('qCenter');
+    const qRadiusEl = document.getElementById('qRadius');
+    const qCountEl  = document.getElementById('qCount');
 
-    function renderResults(items) {
-        if (!items || items.length === 0) {
-            setStatus('附近查無站點');
-            listEl.innerHTML = '';
-            return;
-        }
+    function setStatus(msg, isError) {
+        statusEl.style.display = 'block';
+        statusEl.innerText = msg;
+        statusEl.classList.toggle('error', !!isError);
+    }
+    function clearStatus() {
         statusEl.style.display = 'none';
-        listEl.innerHTML = items.map(s => `
-            <div class="item" data-station-id="${esc(s.station_id)}">
+        statusEl.classList.remove('error');
+    }
+
+    function renderItems(items) {
+        listEl.innerHTML = items.map((s, i) => {
+            // 依排名計算左側細條的透明度（第一筆 1.0、最後一筆 0.3）
+            const rankOpacity = items.length === 1 ? 1 : (1 - (i / items.length) * 0.7).toFixed(2);
+            const time = fmtTime(s.arrive_time);
+            return `
+            <div class="item" style="--rank-opacity:${rankOpacity}">
+                <div class="item-rank">${String(i + 1).padStart(2, '0')}</div>
                 <div class="item-main">
                     <div class="item-title">${esc(s.station_name)}</div>
-                    <div class="item-sub">表定到站 ${esc(fmtTime(s.arrive_time)) || '—'}</div>
+                    <div class="item-sub">${time ? `表定到站 <span class="time-dot">${esc(time)}</span>` : '表定到站 —'}</div>
                 </div>
                 <div class="item-dist">${esc(fmtDist(s.distance_km))}</div>
-            </div>`).join('');
-    }
-
-    // --- 明細 ---
-    function renderNext(next) {
-        if (!next) return '';
-        const types = (next.types || []).map(t => TYPE_LABEL[t] || t).join('、');
-        const when = `${DAYS_LONG[Number(next.day_of_week)] || ''} ${fmtTime(next.arrive_time)}`.trim();
-        const mins = (next.in_minutes != null) ? `（約 ${esc(next.in_minutes)} 分鐘後）` : '';
-        return `
-            <div class="next-box">
-                <div class="next-when">🚛 最快到站：${esc(when)} ${mins}</div>
-                ${types ? `<div class="next-types">收運：${esc(types)}</div>` : ''}
             </div>`;
-    }
-
-    function renderSchedule(schedules) {
-        const byDay = {};
-        (schedules || []).forEach(s => { byDay[Number(s.day_of_week)] = s; });
-        const head = '<th class="rowh"></th>' + DAYS_SHORT.map(d => `<th>${d}</th>`).join('');
-        const rows = [
-            ['一般垃圾', 'collects_garbage'],
-            ['資源回收', 'collects_recycling'],
-            ['廚餘', 'collects_foodscraps'],
-        ].map(([label, key]) => {
-            const cells = DAYS_SHORT.map((_, d) => {
-                const on = byDay[d] && Number(byDay[d][key]) === 1;
-                return `<td class="${on ? 'on' : ''}">${on ? '✓' : '·'}</td>`;
-            }).join('');
-            return `<tr><th class="rowh">${label}</th>${cells}</tr>`;
         }).join('');
-        return `<table class="sched"><tr>${head}</tr>${rows}</table>`;
     }
 
-    function renderDetail(stationId, d, next) {
-        const back = `<button class="back" data-action="back">← 返回</button>`;
-        const actions = `
-            <div class="d-actions">
-                <button class="btn act" data-action="fav" data-station-id="${esc(stationId)}">⭐ 收藏</button>
-                <button class="btn act" data-action="noti" data-station-id="${esc(stationId)}">🔔 設定通知</button>
-            </div>`;
-
-        if (!d) {
-            // 後端 stations 明細 API 尚未實作（目前回 null）；仍保留收藏/通知動作
-            return back
-                + `<h3 class="d-title">站點 #${esc(stationId)}</h3>`
-                + `<div class="d-note">站點明細尚未提供（後端 stations API 待實作）。</div>`
-                + actions;
+    async function loadStations() {
+        if (Number.isNaN(lat) || Number.isNaN(lng)) {
+            setStatus('缺少必要參數，請從地圖頁進入', true);
+            return;
         }
 
-        const area = d.area ? [d.area.city, d.area.district, d.area.village].filter(Boolean).join(' ') : '';
-        const route = d.route || {};
-        const leave = fmtTime(d.leave_time);
-        return back
-            + `<h3 class="d-title">${esc(d.station_name)}</h3>`
-            + (area ? `<div class="d-sub">${esc(area)}</div>` : '')
-            + (route.route_name ? `<div class="d-route">路線：${esc(route.route_name)}${route.team ? ' · ' + esc(route.team) : ''}</div>` : '')
-            + `<div class="d-time">表定到站 ${esc(fmtTime(d.arrive_time)) || '—'}${leave ? ' · 離開 ' + esc(leave) : ''}</div>`
-            + renderNext(next)
-            + `<div class="d-label">每週收運日</div>`
-            + renderSchedule(d.schedules)
-            + actions;
-    }
+        // 顯示查詢條件
+        qCenterEl.innerText = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        qRadiusEl.innerText = fmtRadius(radius);
 
-    async function openDetail(stationId) {
-        detailEl.innerHTML = '<button class="back" data-action="back">← 返回</button><div class="d-note">載入中…</div>';
-        showDetail();
         try {
-            const [dRes, nRes] = await Promise.all([
-                api(`/stations/${stationId}`),
-                api(`/stations/${stationId}/next`),
-            ]);
-            const d = dRes.status === 'success' ? dRes.data : null;
-            const next = nRes.status === 'success' ? nRes.data : null;
-            detailEl.innerHTML = renderDetail(stationId, d, next);
+            const res = await api(
+                `/stations/search?lat=${lat}&lng=${lng}&radius=${radius}&limit=${MAX_STATIONS}`
+            );
+            if (res.status !== 'success') {
+                setStatus('搜尋失敗：' + (res.message || '請稍後再試。'), true);
+                qCountEl.innerText = '—';
+                return;
+            }
+            const items = res.data || [];
+            qCountEl.innerText = String(items.length);
+
+            if (items.length === 0) {
+                setStatus(`半徑 ${fmtRadius(radius)} 內沒有任何站點。試著回地圖把搜尋圖釘拖到別處或調大範圍。`);
+                listEl.innerHTML = '';
+                return;
+            }
+            clearStatus();
+            renderItems(items);
+
+            if (items.length >= MAX_STATIONS) {
+                // 達上限提醒
+                const note = document.createElement('div');
+                note.style.cssText = 'margin-top:12px;padding:10px 14px;background:rgba(255,181,71,0.08);border:1px dashed rgba(255,181,71,0.3);border-radius:10px;color:#ffc97a;font-size:12px;line-height:1.5;letter-spacing:0.02em;';
+                note.innerText = `此範圍站點達 ${MAX_STATIONS} 個上限，建議回地圖縮小搜尋半徑以看完整清單。`;
+                listEl.appendChild(note);
+            }
         } catch (e) {
-            console.error('載入明細失敗', e);
-            detailEl.innerHTML = '<button class="back" data-action="back">← 返回</button><div class="d-note">載入失敗，請稍後再試。</div>';
+            console.error('載入站點失敗', e);
+            setStatus('載入失敗，請稍後再試。', true);
         }
     }
 
-    // --- 收藏 / 通知（需登入）---
-    async function addFavorite(stationId) {
-        if (!lineUserId) { liff.login(); return; }
-        const r = await api('/favorites/', { method: 'POST', body: JSON.stringify({ station_id: Number(stationId) }) });
-        alert(r.status === 'success' ? '已加入收藏' : (r.message || '收藏失敗，請稍後再試。'));
-    }
-    async function addNotification(stationId) {
-        if (!lineUserId) { liff.login(); return; }
-        const r = await api('/notifications/', { method: 'POST', body: JSON.stringify({ station_id: Number(stationId) }) });
-        alert(r.status === 'success' ? '已設定到站通知（可到「到站通知」頁調整）' : (r.message || '設定失敗，請稍後再試。'));
-    }
-
-    // --- 事件 ---
-    document.getElementById('searchBtn').addEventListener('click', search);
-
-    listEl.addEventListener('click', (e) => {
-        const item = e.target.closest('.item[data-station-id]');
-        if (item) openDetail(item.dataset.stationId);
+    // 返回地圖：用 history.back() 保留 map 頁原本狀態（marker / panel 等）；
+    // 若無歷史紀錄（直接打開此頁時），fallback 到 /liff/map
+    document.getElementById('backBtn').addEventListener('click', () => {
+        if (history.length > 1) history.back();
+        else location.href = '/liff/map';
     });
 
-    detailEl.addEventListener('click', (e) => {
-        const btn = e.target.closest('button[data-action]');
-        if (!btn) return;
-        if (btn.dataset.action === 'back') closeDetail();
-        else if (btn.dataset.action === 'fav') addFavorite(btn.dataset.stationId);
-        else if (btn.dataset.action === 'noti') addNotification(btn.dataset.stationId);
-    });
-
-    // 搜尋為公開功能，不強制登入；收藏/通知時才要求登入
+    // 此頁為公開資訊查詢，不強制 LINE 登入；liff.init 失敗也照常顯示
     async function main() {
         try {
             await liff.init({ liffId: LIFF_ID });
@@ -332,6 +435,7 @@
         } catch (e) {
             console.warn('LIFF 初始化略過（可能非 LINE 環境）', e);
         }
+        loadStations();
     }
     main();
 </script>

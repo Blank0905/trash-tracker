@@ -560,8 +560,19 @@
     </div>
 </div>
 
-<!-- 右下浮動按鈕：主題切換、拖曳搜尋針（次）、定位（主） -->
+<!-- 右下浮動按鈕：主題切換、列表檢視、拖曳搜尋針（次）、定位（主） -->
 <div class="fab-stack">
+    <button id="listBtn" class="fab" title="以列表查看附近站點" aria-label="以列表查看附近站點">
+        <!-- 清單圖示：左側 3 個小圓點 + 右側 3 條線 -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="4.5" cy="6" r="1.4" fill="currentColor" stroke="none"/>
+            <circle cx="4.5" cy="12" r="1.4" fill="currentColor" stroke="none"/>
+            <circle cx="4.5" cy="18" r="1.4" fill="currentColor" stroke="none"/>
+            <line x1="9" y1="6"  x2="20" y2="6"/>
+            <line x1="9" y1="12" x2="20" y2="12"/>
+            <line x1="9" y1="18" x2="20" y2="18"/>
+        </svg>
+    </button>
     <button id="themeToggle" class="fab" title="切換地圖亮暗" aria-label="切換地圖亮暗">
         <!-- 太陽（暗色中顯示，按了會變亮） -->
         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -627,6 +638,22 @@
         const next = document.body.classList.contains('map-dark') ? 'light' : 'dark';
         applyMapTheme(next);
         localStorage.setItem(MAP_THEME_KEY, next);
+    });
+
+    // 列表檢視：以目前 searchCenter（拉的搜尋大頭針位置；沒拉就是 GPS 定位 / fallback）
+    // 與當前半徑跳到 /liff/search，由 search.html 列點呈現
+    document.getElementById('listBtn').addEventListener('click', () => {
+        if (!searchCenter) {
+            toast('地圖尚未準備好，請稍候或拖圖釘到地圖上');
+            return;
+        }
+        const radius = currentRadius();
+        const params = new URLSearchParams({
+            lat: searchCenter.lat.toFixed(6),
+            lng: searchCenter.lng.toFixed(6),
+            radius: String(radius),
+        });
+        location.href = `/liff/search?${params.toString()}`;
     });
 
     let lineUserId = null;
