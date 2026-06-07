@@ -260,6 +260,7 @@ APScheduler（`timezone="Asia/Taipei"`），背景執行緒內自行 push app co
 | `announcements` | announcement_id | 公告（target_city NULL=全體；is_pushed） |
 | `api_sync_log` | log_id | ETL 同步紀錄（run_id 關聯一次排程） |
 | `etl_sources` | source | 三市 CSV 下載網址（可由後台改 url） |
+| `admin_audit_log` | log_id | 管理者操作審計紀錄（append-only，見 7.4） |
 
 ### 7.1 `day_of_week` 對齊
 `0=日, 1=一, …, 6=六`。通知與班表皆依此對齊。
@@ -271,6 +272,13 @@ APScheduler（`timezone="Asia/Taipei"`），背景執行緒內自行 push app co
 ### 7.3 `api_sync_log`（同步紀錄）
 - `run_id`（UUID，關聯同一次排程）、`source`（TPE/NTPC/KLU）、`phase`（download/import）、`status`（success/failed/partial）、`records_affected`、`message`、`started_at`、`finished_at`。
 - 一次排程通常產生 6 筆（3 城 × download/import），便於定位失敗階段。
+
+### 7.4 `admin_audit_log`（管理者操作審計）
+- 透過 `app/utils/audit.write_audit_log()` 寫入；建表 SQL 見 `database/migrate_admin_audit_log.sql`。
+- 欄位：`actor_user_id` / `actor_email`（操作者；email 冗餘保存避免日後改 email 找不到）、`action`（如 `user_promote`、`announcement_push`、`etl_run`）、`target_type` / `target_id`（對象）、`details` JSON（補充內容）、`ip_address`、`created_at`。
+- 設計原則：append-only、不設 FK（與業務表解耦，避免 admin 帳號被刪時連動刪 log）。
+- 與業務動作**同 transaction** 寫入（背景觸發如 `etl/run` 例外，主執行緒先寫 audit 再 spawn）；audit 失敗會連帶業務動作 rollback，確保敏感操作必有紀錄。
+- 目前已埋點：`user_promote` / `user_suspend` / `announcement_create` / `announcement_update` / `announcement_push` / `etl_source_update` / `etl_run` / `route_delete` / `station_delete`。
 
 ---
 
@@ -359,6 +367,7 @@ APScheduler（`timezone="Asia/Taipei"`），背景執行緒內自行 push app co
 - ✅ 刪除 5 個前端死空檔
 - ✅ Webhook 導向 `/favorites`、`/notifications` 的不存在頁面已修
 - ✅ 刪除前端 CRA 預設測試殘檔（`App.test.js`、`setupTests.js`），CI 不再紅燈
+- ✅ 新增 `admin_audit_log` 審計表 + `write_audit_log()` helper；9 個敏感端點（升降權 / 停權 / 公告 CRUD+推播 / ETL / 路線站點刪除）已埋點
 
 ---
 

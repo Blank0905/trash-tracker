@@ -15,6 +15,7 @@ from flask import Blueprint, current_app, request
 
 from app.utils.responses import ok, err
 from app.utils.auth import admin_required
+from app.utils.audit import write_audit_log
 from app.db import get_db_connection
 
 bp = Blueprint('etl', __name__, url_prefix='/api/admin/etl')
@@ -107,6 +108,12 @@ def update_source(source):
                 "ON DUPLICATE KEY UPDATE url = VALUES(url)",
                 (source, url)
             )
+            write_audit_log(
+                'etl_source_update',
+                target_type='etl_source',
+                details={'source': source, 'url': url, 'rows': len(df)},
+                cursor=cursor,
+            )
             conn.commit()
         return ok({'source': source, 'rows': len(df)})
 
@@ -126,6 +133,9 @@ def run_etl():
     立即回應、不等 ETL 跑完（可能數分鐘）；結果可於 api_sync_log 查看。
     """
     app = current_app._get_current_object()
+
+    # 在主執行緒寫 audit（子執行緒沒有 request / g context 可用）
+    write_audit_log('etl_run')
 
     def task():
         with app.app_context():

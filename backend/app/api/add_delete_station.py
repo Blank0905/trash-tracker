@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from app.db import get_db_connection
 from app.utils.auth import admin_required
+from app.utils.audit import write_audit_log
 import pymysql
 
 # 🟢 獨立的後台站點管理藍圖，前綴採用 /api/admin/stations
@@ -490,6 +491,14 @@ def delete_station(station_id):
                     """,
                     [route_id, deleted_seq]
                 )
+
+            write_audit_log(
+                'station_delete',
+                target_type='station',
+                target_id=station_id,
+                details={'route_id': route_id, 'sequence_order': deleted_seq},
+                cursor=cursor,
+            )
 
             conn.commit()
         return jsonify({"status": "success", "message": "清運站點及其每週日程已自系統級聯抹除！"}), 200
