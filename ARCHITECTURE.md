@@ -1,6 +1,6 @@
                # 北北基垃圾車追蹤平台 — 系統架構文件
 
-> 文件版本：v3.0（2026-06-07）
+> 文件版本：v3.1（2026-06-07）
 > 文件定位：**以目前程式碼實作為準**。與程式碼衝突時以程式碼為準；尚未完成或已知問題集中在第十一章，細項修復清單見 `TODO_專案修復清單.md`。
 
 ---
@@ -32,7 +32,7 @@
 - 一般使用者免帳密，以 `line_user_id` 為核心識別，加好友時自動建立。
 - 管理者需綁定 email + 密碼，且 `role` 為 `admin`，才能登入 React 後台。
 
-> ⚠️ **安全現況**：管理端 API 目前**沒有實際的身分驗證保護**（詳見 3.4 與第十一章）。`app/utils/auth.py` 已備有 `admin_required` 裝飾器但尚未套用。本系統目前僅適合在受控環境 / Demo 使用。
+> **安全現況**：管理端 API 已全面套用 `admin_required`，登入會發 itsdangerous 簽章 token，前端每次請求帶 `Authorization: Bearer <token>`；後端即時驗章並查 DB 確認 role/status。仍有 demo 期殘留行為待清理（密碼明文 fallback、email 自動補 `@gmail.com`），詳見第十一章。`SECRET_KEY` 必須於 `backend/.env` 設定強隨機字串，否則 token 走 dev fallback、形同虛設。
 
 ---
 
@@ -86,7 +86,7 @@ trash-tracker/
 2. 註冊自訂 `CustomJSONProvider`：自動把 `Decimal` → float、`date/datetime` → ISO 字串、`timedelta` → `HH:MM:SS`。
 3. 啟用 CORS（全開放）。
 4. 定義數個 **inline 端點**（見 3.3）。
-5. 註冊 14 個 Blueprint（見 3.4）。
+5. 註冊 13 個 Blueprint（見 3.4）。
 6. 啟動背景排程（見第五章），可用 `DISABLE_SCHEDULER=1` 停用。
 
 ### 3.3 `__init__.py` 內的 inline 端點
@@ -95,15 +95,15 @@ trash-tracker/
 |---|---|---|---|
 | GET | `/health` | 健康檢查 | 公開 |
 | GET | `/api/db-status` | 回傳 DB 連線狀態 | 公開 |
-| GET | `/api/db/browse` | DB Browser：分頁/搜尋/排序瀏覽任一允許資料表 | ⚠️ 無 |
-| GET | `/api/db/structure` | 取得資料表欄位結構 | ⚠️ 無 |
+| GET | `/api/db/browse` | DB Browser：分頁/搜尋/排序瀏覽任一允許資料表 | `admin_required` |
+| GET | `/api/db/structure` | 取得資料表欄位結構 | `admin_required` |
 | POST | `/api/auth/admin/login` | 管理者帳密登入 | 公開 |
 
-管理者登入邏輯：以 email 查 `users`（不含 `@` 會自動補 `@gmail.com`），用 `verify_password()` 驗證（先試 `check_password_hash`，失敗再退回明文比對），通過且 `role == 'admin'` 才回傳 `access_token`（目前是 `session_token_admin_{user_id}` 字串，**非簽章 token，後端不驗證**）。
+管理者登入邏輯：以 email 查 `users`（不含 `@` 會自動補 `@gmail.com`，待清理），用 `verify_password()` 驗證（先試 `check_password_hash`，失敗再退回明文比對，待清理），通過且 `role == 'admin'` 才回傳 `access_token`——由 `app/utils/auth.generate_admin_token()` 以 itsdangerous 簽章產出，內含 `user_id`/`role`/`username`，有效期 7 天。前端每次請求帶 `Authorization: Bearer <token>`，後端 `admin_required` 驗章後即時查 DB 確認帳號仍為 `admin`/`developer` 且未停權。
 
 ### 3.4 已註冊的 Blueprint 與端點
 
-> 保護欄位：「公開」= 不需身分；「LINE」= `@line_required`（讀 `X-Line-User-Id`）；「⚠️ 管理（無保護）」= 用途為管理但目前未掛任何驗證。
+> 保護欄位：「公開」= 不需身分；「LINE」= `@line_required`（讀 `X-Line-User-Id`）；「管理」= `@admin_required`（讀 `Authorization: Bearer <token>`，驗章後查 DB 確認 role/status）。
 
 #### `stations`（`api/routes.py`，`/api/stations`）— 公開
 - `GET /search`：附近站點（`lat`、`lng`、`radius` 預設 2km、`limit` 預設 20 上限 200）
@@ -117,9 +117,9 @@ trash-tracker/
 - `POST /register`：LINE 一鍵綁定（公開）
 - `GET /me`：查本人資料（LINE）
 - `PUT /credentials`：設定本人 email + 密碼（LINE）
-- `GET /list`：所有使用者清單（⚠️ 管理，前端 `UsersManage` 用）
-- `POST /promote`：升級為 admin（需已綁 email+密碼）（⚠️ 管理）
-- `POST /suspend`：停權使用者（禁止停權其他 admin）（⚠️ 管理）
+- `GET /list`：所有使用者清單（管理，前端 `UsersManage` 用）
+- `POST /promote`：升級為 admin（需已綁 email+密碼）（管理）
+- `POST /suspend`：停權使用者（禁止停權其他 admin）（管理）
 
 #### `line_webhook`（`api/webhooks.py`，`/api/webhooks`）— 公開（LINE 簽章驗證）
 - `POST /line`：LINE Webhook 入口（見第六章）
@@ -136,59 +136,62 @@ trash-tracker/
 - `DELETE /stations/<station_id>`：取消收藏（同交易連帶刪通知）
 - `PATCH /stations/<station_id>/notify`：開關/更新通知 `{ is_active?, remind_before_mins?, notify_days? }`；首次建立逐日預設依該站收運日，`remind_before_mins` 預設 5、限 1–60
 
-#### `favorites`（`api/favorites.py`，`/api/favorites`）— LINE　⚠️ 舊設計，已被 `me` 取代，待移除
-#### `notifications`（`api/notifications.py`，`/api/notifications`）— LINE　⚠️ 舊設計，已被 `me` 取代，待移除
-> 注意：`favorites` / `notifications` **資料表**仍由 `me` API 與背景推播共用；只有這兩支 API blueprint 不再使用。
+> `favorites` / `notifications` API blueprint 已移除（已被 `me` 取代）；資料表本身保留，由 `me` API 與背景推播 `notifier` 共用。
 
 #### `rules`（`api/rules.py`，`/api/rules`）
 - `GET /get?city=`：讀某市大型廢棄物法規（取 `bulky_waste_info`，查無回空白範本）（公開）
-- `POST /update`：更新/新增某市法規（⚠️ 管理）
+- `POST /update`：更新/新增某市法規（管理）
 
 #### `announcements`（`api/announcements.py`，`/api/announcements`）
-- `GET /list`：公告清單（⚠️ 管理）
-- `POST /create`：建立公告（⚠️ 管理）
-- `POST /update/<anno_id>`：修改公告（⚠️ 管理）
-- `POST /push/<anno_id>`：透過 LINE 群發公告（⚠️ 管理）
+- `GET /list`：公告清單（公開）
+- `POST /create`：建立公告（管理）
+- `POST /update/<anno_id>`：修改公告（管理）
+- `POST /push/<anno_id>`：透過 LINE 群發公告（管理）
 > 群發依賴 `line_service`；若 import 失敗會 fallback 成 `MockLineService`（只印 log 不真送），避免 500。
 
-#### `bags`（`api/bags.py`，`/api/admin/bag-regulations`）— ⚠️ 管理
+#### `bags`（`api/bags.py`，`/api/admin/bag-regulations`）— 管理
 - `POST /`（即 `/api/admin/bag-regulations`）：新增垃圾袋規範（city 限台北市/新北市）
 - `PUT /<reg_id>`：更新
 - `DELETE /<reg_id>`：刪除
 > 讀取仍走公開的 `GET /api/info/bag-regulations`。
 
-#### `add_delete_route`（`api/add_delete_route.py`，`/api/admin/routes`）— ⚠️ 管理
+#### `add_delete_route`（`api/add_delete_route.py`，`/api/admin/routes`）— 管理
 - `GET /list`（可篩 `city`/`district`/`route_name`）、`GET /areas/all`、`GET /areas/village-null`
 - `POST /create`、`POST|DELETE /delete/<route_id>`
 
-#### `add_delete_station`（`api/add_delete_station.py`，`/api/admin/stations`）— ⚠️ 管理
+#### `add_delete_station`（`api/add_delete_station.py`,`/api/admin/stations`）— 管理
 - `GET /list`
 - `POST /create`、`POST|PUT /update/<station_id>`、`POST|DELETE /delete/<station_id>`
 > 新增/更新會驗證序位連續、抵達時間需晚於前站駛離、駛離需早於後站抵達。
 
-#### `etl`（`api/etl.py`，`/api/admin/etl`）— ⚠️ 管理
+#### `etl`（`api/etl.py`，`/api/admin/etl`）— 管理
 - `GET /sources`：列三市目前下載網址與更新時間
 - `PUT /sources/<source>`：更新某市 url（會先下載驗證必要欄位才寫入 `etl_sources`）
 - `POST /run`：背景觸發一次完整 ETL
 
+#### `audit`（`api/audit.py`，`/api/admin/audit-log`）— 管理
+- `GET /`：列出管理者操作紀錄（最新在前），支援 `limit`/`offset`/`action`/`target_type`/`actor_user_id` 篩選，回傳含 `total`。寫入端點分散在各業務 API，請見 7.4。
+
 #### `pages`（`api/pages.py`）— 公開
 - `GET /liff`、`GET /liff/`、`GET /liff/<page>`：渲染 `templates/liff/<page>.html` 並注入 `liff_id`（見第六章）
 
-### 3.5 回應格式（不一致，待統一）
+### 3.5 回應格式
 
-目前三種風格並存：
-- `app/utils/responses.py` 的 `ok()` / `err()` → `{status, data, ...}` / `{status, message}`（多數 API）
-- `add_delete_*` / `users` 管理端 / `rules` 用裸 `jsonify({"status": "success"/"error", ...})`
-- `__init__.py` 的 DB Browser 用 `jsonify({"error": ...})`
+**錯誤格式已統一**：所有失敗回應一律 `{"status": "error", "message": "..."}`；錯誤碼語意：400 參數錯、401 未驗證、403 權限、404 找不到、409 衝突（如 duplicate）、500 伺服器、502 上游失敗（如 LINE 推播失敗）。
 
-新程式碼請優先採用 `ok()` / `err()`。
+**成功 payload key 各端點保留**（務實路線，避免破壞前端解析）：
+- `app/utils/responses.py` 的 `ok()` / `err()` → `{status, data, ...}`：多數 API（`me`、`etl`、`bags` 等）。
+- `add_delete_*` / `announcements` / `rules` / `__init__.py` login → `{status, <自訂 key>, ...}`：保留各 endpoint 有意義的 key（如 `routes`、`stations`、`access_token`），不強塞進 `data`。
+- `/api/db/browse` / `/api/db/structure` 成功時為相容前端 TableTemplate，保留原 dict / list 結構未加 `status` 欄位，前端以 `res.ok` 判斷。
+
+新程式碼請優先採用 `ok()` / `err()`；若資料 key 需自訂，至少回傳 `{"status": "success", ...}`。
 
 ---
 
 ## 第四章　資料存取層（`app/db.py`）
 
 - PyMySQL + DBUtils `PooledDB` 連線池（maxconnections=10、mincached=2、DictCursor、連線時 `SET time_zone='+08:00'`），DB 設定全讀環境變數。
-- `ALLOWED_TABLES` 白名單 12 張表 + 各表 `PRIMARY_KEYS`；DB Browser 僅允許白名單內資料表。
+- `ALLOWED_TABLES` 白名單 13 張表 + 各表 `PRIMARY_KEYS`；DB Browser 僅允許白名單內資料表。
 - `browse_table()` 防呆：`page`/`limit` 夾範圍（limit 上限 500）、`search_fields` 與 `sort` 欄位/方向皆比對欄位白名單，非法即丟錯；`users` 表的 `password_hash` 一律遮成 `***`。
 
 ---
@@ -260,6 +263,7 @@ APScheduler（`timezone="Asia/Taipei"`），背景執行緒內自行 push app co
 | `announcements` | announcement_id | 公告（target_city NULL=全體；is_pushed） |
 | `api_sync_log` | log_id | ETL 同步紀錄（run_id 關聯一次排程） |
 | `etl_sources` | source | 三市 CSV 下載網址（可由後台改 url） |
+| `admin_audit_log` | log_id | 管理者操作審計紀錄（append-only，見 7.4） |
 
 ### 7.1 `day_of_week` 對齊
 `0=日, 1=一, …, 6=六`。通知與班表皆依此對齊。
@@ -271,6 +275,13 @@ APScheduler（`timezone="Asia/Taipei"`），背景執行緒內自行 push app co
 ### 7.3 `api_sync_log`（同步紀錄）
 - `run_id`（UUID，關聯同一次排程）、`source`（TPE/NTPC/KLU）、`phase`（download/import）、`status`（success/failed/partial）、`records_affected`、`message`、`started_at`、`finished_at`。
 - 一次排程通常產生 6 筆（3 城 × download/import），便於定位失敗階段。
+
+### 7.4 `admin_audit_log`（管理者操作審計）
+- 透過 `app/utils/audit.write_audit_log()` 寫入；建表 SQL 見 `database/migrate_admin_audit_log.sql`。
+- 欄位：`actor_user_id` / `actor_email`（操作者；email 冗餘保存避免日後改 email 找不到）、`action`（如 `user_promote`、`announcement_push`、`etl_run`）、`target_type` / `target_id`（對象）、`details` JSON（補充內容）、`ip_address`、`created_at`。
+- 設計原則：append-only、不設 FK（與業務表解耦，避免 admin 帳號被刪時連動刪 log）。
+- 與業務動作**同 transaction** 寫入（背景觸發如 `etl/run` 例外，主執行緒先寫 audit 再 spawn）；audit 失敗會連帶業務動作 rollback，確保敏感操作必有紀錄。
+- 目前已埋點：`user_promote` / `user_suspend` / `announcement_create` / `announcement_update` / `announcement_push` / `etl_source_update` / `etl_run` / `route_delete` / `station_delete`。
 
 ---
 
@@ -296,8 +307,8 @@ APScheduler（`timezone="Asia/Taipei"`），背景執行緒內自行 push app co
 
 ## 第九章　管理後台（React，`frontend/`）
 
-- `App.js`：以 `localStorage.access_token` 是否存在切換 `Login` / `Dashboard`（**前端僅靠 localStorage 判斷，token 不帶給後端、後端也不驗**）。
-- `Login.jsx`：打 `POST /api/auth/admin/login`，成功存 `access_token`/`admin_email`/`admin_id`。
+- `App.js`：以 `localStorage.access_token` 是否存在切換 `Login` / `Dashboard`。
+- `Login.jsx`：打 `POST /api/auth/admin/login`，成功存 `access_token`（itsdangerous 簽章 token）/`admin_email`/`admin_id`。
 - `Dashboard.jsx`：側欄 + 內容調度，輪詢 `/api/db-status` 顯示連線燈號。功能區塊：
   - **顯示資料表**：`dashboard/TableXxx.jsx`（各表唯讀檢視，走 `/api/db/browse`、`/api/db/structure`）
   - **管理使用者** `UsersManage`（`/api/users/list|promote|suspend`）
@@ -305,9 +316,11 @@ APScheduler（`timezone="Asia/Taipei"`），背景執行緒內自行 push app co
   - **規則與公告** `RulesAnnouncements`（`/api/rules`、`/api/announcements`）
   - **ETL 來源設定** `EtlSources`（`/api/admin/etl/sources`）
   - **API 同步紀錄** `SyncLog`（`api_sync_log`）
-- `utils/api.js`：`getBackendUrl()` 優先用 `REACT_APP_BACKEND_URL`，否則探測公網/本機（目前硬編在 `:8000`）。
-
-> 死檔（0 行、無人引用，待刪）：`src/api/client.js`、`src/auth/AuthContext.jsx`、`src/pages/{DbBrowser,SyncMonitor,Users}.jsx`。
+  - **操作紀錄** `AuditLog`（`/api/admin/audit-log`，列出管理者敏感操作審計，支援篩選與分頁）
+- `utils/api.js`：
+  - `getBackendUrl()`：優先用 `REACT_APP_BACKEND_URL`，否則探測公網/本機（硬編在 `:8000`）。
+  - `authHeader()`：從 `localStorage.access_token` 組出 `{ Authorization: 'Bearer ...' }`。
+  - `authedFetch(url, options)`：自動帶 Authorization header；收到 `401` 即 `localStorage.clear()` 並重導回根路徑（App 偵測無 token 自動切回 Login）。所有 dashboard 子元件呼叫管理 API 統一走此 wrapper。
 
 ---
 
@@ -338,14 +351,28 @@ APScheduler（`timezone="Asia/Taipei"`），背景執行緒內自行 push app co
 
 詳細修復步驟見 `TODO_專案修復清單.md`，重點：
 
-1. **管理端 API 無身分驗證**（最大破口）：`/api/db/*`、`/api/admin/*`、`users` 管理端、`announcements`/`rules` 寫入等皆裸露；`admin_required` 已備未用。
-2. **登入 token 是假的**：前端存而不帶、後端不驗，需收斂為真正機制或全面套用 `admin_required`。
-3. **密碼明文 fallback** 與 email 自動補 `@gmail.com` 的隱性行為，上線前應移除。
-4. **舊 `favorites` / `notifications` API 待移除**（已被 `me` 取代）；連帶可消除 `me`/`notifications` 的 N+1 查詢。
-5. **回應格式三套並存**，待統一為 `ok()`/`err()`。
-6. **Webhook 導向 `/favorites`、`/notifications` 但模板不存在**，需改導向 `me` 或補頁。
-7. **前端死空檔**待刪；**前後端皆缺測試**（`App.test.js` 仍為 CRA 範本）。
-8. 兩份 `newimport.py` 可再整併（低優先）。
+1. **密碼明文 fallback** 與 email 自動補 `@gmail.com` 的隱性行為（`__init__.py` `verify_password()` 與 login），上線前應移除（對應 TODO P1.3）。
+2. **成功 payload key 未強制統一**：各端點仍保留自訂 key（`routes`/`stations`/`access_token` 等），錯誤格式已統一。後續若決定全面收斂到 `ok().data`，前端解析要跟著大改（對應 TODO P2.7 嚴格路線）。
+3. 兩份 `newimport.py` 可再整併（低優先）。
+
+### 設計決策：現階段不做自動化測試
+
+5 人團隊、Demo 階段、架構仍在快速調整（剛改完 P1/P2、後續還有 P1.3），現階段測試策略為**以人工驗證為主**：每次改動由負責者自行跑過影響範圍的功能。前端 CRA 預設範本（`App.test.js`、`setupTests.js`）已移除以免 CI 紅燈；`package.json` 的 `test` script 保留，未來決定要補測試時可直接擴充。
+
+> 未來若進入正式上線階段，建議至少補齊：後端 `auth.admin_required` / login / `me.list_my_stations` / `db browse` 防呆 / ETL 欄位驗證；前端登入流程與 `authedFetch` 401 處理。
+
+### 已完成（v3.1，2026-06-07）
+- ✅ 管理端 API 全面套用 `admin_required`（含 `users.py` 三支管理端 `/list`、`/promote`、`/suspend`）
+- ✅ 登入發 itsdangerous 簽章 token，前端帶 `Authorization: Bearer`，後端驗章 + 查 DB
+- ✅ 前端 `authedFetch` wrapper，401 自動登出
+- ✅ 移除舊 `favorites` / `notifications` API blueprint（資料表保留）
+- ✅ `me.list_my_stations()` 消除 N+1（用 `WHERE station_id IN (...)` + 記憶體分組）
+- ✅ 錯誤格式統一（`{status:"error", message:"..."}` + 錯誤碼語意對齊）
+- ✅ 刪除 5 個前端死空檔
+- ✅ Webhook 導向 `/favorites`、`/notifications` 的不存在頁面已修
+- ✅ 刪除前端 CRA 預設測試殘檔（`App.test.js`、`setupTests.js`），CI 不再紅燈
+- ✅ 新增 `admin_audit_log` 審計表 + `write_audit_log()` helper；9 個敏感端點（升降權 / 停權 / 公告 CRUD+推播 / ETL / 路線站點刪除）已埋點
+- ✅ 新增 `/api/admin/audit-log` 唯讀查詢 API 與 React 後台「操作紀錄」頁（篩選 + 分頁）
 
 ---
 

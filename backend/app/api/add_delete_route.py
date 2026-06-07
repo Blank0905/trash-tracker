@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from app.db import get_db_connection
 from app.utils.auth import admin_required
+from app.utils.audit import write_audit_log
 import pymysql
 
 # 🟢 獨立的後台管理藍圖，前綴採用 /api/admin/routes
@@ -259,6 +260,13 @@ def delete_route(route_id):
 
             delete_route_sql = "DELETE FROM routes WHERE route_id = %s"
             cursor.execute(delete_route_sql, [route_id])
+
+            write_audit_log(
+                'route_delete',
+                target_type='route',
+                target_id=route_id,
+                cursor=cursor,
+            )
 
             conn.commit()
 

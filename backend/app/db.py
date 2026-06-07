@@ -31,6 +31,7 @@ ALLOWED_TABLES = [
     'api_sync_log',
     'bulky_waste_info',
     'etl_sources',
+    'admin_audit_log',
 ]
 
 PRIMARY_KEYS = {
@@ -46,6 +47,7 @@ PRIMARY_KEYS = {
     'api_sync_log': 'log_id',
     'bulky_waste_info': 'info_id',
     'etl_sources': 'source',
+    'admin_audit_log': 'log_id',
 }
 
 MAX_BROWSE_LIMIT = 500

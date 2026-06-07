@@ -151,31 +151,3 @@ def handle_message(event):
                     messages=[TextMessage(text=reply_content)]
                 )
             )
-
-    # 開啟我的收藏（最愛）清單頁
-    elif user_text in ('最愛', '收藏'):
-        liff_url = f"https://liff.line.me/{os.environ.get("LINE_LIFF_ID", "")}/favorites"
-        reply_content = f"點下方連結查看你的收藏清單：\n{liff_url}"
-
-        with ApiClient(configuration) as api_client:
-            line_bot_api = MessagingApi(api_client)
-            line_bot_api.reply_message_with_http_info(
-                ReplyMessageRequest(
-                    replyToken=event.reply_token,
-                    messages=[TextMessage(text=reply_content)]
-                )
-            )
-
-    # 開啟到站通知設定頁
-    elif user_text in ('通知', '提醒'):
-        liff_url = f"https://liff.line.me/{os.environ.get("LINE_LIFF_ID", "")}/notifications"
-        reply_content = f"點下方連結設定到站通知：\n{liff_url}"
-
-        with ApiClient(configuration) as api_client:
-            line_bot_api = MessagingApi(api_client)
-            line_bot_api.reply_message_with_http_info(
-                ReplyMessageRequest(
-                    replyToken=event.reply_token,
-                    messages=[TextMessage(text=reply_content)]
-                )
-            )

@@ -15,11 +15,13 @@ import TableAnnouncements from './dashboard/TableAnnouncements';
 import TableApiSyncLog from './dashboard/TableApiSyncLog';
 import TableBulkyWasteInfo from './dashboard/TableBulkyWasteInfo';
 import TableEtlSources from './dashboard/TableEtlSources';
+import TableAdminAuditLog from './dashboard/TableAdminAuditLog';
 import UsersManage from './dashboard/UsersManage';
 import ActionAddDelete from './dashboard/ActionAddDelete';
 import RulesAnnouncements from './dashboard/RulesAnnouncements';
 import EtlSources from './dashboard/EtlSources';
 import SyncLog from './dashboard/SyncLog';
+import AuditLog from './dashboard/AuditLog';
 import HomeOverview from './dashboard/HomeOverview';
 import { getBackendUrl } from '../utils/api';
 
@@ -77,12 +79,14 @@ const Dashboard = ({ onLogout }) => {
       case 'table-api_sync_log': return <TableApiSyncLog />;
       case 'table-bulky_waste_info': return <TableBulkyWasteInfo />;
       case 'table-etl_sources': return <TableEtlSources />;
+      case 'table-admin_audit_log': return <TableAdminAuditLog />;
 
       case 'users-manage': return <UsersManage />;
       case 'action-add-delete': return <ActionAddDelete />;
       case 'rules-announcements': return <RulesAnnouncements />;
       case 'etl-sources': return <EtlSources />;
       case 'sync-log': return <SyncLog />;
+      case 'audit-log': return <AuditLog />;
 
       default: return <div>頁面建構中...</div>;
     }
@@ -108,7 +112,7 @@ const Dashboard = ({ onLogout }) => {
             {openDropdown.tables && (
               <div style={styles.submenuBox}>
                 {[
-                  'announcements', 'api_sync_log', 'areas', 'bag_regulations',
+                  'admin_audit_log', 'announcements', 'api_sync_log', 'areas', 'bag_regulations',
                   'bulky_waste_info', 'etl_sources', 'favorites', 'notifications',
                   'routes', 'stations', 'station_schedules', 'users'
                 ].map(tid => (
@@ -129,6 +133,7 @@ const Dashboard = ({ onLogout }) => {
           <div onClick={() => setActivePage('rules-announcements')} style={{...styles.menuItem, ...(activePage === 'rules-announcements' ? styles.menuActive : {})}}>📢 規則與公告</div>
           <div onClick={() => setActivePage('etl-sources')} style={{...styles.menuItem, ...(activePage === 'etl-sources' ? styles.menuActive : {})}}>🔗 ETL 來源設定</div>
           <div onClick={() => setActivePage('sync-log')} style={{...styles.menuItem, ...(activePage === 'sync-log' ? styles.menuActive : {})}}>🔄 API 同步紀錄</div>
+          <div onClick={() => setActivePage('audit-log')} style={{...styles.menuItem, ...(activePage === 'audit-log' ? styles.menuActive : {})}}>🛡️ 操作紀錄</div>
         </div>
 
         <div style={styles.sidebarFooter}>

@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from app.db import get_db_connection
 from app.utils.auth import admin_required
+from app.utils.audit import write_audit_log
 import pymysql
 import json
 from urllib.parse import urlencode
@@ -322,7 +323,7 @@ def create_station_with_schedule():
             ))
             duplicate_station = cursor.fetchone()
             if duplicate_station:
-                return jsonify({"status": "error", "message": "資料完全重複，已存在相同站點記錄，禁止重複新增！"}), 400
+                return jsonify({"status": "error", "message": "資料完全重複，已存在相同站點記錄，禁止重複新增！"}), 409
 
             # 🟢 步驟 B：正式寫入 stations 本體
             insert_station_sql = """
@@ -549,6 +550,14 @@ def delete_station(station_id):
                     """,
                     [route_id, deleted_seq]
                 )
+
+            write_audit_log(
+                'station_delete',
+                target_type='station',
+                target_id=station_id,
+                details={'route_id': route_id, 'sequence_order': deleted_seq},
+                cursor=cursor,
+            )
 
             conn.commit()
         return jsonify({"status": "success", "message": "清運站點及其每週日程已自系統級聯抹除！"}), 200

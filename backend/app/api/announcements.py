@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from app.db import get_db_connection
 from app.utils.auth import admin_required
+from app.utils.audit import write_audit_log
 # 💡 依賴規格：引入 P3 的 LINE 核心群發服務
 import pymysql
 import re
@@ -151,11 +152,20 @@ def push_existing_announcement(anno_id):
              
             # 5. 更新該公告的狀態為「已推播 (1)」並記錄時間
             update_sql = """
-                UPDATE announcements 
-                SET is_pushed = 1, pushed_at = NOW() 
+                UPDATE announcements
+                SET is_pushed = 1, pushed_at = NOW()
                 WHERE announcement_id = %s
             """
             cursor.execute(update_sql, (anno_id,))
+
+            write_audit_log(
+                'announcement_push',
+                target_type='announcement',
+                target_id=anno_id,
+                details={'recipients_count': len(line_ids), 'target_city': db_city},
+                cursor=cursor,
+            )
+
             conn.commit()
 
         return jsonify({"status": "success", "message": "歷史公告已成功補發 LINE 推播！"}), 200
@@ -198,13 +208,22 @@ def update_announcement(anno_id):
 
             # 🟢 真正執行資料庫 UPDATE
             update_sql = """
-                UPDATE announcements 
-                SET title = %s, content = %s, target_city = %s 
+                UPDATE announcements
+                SET title = %s, content = %s, target_city = %s
                 WHERE announcement_id = %s
             """
             cursor.execute(update_sql, (title, content, db_city, anno_id))
+
+            write_audit_log(
+                'announcement_update',
+                target_type='announcement',
+                target_id=anno_id,
+                details={'title': title, 'target_city': db_city},
+                cursor=cursor,
+            )
+
             conn.commit()
-            
+
         return jsonify({"status": "success", "message": "公告修改已成功同步至資料庫！"}), 200
 
     except Exception as e:
@@ -261,8 +280,20 @@ def create_announcement():
             """
             cursor.execute(insert_sql, (title, content, db_city, created_by))
             new_anno_id = cursor.lastrowid
-            
-            # 🟢 修正點一：先 Commit 公告本體，確保它絕對會留在資料庫
+
+            write_audit_log(
+                'announcement_create',
+                target_type='announcement',
+                target_id=new_anno_id,
+                details={
+                    'title': title,
+                    'target_city': db_city,
+                    'triggered_push': bool(trigger_push),
+                },
+                cursor=cursor,
+            )
+
+            # 🟢 修正點一：先 Commit 公告本體 + audit，確保它絕對會留在資料庫
             conn.commit()
             
             # B. ⚡ 一鍵推播特權

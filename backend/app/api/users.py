@@ -2,7 +2,8 @@ from flask import Blueprint, request, jsonify, g
 from werkzeug.security import generate_password_hash
 from app.db import get_db_connection
 from app.utils.responses import ok, err
-from app.utils.auth import line_required
+from app.utils.auth import line_required, admin_required
+from app.utils.audit import write_audit_log
 import pymysql
 
 bp = Blueprint('users', __name__, url_prefix='/api/users')
@@ -134,6 +135,7 @@ def set_credentials():
 # ─── 以下為全新加裝的管理者高階控制端點 ───
 
 @bp.route('/list', methods=['GET'])
+@admin_required
 def get_users_list():
     """
     📊 讀取實體資料庫的所有用戶清單
@@ -155,6 +157,7 @@ def get_users_list():
 
 
 @bp.route('/promote', methods=['POST'])
+@admin_required
 def promote_user():
     """
     🔼 權限升等：將指定的一般用戶提升為管理員 (Admin)
@@ -182,6 +185,15 @@ def promote_user():
                 }), 400
 
             cursor.execute("UPDATE users SET role = 'admin' WHERE user_id = %s", (user_id,))
+
+            write_audit_log(
+                'user_promote',
+                target_type='user',
+                target_id=user_id,
+                details={'new_role': 'admin'},
+                cursor=cursor,
+            )
+
             conn.commit()
 
         return jsonify({"status": "success", "message": "權限變更成功"}), 200
@@ -193,6 +205,7 @@ def promote_user():
 
 
 @bp.route('/suspend', methods=['POST'])
+@admin_required
 def suspend_user():
     """
     🚫 違規懲處：將違規用戶黑名單停權
@@ -222,8 +235,17 @@ def suspend_user():
             # 3. 安全通關，執行停權
             update_sql = "UPDATE users SET status = 'suspended' WHERE user_id = %s"
             cursor.execute(update_sql, (user_id,))
+
+            write_audit_log(
+                'user_suspend',
+                target_type='user',
+                target_id=user_id,
+                details={'previous_role': target_user['role']},
+                cursor=cursor,
+            )
+
             conn.commit()
-            
+
         return jsonify({"status": "success", "message": "該用戶已成功移入黑名單停權"}), 200
     except Exception as e:
         conn.rollback()
