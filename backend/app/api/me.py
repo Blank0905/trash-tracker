@@ -60,9 +60,27 @@ def list_my_stations():
             )
             rows = cursor.fetchall()
 
+            # 一次查出所有收藏站的收運日，避免逐筆 N+1
+            station_ids = [row['station_id'] for row in rows]
+            collect_days_by_station = {}
+            if station_ids:
+                placeholders = ', '.join(['%s'] * len(station_ids))
+                cursor.execute(
+                    f"""
+                    SELECT station_id, day_of_week
+                    FROM station_schedules
+                    WHERE station_id IN ({placeholders})
+                      AND (collects_garbage = 1 OR collects_recycling = 1 OR collects_foodscraps = 1)
+                    ORDER BY station_id, day_of_week
+                    """,
+                    station_ids
+                )
+                for r in cursor.fetchall():
+                    collect_days_by_station.setdefault(r['station_id'], []).append(r['day_of_week'])
+
             data = []
             for row in rows:
-                collect_days = _query_collect_days(cursor, row['station_id'])
+                collect_days = collect_days_by_station.get(row['station_id'], [])
 
                 # 沒有 notification row 時，LEFT JOIN 的 noti_id 為 NULL
                 notify = None

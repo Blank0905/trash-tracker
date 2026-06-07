@@ -162,11 +162,8 @@ def create_app():
     from app.api.routes import bp as stations_bp
     from app.api.users import bp as users_bp
     from app.api.webhooks import bp as line_bp
-    from app.api.favorites import bp as favorites_bp
-    from app.api.notifications import bp as notifications_bp
     from app.api.info import bp as info_bp
     from app.api.pages import bp as pages_bp
-    from app.api.users import bp as users_bp
     from app.api.announcements import bp as announcements_bp
     from app.api.rules import bp as rules_bp
     from app.api.me import bp as me_bp
@@ -176,8 +173,8 @@ def create_app():
     from app.api.add_delete_station import bp as add_delete_station_bp
 
     for blueprint in (
-        stations_bp, users_bp, line_bp, favorites_bp,
-        notifications_bp, info_bp, pages_bp, announcements_bp, rules_bp, me_bp, etl_bp, add_delete_route_bp, bags_bp, add_delete_station_bp
+        stations_bp, users_bp, line_bp,
+        info_bp, pages_bp, announcements_bp, rules_bp, me_bp, etl_bp, add_delete_route_bp, bags_bp, add_delete_station_bp
     ):
         app.register_blueprint(blueprint)
 
