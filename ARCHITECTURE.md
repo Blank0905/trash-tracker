@@ -341,8 +341,13 @@ APScheduler（`timezone="Asia/Taipei"`），背景執行緒內自行 push app co
 
 1. **密碼明文 fallback** 與 email 自動補 `@gmail.com` 的隱性行為（`__init__.py` `verify_password()` 與 login），上線前應移除（對應 TODO P1.3）。
 2. **成功 payload key 未強制統一**：各端點仍保留自訂 key（`routes`/`stations`/`access_token` 等），錯誤格式已統一。後續若決定全面收斂到 `ok().data`，前端解析要跟著大改（對應 TODO P2.7 嚴格路線）。
-3. **前後端皆缺測試**：`backend/tests/` 不存在；`App.test.js` 仍為 CRA 範本，會跑失敗。
-4. 兩份 `newimport.py` 可再整併（低優先）。
+3. 兩份 `newimport.py` 可再整併（低優先）。
+
+### 設計決策：現階段不做自動化測試
+
+5 人團隊、Demo 階段、架構仍在快速調整（剛改完 P1/P2、後續還有 P1.3），現階段測試策略為**以人工驗證為主**：每次改動由負責者自行跑過影響範圍的功能。前端 CRA 預設範本（`App.test.js`、`setupTests.js`）已移除以免 CI 紅燈；`package.json` 的 `test` script 保留，未來決定要補測試時可直接擴充。
+
+> 未來若進入正式上線階段，建議至少補齊：後端 `auth.admin_required` / login / `me.list_my_stations` / `db browse` 防呆 / ETL 欄位驗證；前端登入流程與 `authedFetch` 401 處理。
 
 ### 已完成（v3.1，2026-06-07）
 - ✅ 管理端 API 全面套用 `admin_required`（含 `users.py` 三支管理端 `/list`、`/promote`、`/suspend`）
@@ -353,6 +358,7 @@ APScheduler（`timezone="Asia/Taipei"`），背景執行緒內自行 push app co
 - ✅ 錯誤格式統一（`{status:"error", message:"..."}` + 錯誤碼語意對齊）
 - ✅ 刪除 5 個前端死空檔
 - ✅ Webhook 導向 `/favorites`、`/notifications` 的不存在頁面已修
+- ✅ 刪除前端 CRA 預設測試殘檔（`App.test.js`、`setupTests.js`），CI 不再紅燈
 
 ---
 
