@@ -220,10 +220,17 @@
     }
 
     async function getFirstFavorite() {
-        const r = await api('/favorites/');
-        if (r.status === 'success' && Array.isArray(r.data) && r.data.length > 0) {
-            const f = r.data[0];
-            return { lat: +f.latitude, lng: +f.longitude };
+        try {
+            const r = await api('/me/stations');
+            if (r.status === 'success' && Array.isArray(r.data) && r.data.length > 0) {
+                const f = r.data[0];
+                if (f.latitude != null && f.longitude != null) {
+                    return { lat: +f.latitude, lng: +f.longitude };
+                }
+            }
+        } catch (e) {
+            // 未綁定 / 後端錯都不該阻擋地圖初始化；fallback 到 DEFAULT_CENTER
+            console.warn('getFirstFavorite failed', e);
         }
         return null;
     }
@@ -259,10 +266,12 @@
     }
 
     // 鄰近搜尋：畫搜尋範圍圓圈 + 站點 marker
+    // limit=200 為後端硬上限；達上限會提示縮小範圍（避免 marker 太多卡住地圖）
+    const MAX_STATIONS = 200;
     async function searchStations(lat, lng) {
         searchCenter = { lat, lng };       // 記住查詢中心，改半徑時沿用
         const radiusKm = currentRadius();
-        const r = await api(`/stations/search?lat=${lat}&lng=${lng}&radius=${radiusKm}`);
+        const r = await api(`/stations/search?lat=${lat}&lng=${lng}&radius=${radiusKm}&limit=${MAX_STATIONS}`);
 
         // 清掉上一輪的站點 marker
         markers.forEach(m => map.removeLayer(m));
@@ -283,7 +292,11 @@
             mk.on('click', () => openStation(s.station_id, s.station_name));
             markers.push(mk);
         });
-        if (r.data.length === 0) toast(`附近 ${radiusKm} 公里內沒有站點`);
+        if (r.data.length === 0) {
+            toast(`附近 ${radiusKm} 公里內沒有站點`);
+        } else if (r.data.length >= MAX_STATIONS) {
+            toast(`此範圍站點超過 ${MAX_STATIONS} 個，建議縮小搜尋半徑`);
+        }
     }
 
     // 把一週班表條列成「有收運的日子」：週X HH:MM + 當天收的種類
@@ -324,7 +337,7 @@
     }
 
     async function addFavorite(stationId) {
-        const r = await api('/favorites/', { method: 'POST', body: JSON.stringify({ station_id: stationId }) });
+        const r = await api('/me/stations', { method: 'POST', body: JSON.stringify({ station_id: stationId }) });
         if (r.status === 'success') toast('已加入最愛！');
         else toast('加入失敗：' + (r.message || '')); // 409＝已收藏過此站點
     }
