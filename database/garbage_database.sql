@@ -442,6 +442,35 @@ INSERT INTO `etl_sources` (`source`, `url`) VALUES
 ('NTPC', 'https://data.ntpc.gov.tw/api/datasets/edc3ad26-8ae7-4916-a00b-bc6048d19bf8/csv/file'),
 ('KLU', 'https://opendata-kl.askeycloud.com/route_klepb.csv');
 
+-- --------------------------------------------------------
+
+--
+-- 資料表結構 `admin_audit_log`（管理者操作審計紀錄；append-only，不設 FK 與業務表解耦）
+-- 寫入 helper：backend/app/utils/audit.py；列表 API：/api/admin/audit-log
+--
+
+CREATE TABLE `admin_audit_log` (
+  `log_id` bigint(20) NOT NULL,
+  `actor_user_id` int(11) NOT NULL COMMENT '操作者 user_id（不設 FK，僅作參考）',
+  `actor_email` varchar(255) DEFAULT NULL COMMENT '操作者當下的 email（冗餘保存，避免日後改 email 找不到）',
+  `action` varchar(50) NOT NULL COMMENT '動作識別：user_promote / user_suspend / announcement_push / etl_run...',
+  `target_type` varchar(50) DEFAULT NULL COMMENT '對象類別：user / announcement / route / station / etl_source',
+  `target_id` int(11) DEFAULT NULL COMMENT '對象 ID（依 target_type 對應）',
+  `details` longtext DEFAULT NULL COMMENT '補充內容 JSON（前後值、payload、收件人數等）' CHECK (json_valid(`details`)),
+  `ip_address` varchar(45) DEFAULT NULL COMMENT '來源 IP（支援 IPv6）',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+ALTER TABLE `admin_audit_log`
+  ADD PRIMARY KEY (`log_id`),
+  ADD KEY `idx_actor` (`actor_user_id`),
+  ADD KEY `idx_action` (`action`),
+  ADD KEY `idx_target` (`target_type`,`target_id`),
+  ADD KEY `idx_created` (`created_at`);
+
+ALTER TABLE `admin_audit_log`
+  MODIFY `log_id` bigint(20) NOT NULL AUTO_INCREMENT;
+
 --
 -- 垃圾袋規範種子資料（台北市環保局、新北市環保局公告，2025）
 --
