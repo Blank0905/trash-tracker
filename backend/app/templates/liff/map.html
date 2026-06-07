@@ -2,7 +2,8 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0c0b">
     <title>附近垃圾車站點</title>
     <!-- 引入 LINE LIFF SDK -->
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
@@ -12,125 +13,498 @@
     <!-- 在路線上加方向箭頭 -->
     <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
     <style>
+        /* ====================================================
+           DESIGN TOKENS — "ops console" 風格
+           沉穩深色基底；LINE 綠保留為單一信號色；資料用 mono
+           ==================================================== */
         :root {
-            --primary: #00B900;
-            --bg-color: #121212;
-            --surface: #1e1e1e;
-            --text-main: #ffffff;
-            --text-muted: #888888;
+            --bg:            #0a0c0b;
+            --surface:       #14181a;
+            --surface-2:     #1c2024;
+            --surface-glass: rgba(20, 24, 26, 0.78);
+            --border:        #262d31;
+            --border-strong: #3a4046;
+
+            --text:      #eef0ec;
+            --text-dim:  #a8b0ac;
+            --text-mute: #606a66;
+
+            --brand:       #00B900;
+            --brand-light: #2bd84e;
+            --brand-soft:  rgba(0, 185, 0, 0.12);
+            --brand-tint:  rgba(0, 185, 0, 0.22);
+
+            --amber:  #ffb547;
+
+            --radius-md: 14px;
+            --radius-lg: 22px;
+
+            --shadow-1:     0 4px 16px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.6);
+            --shadow-2:     0 14px 36px rgba(0,0,0,0.55), 0 4px 10px rgba(0,0,0,0.4);
+            --shadow-panel: 0 -22px 60px rgba(0,0,0,0.6), 0 -1px 0 var(--border-strong);
+
+            /* 不引入新 CDN/套件，僅用系統字體；PingFang TC（iOS）+ Microsoft JhengHei（Windows/Android）
+               作為 CJK 主字；資料部分用系統 mono（SF Mono / Consolas） */
+            --font-cjk:  'PingFang TC', -apple-system, BlinkMacSystemFont, 'Microsoft JhengHei', 'Heiti TC', 'Noto Sans CJK TC', sans-serif;
+            --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, 'Cascadia Code', Consolas, 'Liberation Mono', Menlo, monospace;
         }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         html, body { height: 100%; margin: 0; }
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            color: var(--text-main);
+            font-family: var(--font-cjk);
+            font-feature-settings: "tnum" 1, "kern" 1;  /* 等寬數字 + 字距微調 */
+            font-synthesis: none;
+            color: var(--text);
+            background: var(--bg);
+            overflow: hidden;
         }
-        #map { position: fixed; inset: 0; background: var(--bg-color); }
-        #map .placeholder { padding: 24px; color: var(--text-muted); }
 
-        /* 頂部控制列：半徑選擇（z-index 需高於 Leaflet 圖層） */
+        /* ====================================================
+           MAP & LEAFLET — 把 OSM 圖磚反色成暗色主題
+           只影響底圖；marker / overlay 在另一個 pane，不被波及
+           ==================================================== */
+        #map {
+            position: fixed; inset: 0;
+            background: radial-gradient(ellipse at 50% 40%, #1a2020 0%, #0a0c0b 75%);
+        }
+        .leaflet-tile-pane {
+            filter: invert(0.92) hue-rotate(180deg) brightness(0.92) contrast(0.86) saturate(0.65);
+        }
+
+        /* Leaflet tooltip 對齊主題 */
+        .leaflet-tooltip {
+            background: var(--surface-2) !important;
+            color: var(--text) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 8px !important;
+            padding: 6px 10px !important;
+            font-family: var(--font-cjk) !important;
+            font-size: 12px !important;
+            font-weight: 500 !important;
+            letter-spacing: 0.01em !important;
+            box-shadow: var(--shadow-1) !important;
+        }
+        .leaflet-tooltip-top::before  { border-top-color: var(--border) !important; }
+        .leaflet-tooltip-bottom::before { border-bottom-color: var(--border) !important; }
+        .leaflet-tooltip-left::before { border-left-color: var(--border) !important; }
+        .leaflet-tooltip-right::before { border-right-color: var(--border) !important; }
+
+        /* Leaflet zoom 控制：暗色玻璃感 */
+        .leaflet-control-zoom {
+            border: 1px solid var(--border) !important;
+            border-radius: 12px !important;
+            overflow: hidden;
+            box-shadow: var(--shadow-1) !important;
+            margin: 12px !important;
+        }
+        .leaflet-control-zoom a {
+            background: var(--surface-glass) !important;
+            backdrop-filter: blur(14px) saturate(140%);
+            -webkit-backdrop-filter: blur(14px) saturate(140%);
+            color: var(--text) !important;
+            border: none !important;
+            border-bottom: 1px solid var(--border) !important;
+            font-family: var(--font-cjk) !important;
+            font-weight: 300;
+            width: 36px !important; height: 36px !important;
+            line-height: 36px !important;
+            font-size: 18px !important;
+        }
+        .leaflet-control-zoom a:last-child { border-bottom: none !important; }
+        .leaflet-control-zoom a:hover {
+            background: var(--surface-2) !important;
+            color: var(--brand-light) !important;
+        }
+        .leaflet-control-attribution {
+            background: rgba(20, 24, 26, 0.55) !important;
+            backdrop-filter: blur(8px);
+            color: var(--text-mute) !important;
+            font-size: 9px !important;
+            font-family: var(--font-mono) !important;
+            padding: 2px 6px !important;
+            border-radius: 4px 0 0 0 !important;
+        }
+        .leaflet-control-attribution a { color: var(--text-dim) !important; }
+
+        /* 預設站點 marker（藍色 droplet）→ 用 CSS filter 改為 LINE 綠（不動 JS） */
+        img.leaflet-marker-icon {
+            filter: hue-rotate(95deg) saturate(2) brightness(1.05)
+                    drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+        }
+        .leaflet-marker-shadow { opacity: 0.45; }
+
+        /* ====================================================
+           TOP COMMAND BAR — 心跳燈 + uppercase 標籤 + 半徑下拉
+           ==================================================== */
         #topbar {
-            position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
-            z-index: 1100; display: flex; gap: 8px; align-items: center;
+            position: fixed;
+            top: calc(env(safe-area-inset-top, 0px) + 12px);
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1100;
+            display: flex; align-items: center; gap: 0;
+            background: var(--surface-glass);
+            backdrop-filter: blur(20px) saturate(150%);
+            -webkit-backdrop-filter: blur(20px) saturate(150%);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 5px 6px 5px 16px;
+            box-shadow: var(--shadow-1);
         }
-        #topbar select {
-            border: none; border-radius: 999px;
-            padding: 10px 14px;
-            background: var(--surface); color: var(--text-main);
-            font-size: 0.9rem;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        /* 系統心跳燈：呼吸感的綠點，呼應 ops console 識別 */
+        #topbar::before {
+            content: '';
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: var(--brand);
+            box-shadow: 0 0 0 2px rgba(0,185,0,0.18), 0 0 12px rgba(0,185,0,0.55);
+            animation: pulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            margin-right: 12px;
+            flex-shrink: 0;
         }
-        /* 可拖動的搜尋大頭針（divIcon）：去掉 Leaflet 預設的白底外框 */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50%      { opacity: 0.35; transform: scale(0.8); }
+        }
+        .topbar-label {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: 500;
+            letter-spacing: 0.24em;
+            color: var(--text-mute);
+            text-transform: uppercase;
+            margin-right: 10px;
+        }
+        /* 半徑下拉做成藥丸狀的 mono 數值，視覺上像「儀表板顯示值」 */
+        #radius {
+            appearance: none; -webkit-appearance: none;
+            border: 1px solid var(--border-strong);
+            background-color: var(--surface-2);
+            color: var(--text);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+            padding: 8px 32px 8px 14px;
+            border-radius: 999px;
+            cursor: pointer;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23a8b0ac' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><polyline points='3,4.5 6,7.5 9,4.5'/></svg>");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 10px;
+        }
+        #radius:focus { outline: none; border-color: var(--brand); }
+        /* dropdown 選項在原生選單裡（無法跨平台統一樣式），維持系統預設 */
+
+        /* ====================================================
+           FAB STACK — 右下垂直堆兩顆按鈕
+           （都同尺寸 56×56；以顏色與細節區分主/次）
+           ==================================================== */
+        .fab-stack {
+            position: fixed;
+            right: calc(env(safe-area-inset-right, 0px) + 14px);
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 28px);
+            z-index: 1100;
+            display: flex; flex-direction: column; gap: 12px;
+        }
+        .fab {
+            position: relative;
+            width: 56px; height: 56px;
+            border-radius: 18px;
+            border: 1px solid var(--border-strong);
+            background: var(--surface-glass);
+            backdrop-filter: blur(20px) saturate(140%);
+            -webkit-backdrop-filter: blur(20px) saturate(140%);
+            color: var(--text);
+            display: flex; align-items: center; justify-content: center;
+            padding: 0;
+            box-shadow: var(--shadow-2);
+            cursor: pointer;
+            transition: transform 0.15s ease, background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+        .fab:active { transform: scale(0.93); }
+        .fab svg { width: 26px; height: 26px; pointer-events: none; }
+
+        /* 定位鍵 = 主要動作；帶 LINE 綠漸層 + 邊光 */
+        .fab-primary {
+            background:
+                linear-gradient(180deg, rgba(0,185,0,0.18) 0%, rgba(0,185,0,0.04) 100%),
+                var(--surface-glass);
+            border-color: rgba(0,185,0,0.4);
+            color: var(--brand-light);
+        }
+        .fab-primary:active {
+            background: var(--brand);
+            color: #001a00;
+        }
+
+        /* 拖曳圖釘鍵：右上貼一個小琥珀燈 = 「可拖」的視覺提示 */
+        #dragPin { cursor: grab; touch-action: none; }
+        #dragPin:active { cursor: grabbing; }
+        #dragPin::after {
+            content: '';
+            position: absolute;
+            top: -3px; right: -3px;
+            width: 10px; height: 10px;
+            background: var(--amber);
+            border-radius: 50%;
+            border: 2px solid var(--bg);
+            box-shadow: 0 0 8px rgba(255,181,71,0.5);
+        }
+        /* dragPin 內紅色 SVG：尺寸對齊地圖上會放的搜尋大頭針 */
+        #dragPin .pin-svg { width: 30px; height: 38px; pointer-events: none; }
+
+        /* ====================================================
+           SEARCH PIN / GHOST — 地圖上紅針 & 拖曳分身
+           （class 名 .search-pin / .pin-ghost 與 JS 綁定，必須保留）
+           ==================================================== */
         .search-pin { background: none; border: none; }
 
-        /* 底部站點資訊面板 */
-        #panel {
-            position: fixed; left: 0; right: 0; bottom: 0;
-            z-index: 1200;
-            background: var(--surface);
-            border-radius: 18px 18px 0 0;
-            padding: 20px;
-            box-shadow: 0 -6px 20px rgba(0,0,0,0.5);
-            transform: translateY(110%);
-            transition: transform 0.25s ease;
-        }
-        #panel.open { transform: translateY(0); }
-        .p-name { font-size: 1.1rem; font-weight: 600; margin-bottom: 14px; }
-        #p-schedule { margin-bottom: 4px; }
-        .sch-row {
-            display: flex; justify-content: space-between; gap: 12px;
-            padding: 8px 0; font-size: 0.95rem;
-            border-bottom: 1px solid #2c2c2c;
-        }
-        .sch-day { color: var(--text-main); white-space: nowrap; }
-        .sch-types { color: var(--primary); font-weight: 600; text-align: right; }
-        .sch-empty { color: var(--text-muted); padding: 8px 0; }
-        .p-actions { display: flex; gap: 10px; margin-top: 16px; }
-        .p-actions button {
-            flex: 1; border: none; border-radius: 10px;
-            padding: 12px; font-size: 0.95rem; font-weight: bold;
-            cursor: pointer; color: white;
-        }
-        #p-route { background: #1a73e8; }
-        #p-fav { background: var(--primary); }
-        #p-close { background: #2c2c2c; }
-
-        /* 右下角定位鈕（手動重新定位，手勢觸發成功率高） */
-        #locateBtn {
-            position: fixed; right: 16px; bottom: 30px;
-            z-index: 1100;
-            width: 48px; height: 48px; border-radius: 50%;
-            border: none; background: var(--surface); color: white;
-            display: flex; align-items: center; justify-content: center; padding: 0;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-            cursor: pointer;
-        }
-        #locateBtn svg { width: 24px; height: 24px; }
-
-        /* 可拖曳的「搜尋點」圖釘按鈕：壓住拖到地圖某處放開 → 在該處放標記並搜尋 */
-        #dragPin {
-            position: fixed; right: 16px; bottom: 88px;
-            z-index: 1100;
-            width: 48px; height: 48px; border-radius: 50%;
-            border: none; background: var(--surface);
-            display: flex; align-items: center; justify-content: center; padding: 0;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-            cursor: grab; touch-action: none;     /* touch-action:none：觸控拖曳不被當成捲動 */
-        }
-        #dragPin svg { width: 26px; height: 34px; pointer-events: none; }
-        /* 拖曳過程中跟著手指/游標的分身（針尖對準落點） */
         .pin-ghost {
             position: fixed; z-index: 2000; pointer-events: none;
             transform: translate(-50%, -100%);
+            filter: drop-shadow(0 6px 14px rgba(0,0,0,0.55));
         }
-        .pin-ghost svg { width: 32px; height: 42px; display: block; }
+        .pin-ghost .pin-svg { width: 36px; height: 46px; display: block; }
 
-        #toast {
-            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-            z-index: 1300;
-            background: rgba(0,0,0,0.85); color: white;
-            padding: 10px 18px; border-radius: 999px; font-size: 0.85rem;
-            opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+        /* ====================================================
+           BOTTOM PANEL — 站點資訊抽屜
+           ==================================================== */
+        #panel {
+            position: fixed;
+            left: 0; right: 0; bottom: 0;
+            z-index: 1200;
+            background: var(--surface);
+            border-top: 1px solid var(--border-strong);
+            border-radius: 26px 26px 0 0;
+            padding: 14px 22px calc(env(safe-area-inset-bottom, 16px) + 22px) 22px;
+            box-shadow: var(--shadow-panel);
+            transform: translateY(110%);
+            transition: transform 0.34s cubic-bezier(0.32, 0.72, 0.2, 1);
+            max-height: 78vh;
+            overflow-y: auto;
+            overscroll-behavior: contain;
         }
-        #toast.show { opacity: 1; }
+        #panel.open { transform: translateY(0); }
+        /* 上緣 handle bar：示意可上下拉動 */
+        #panel::before {
+            content: '';
+            display: block;
+            width: 42px; height: 4px;
+            background: var(--border-strong);
+            border-radius: 2px;
+            margin: 0 auto 14px;
+        }
+
+        /* 站名：粗黑 + 左側 LINE 綠竖條 */
+        .p-name {
+            font-size: 21px;
+            font-weight: 800;
+            letter-spacing: -0.005em;
+            line-height: 1.28;
+            margin: 2px 0 2px;
+            color: var(--text);
+            display: flex; align-items: flex-start; gap: 10px;
+        }
+        .p-name::before {
+            content: '';
+            width: 3px;
+            min-height: 24px;
+            align-self: stretch;
+            background: linear-gradient(180deg, var(--brand-light), var(--brand));
+            border-radius: 2px;
+            margin-top: 3px;
+            flex-shrink: 0;
+            box-shadow: 0 0 8px rgba(0,185,0,0.3);
+        }
+
+        /* 「一週收運」段落 eyebrow */
+        .p-eyebrow {
+            display: flex; align-items: center; gap: 8px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: 500;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: var(--text-mute);
+            margin: 20px 0 6px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+        .p-eyebrow svg { width: 13px; height: 13px; color: var(--brand); flex-shrink: 0; }
+        .p-eyebrow .eyebrow-line {
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, var(--border), transparent);
+        }
+
+        #p-schedule { margin-bottom: 4px; }
+
+        /* renderWeek() 產出的 HTML 結構不能改，但這裡用 CSS 全面美化 */
+        .sch-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            padding: 11px 0;
+            font-size: 14px;
+            border-bottom: 1px dashed var(--border);
+        }
+        .sch-row:last-child { border-bottom: 0; }
+        /* 日期 + 時間：mono、稍微 muted 的等寬資料感 */
+        .sch-day {
+            color: var(--text);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+            white-space: nowrap;
+        }
+        /* 收運類別：做成 LINE 綠藥丸 tag */
+        .sch-types {
+            display: inline-block;
+            padding: 5px 11px;
+            background: var(--brand-soft);
+            color: var(--brand-light);
+            border: 1px solid var(--brand-tint);
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-align: center;
+        }
+        .sch-empty {
+            color: var(--text-mute);
+            padding: 24px 0;
+            text-align: center;
+            font-size: 13px;
+            border: 1px dashed var(--border);
+            border-radius: 12px;
+            background: rgba(0,0,0,0.18);
+        }
+
+        /* ====================================================
+           ACTION BUTTONS — 三階層級
+           p-route 動態 display:none 時，flex-wrap 會自動讓 fav/close
+           回到第一行各佔 50%，layout 不會崩
+           ==================================================== */
+        .p-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 18px;
+        }
+        .p-actions button {
+            border: 1px solid var(--border-strong);
+            border-radius: 12px;
+            padding: 13px 12px;
+            font-family: var(--font-cjk);
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            cursor: pointer;
+            background: var(--surface-2);
+            color: var(--text);
+            transition: transform 0.12s ease, background 0.18s ease, color 0.18s ease;
+        }
+        .p-actions button:active { transform: scale(0.96); }
+
+        /* PRIMARY — 顯示路線：滿版、LINE 綠實心、帶綠光 */
+        #p-route {
+            flex: 1 1 100%;
+            background: var(--brand);
+            border-color: var(--brand);
+            color: #001a00;
+            font-weight: 700;
+            padding: 14px;
+            box-shadow: 0 4px 14px rgba(0,185,0,0.28);
+        }
+        #p-route:active {
+            background: var(--brand-light);
+            box-shadow: 0 2px 8px rgba(0,185,0,0.4);
+        }
+
+        /* SECONDARY — 加入最愛：綠色描邊 + soft 背景 */
+        #p-fav {
+            flex: 1 1 calc(50% - 4px);
+            background: var(--brand-soft);
+            border-color: rgba(0,185,0,0.32);
+            color: var(--brand-light);
+        }
+
+        /* TERTIARY — 關閉：透明 + 細邊 */
+        #p-close {
+            flex: 1 1 calc(50% - 4px);
+            background: transparent;
+            color: var(--text-dim);
+            border-color: var(--border);
+        }
+
+        /* ====================================================
+           TOAST — 玻璃藥丸
+           ==================================================== */
+        #toast {
+            position: fixed;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 110px);
+            left: 50%;
+            transform: translate(-50%, 8px);
+            z-index: 1300;
+            background: var(--surface-glass);
+            backdrop-filter: blur(20px) saturate(160%);
+            -webkit-backdrop-filter: blur(20px) saturate(160%);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 11px 18px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 0.03em;
+            max-width: calc(100vw - 32px);
+            text-align: center;
+            box-shadow: var(--shadow-2);
+            opacity: 0;
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            pointer-events: none;
+        }
+        #toast.show {
+            opacity: 1;
+            transform: translate(-50%, 0);
+        }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
 
+<!-- 頂部命令列：心跳燈 + 範圍標籤 + 半徑下拉 -->
 <div id="topbar">
-    <select id="radius">
-        <option value="0.5">500 公尺</option>
-        <option value="1">1 公里</option>
-        <option value="2" selected>2 公里</option>
-        <option value="3">3 公里</option>
-        <option value="5">5 公里</option>
+    <span class="topbar-label">範圍</span>
+    <select id="radius" aria-label="搜尋半徑">
+        <option value="0.05">50 m</option>
+        <option value="0.1">100 m</option>
+        <option value="0.2" selected>200 m</option>
+        <option value="0.5">500 m</option>
     </select>
 </div>
 
-<div id="panel">
+<!-- 底部站點資訊抽屜 -->
+<div id="panel" role="dialog" aria-label="站點資訊">
     <div class="p-name" id="p-name">站點</div>
+
+    <div class="p-eyebrow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="16" rx="2"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+            <line x1="8" y1="3" x2="8" y2="7"/>
+            <line x1="16" y1="3" x2="16" y2="7"/>
+        </svg>
+        一週收運 · WEEKLY SCHEDULE
+        <span class="eyebrow-line"></span>
+    </div>
+
     <div id="p-schedule"></div>
+
     <div class="p-actions">
         <button id="p-route">顯示路線</button>
         <button id="p-fav">加入最愛</button>
@@ -138,23 +512,30 @@
     </div>
 </div>
 
-<button id="dragPin" title="拖我到地圖上選搜尋點" aria-label="拖曳設定搜尋點">
-    <svg viewBox="0 0 24 32">
-        <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 20 12 20s12-11 12-20C24 5.4 18.6 0 12 0z" fill="#e53935" stroke="#fff" stroke-width="2"/>
-        <circle cx="12" cy="12" r="5" fill="#fff"/>
-    </svg>
-</button>
-<button id="locateBtn" title="定位我的位置" aria-label="定位我的位置">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <circle cx="12" cy="12" r="6"/>
-        <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/>
-        <line x1="12" y1="1.5" x2="12" y2="4.5"/>
-        <line x1="12" y1="19.5" x2="12" y2="22.5"/>
-        <line x1="1.5" y1="12" x2="4.5" y2="12"/>
-        <line x1="19.5" y1="12" x2="22.5" y2="12"/>
-    </svg>
-</button>
-<div id="toast"></div>
+<!-- 右下浮動按鈕：拖曳搜尋針（次）+ 定位（主） -->
+<div class="fab-stack">
+    <button id="dragPin" class="fab" title="拖我到地圖上選搜尋點" aria-label="拖曳設定搜尋點">
+        <!-- 紅色搜尋大頭針（與地圖上會放的針視覺一致；class .pin-svg 是 CSS hook） -->
+        <svg class="pin-svg" viewBox="0 0 24 32" aria-hidden="true">
+            <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 20 12 20s12-11 12-20C24 5.4 18.6 0 12 0z"
+                  fill="#e53935" stroke="#fff" stroke-width="2"/>
+            <circle cx="12" cy="12" r="5" fill="#fff"/>
+        </svg>
+    </button>
+    <button id="locateBtn" class="fab fab-primary" title="定位我的位置" aria-label="定位我的位置">
+        <!-- 十字準星：currentColor 跟著按鈕主題色（LINE 綠 → 點擊時轉深綠） -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>
+            <circle cx="12" cy="12" r="7"/>
+            <line x1="12" y1="2" x2="12" y2="5"/>
+            <line x1="12" y1="19" x2="12" y2="22"/>
+            <line x1="2" y1="12" x2="5" y2="12"/>
+            <line x1="19" y1="12" x2="22" y2="12"/>
+        </svg>
+    </button>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
 
 <script>
     // 後端注入（見 app/api/pages.py）。改用 Leaflet/OSM 後不再需要 Google Maps 金鑰。
@@ -173,7 +554,7 @@
 
     // 目前選取的搜尋半徑（公里）
     function currentRadius() {
-        return parseFloat(document.getElementById('radius').value) || 2;
+        return parseFloat(document.getElementById('radius').value) || 0.2;
     }
 
     // 統一後端呼叫：自動帶 X-Line-User-Id
