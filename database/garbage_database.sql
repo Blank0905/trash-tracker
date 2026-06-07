@@ -164,7 +164,7 @@ CREATE TABLE `routes` (
       COALESCE(`team`,        ''),
       COALESCE(`trip_number`, '')
     )
-  ) STORED COMMENT 'ETL UPSERT 業務 key：6 欄位串接（NULL→空），上有 UNIQUE 達成冪等'
+  ) VIRTUAL COMMENT 'ETL UPSERT 業務 key：6 欄位串接（NULL→空），上有 UNIQUE 達成冪等。VIRTUAL 不佔儲存空間，索引仍 work'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------

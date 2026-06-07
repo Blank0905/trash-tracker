@@ -7,9 +7,15 @@
 -- 前置條件：先用 wipe_etl_data.sql 清乾淨歷次累積的重複資料，
 -- 否則 ALTER ADD UNIQUE 會因現有重複而失敗（duplicate entry）。
 --
--- 此 SQL 為 idempotent（用 information_schema + PREPARE 模擬條件式
--- DROP，避免 MySQL 8 不支援 DROP INDEX IF EXISTS 的問題），可重複執行。
+-- 設計重點：
+--  - 用 VIRTUAL（非 STORED）generated column：ADD 是 in-place，
+--    不會 rebuild 整個 stations 表，避免撞 1215 FK constraint
+--    （stations 是 favorites/notifications/station_schedules 的 FK parent）
+--  - SET FOREIGN_KEY_CHECKS = 0 雙保險
+--  - idempotent：開頭條件式 DROP 既有殘留，可重複執行
 -- ================================================================
+
+SET FOREIGN_KEY_CHECKS = 0;
 
 -- ====== 條件式 DROP（清前一次失敗或舊版本的殘留） ======
 
@@ -58,7 +64,7 @@ PREPARE stmt FROM @s; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- ============== routes ==============
 -- 業務 key = (areas_id, route_code, route_name, car_number, team, trip_number)
--- 用 STORED 生成欄位把 6 個欄位合併（NULL → 空字串，避免 UNIQUE 對 NULL 失效）
+-- 用 VIRTUAL generated column（in-place ADD，省空間，UNIQUE 仍可建）
 ALTER TABLE routes
   ADD COLUMN biz_key VARCHAR(512)
     GENERATED ALWAYS AS (
@@ -70,7 +76,7 @@ ALTER TABLE routes
         COALESCE(team,         ''),
         COALESCE(trip_number,  '')
       )
-    ) STORED;
+    ) VIRTUAL;
 
 ALTER TABLE routes
   ADD UNIQUE INDEX uk_routes_biz (biz_key);
@@ -84,6 +90,8 @@ ALTER TABLE routes
 --    包含 route_id 後：同條路線同站才視為同筆，跨路線各自獨立。
 --    前端 search 已用 station_name 做視覺去重，不影響顯示體驗。
 -- ROUND 5 位約 1.1m，容忍同來源資料多次匯入時座標的浮點微差
+-- ⚠️ 用 VIRTUAL（非 STORED）：stations 是多個表的 FK parent，
+--    STORED ADD 會 rebuild 表並撞 1215；VIRTUAL ADD 是 in-place 不會
 ALTER TABLE stations
   ADD COLUMN biz_key VARCHAR(512)
     GENERATED ALWAYS AS (
@@ -93,10 +101,12 @@ ALTER TABLE stations
         COALESCE(CAST(ROUND(latitude,  5) AS CHAR), ''),
         COALESCE(CAST(ROUND(longitude, 5) AS CHAR), '')
       )
-    ) STORED;
+    ) VIRTUAL;
 
 ALTER TABLE stations
   ADD UNIQUE INDEX uk_stations_biz (biz_key);
+
+SET FOREIGN_KEY_CHECKS = 1;
 
 -- 確認 index 已建立
 SHOW INDEX FROM routes   WHERE Key_name = 'uk_routes_biz';
