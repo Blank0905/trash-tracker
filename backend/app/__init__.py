@@ -12,6 +12,7 @@ import decimal
 import datetime
 from app.db import check_db_health, get_table_structure, browse_table, get_db_connection
 from app.utils.auth import admin_required, generate_admin_token
+from app.utils.responses import err
 #這邊是雜湊後要登入所以加的
 from werkzeug.security import check_password_hash
 
@@ -97,25 +98,25 @@ def create_app():
         search_fields = request.args.get('search_fields', '')
         sort = request.args.get('sort', 'none')
         if not table:
-            return jsonify({"error": "缺少 table 參數"}), 400
+            return err('缺少 table 參數', 400)
         try:
             # 這裡會回傳字典 {"total": X, "data": [...]}
             result = browse_table(table, page, limit, search, sort, search_fields)
             return jsonify(result)
         except Exception as e:
-            return jsonify({"error": str(e)}), 400
+            return err(str(e), 500)
 
     @app.route('/api/db/structure', methods=['GET'])
     @admin_required
     def api_structure():
         table = request.args.get('table')
         if not table:
-            return jsonify({"error": "缺少 table 參數"}), 400
+            return err('缺少 table 參數', 400)
         try:
             structure = get_table_structure(table)
             return jsonify(structure)
         except Exception as e:
-            return jsonify({"error": str(e)}), 400
+            return err(str(e), 500)
 
     @app.route('/api/auth/admin/login', methods=['POST'])
     def api_admin_login():
@@ -128,24 +129,25 @@ def create_app():
             email = f"{email}@gmail.com"
         
         if not email or not password:
-            return jsonify({"message": "請填寫所有欄位"}), 400
-            
+            return err('請填寫所有欄位', 400)
+
         conn = get_db_connection()
         try:
             with conn.cursor() as cursor:
                 sql = "SELECT `user_id`, `username`, `email`, `password_hash`, `role` FROM `users` WHERE `email` = %s"
                 cursor.execute(sql, [email])
                 user = cursor.fetchone()
-                
+
                 # 這裡改成用 verify_password 函式
                 # 如果找不到使用者，或者密碼驗證失敗（不管是明文還是雜湊），都阻擋掉
                 if not user or not verify_password(password, user['password_hash']):
-                    return jsonify({"message": "帳號或密碼輸入錯誤"}), 401
-                    
+                    return err('帳號或密碼輸入錯誤', 401)
+
                 if user['role'] != 'admin':
-                    return jsonify({"message": "權限不足，您並非管理員"}), 403
-                    
+                    return err('權限不足，您並非管理員', 403)
+
                 return jsonify({
+                    "status": "success",
                     "access_token": generate_admin_token(user),
                     "token_type": "bearer",
                     "user": {

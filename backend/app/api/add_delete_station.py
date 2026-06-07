@@ -263,7 +263,7 @@ def create_station_with_schedule():
             ))
             duplicate_station = cursor.fetchone()
             if duplicate_station:
-                return jsonify({"status": "error", "message": "資料完全重複，已存在相同站點記錄，禁止重複新增！"}), 400
+                return jsonify({"status": "error", "message": "資料完全重複，已存在相同站點記錄，禁止重複新增！"}), 409
 
             # 🟢 步驟 B：正式寫入 stations 本體
             insert_station_sql = """
