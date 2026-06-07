@@ -27,6 +27,191 @@ const parseTimeToParts = (time) => {
 
 const formatTimeParts = (hour, minute) => `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 
+const DEFAULT_MAP_CENTER = { lat: 25.0478, lng: 121.5170 };
+const DEFAULT_STATION_COORDS = { lat: 25.0, lng: 121.0 };
+const LEAFLET_CSS_ID = 'leaflet-cdn-css';
+const LEAFLET_JS_ID = 'leaflet-cdn-js';
+
+let leafletAssetsPromise = null;
+const geocodeCache = new Map();
+
+const ensureLeafletAssets = () => {
+  if (typeof window === 'undefined') return Promise.resolve(false);
+  if (window.L) return Promise.resolve(true);
+  if (leafletAssetsPromise) return leafletAssetsPromise;
+
+  leafletAssetsPromise = new Promise((resolve, reject) => {
+    const finish = () => {
+      if (window.L) resolve(true);
+      else reject(new Error('Leaflet 載入失敗'));
+    };
+
+    if (!document.getElementById(LEAFLET_CSS_ID)) {
+      const link = document.createElement('link');
+      link.id = LEAFLET_CSS_ID;
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
+    if (document.getElementById(LEAFLET_JS_ID)) {
+      finish();
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = LEAFLET_JS_ID;
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.async = true;
+    script.onload = finish;
+    script.onerror = () => reject(new Error('Leaflet 載入失敗'));
+    document.head.appendChild(script);
+  });
+
+  return leafletAssetsPromise;
+};
+
+const geocodeOpenStreetMap = async (query) => {
+  const text = String(query || '').trim();
+  if (!text) return null;
+
+  if (geocodeCache.has(text)) {
+    return geocodeCache.get(text);
+  }
+
+  const baseUrl = await getBackendUrl();
+  const res = await fetch(`${baseUrl}/api/admin/stations/geocode?q=${encodeURIComponent(text)}`, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  });
+  const payload = await res.json().catch(() => null);
+  if (!res.ok) {
+    if (res.status >= 500) {
+      const error = new Error(payload?.message || '地圖定位服務暫時無法使用');
+      error.code = 'GEOCODE_SERVICE_UNAVAILABLE';
+      throw error;
+    }
+    return null;
+  }
+
+  const hit = Array.isArray(payload?.data) ? payload.data[0] : null;
+  if (!hit) {
+    geocodeCache.set(text, null);
+    return null;
+  }
+
+  const lat = Number(hit.lat);
+  const lng = Number(hit.lon);
+  if (Number.isNaN(lat) || Number.isNaN(lng)) {
+    geocodeCache.set(text, null);
+    return null;
+  }
+
+  const result = {
+    lat,
+    lng,
+    displayName: hit.display_name || ''
+  };
+  geocodeCache.set(text, result);
+  return result;
+};
+
+const CHINESE_DIGITS = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+const CHINESE_DIGIT_MAP = {
+  零: 0,
+  一: 1,
+  二: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
+  七: 7,
+  八: 8,
+  九: 9
+};
+
+const normalizeAddressUnits = (text) => String(text || '')
+  .replace(/\s+/g, ' ')
+  .replace(/\s*(段|巷|弄|號)\s*/g, '$1')
+  .trim();
+
+const chineseNumberToArabic = (text) => {
+  const value = String(text || '').trim();
+  if (!value) return '';
+
+  return value
+    .split('')
+    .map((char) => (char in CHINESE_DIGIT_MAP ? String(CHINESE_DIGIT_MAP[char]) : char))
+    .join('');
+};
+
+const normalizeChineseAddressDigits = (text) => normalizeAddressUnits(String(text || '')
+  .replace(/([零一二三四五六七八九]+)(?=(段|巷|弄|號))/g, (match) => chineseNumberToArabic(match)));
+
+const convertArabicAddressDigitsToChinese = (text) => normalizeAddressUnits(String(text || '')
+  .replace(/(\d+)(?=(段|巷|弄|號))/g, (match) => match.split('').map((digit) => CHINESE_DIGITS[Number(digit)] ?? digit).join('')));
+
+const buildAddressSearchCandidates = ({ city = '', district = '', village = '', detail = '', includeDetail = true }) => {
+  const areaParts = [city, district, village].map((part) => String(part || '').trim()).filter(Boolean);
+  const detailText = String(detail || '').trim();
+  const orderedCandidates = [];
+  const seen = new Set();
+
+  const pushCandidate = (parts) => {
+    const cleanParts = parts.map((part) => String(part || '').trim()).filter(Boolean);
+    if (cleanParts.length === 0) return;
+
+    // 🔥 調整順序：OSM 對於有「空格」分隔的台灣地址解析度，通常高於黏在一起的字
+    [cleanParts.join(' '), cleanParts.join('')].forEach((candidate) => {
+      if (!candidate || seen.has(candidate)) return;
+      seen.add(candidate);
+      orderedCandidates.push(candidate);
+    });
+  };
+
+  if (includeDetail && detailText) {
+    // 1. 第一優先：嘗試原本帶有「幾號」的各種數字變體（最精準狀況）
+    const detailVariants = [
+      normalizeAddressUnits(detailText),
+      normalizeChineseAddressDigits(detailText),
+      convertArabicAddressDigitsToChinese(detailText),
+      convertArabicAddressDigitsToChinese(normalizeChineseAddressDigits(detailText))
+    ]
+      .map((item) => String(item || '').trim())
+      .filter((item, index, arr) => item && arr.indexOf(item) === index);
+
+    detailVariants.forEach((detailVariant) => {
+      pushCandidate([...areaParts, detailVariant]);
+    });
+
+    // 2. 🔥 關鍵防禦：如果精準門牌在 OSM 查不到，自動切出「去掉門牌號碼」的純路段變體
+    // 這個正則可以精準匹配並剃除如：「100號」、「55之2號」、「十號」、「三十一號」
+    const streetOnlyDetail = detailText.replace(/(\d+|[零一二三四五六七八九十百]+)(之\d+)?號\s*$/g, '').trim();
+    
+    if (streetOnlyDetail && streetOnlyDetail !== detailText) {
+      const streetVariants = [
+        normalizeAddressUnits(streetOnlyDetail),
+        normalizeChineseAddressDigits(streetOnlyDetail)
+      ]
+        .map((item) => String(item || '').trim())
+        .filter((item, index, arr) => item && arr.indexOf(item) === index);
+
+      streetVariants.forEach((streetVariant) => {
+        pushCandidate([...areaParts, streetVariant]);
+      });
+    }
+  }
+
+  // 3. 最後手段：如果連路段都找不到，才退回到只搜尋行政區與鄉里
+  pushCandidate(areaParts);
+
+  console.log("送出給 API 的候選字清單：", orderedCandidates);
+  // 因為增加了純路段的防禦機制，允許回傳擴大到前 6 個候選，讓後端迴圈去依序 try 出結果
+  return orderedCandidates.slice(0, 6);
+};
+
 const TimePickerField = ({ value, minTime = '', onChange, label, helperText }) => {
   const { hour, minute } = parseTimeToParts(value);
   const minParts = parseTimeToParts(minTime);
@@ -151,6 +336,18 @@ const ActionAddDelete = () => {
     memo: ''
   });
 
+  const [mapPickerOpen, setMapPickerOpen] = useState(false);
+  const [mapStatusText, setMapStatusText] = useState('尚未定位，請先選擇地點或開啟地圖選點');
+  const mapRef = useRef(null);
+  const mapContainerRef = useRef(null);
+  const mapMarkerRef = useRef(null);
+  const mapClickHandlerRef = useRef(null);
+  const mapMoveHandlerRef = useRef(null);
+  const mapInitializingRef = useRef(false);
+  const geocodeTimerRef = useRef(null);
+  const geocodeFailureUntilRef = useRef(0);
+  const pendingMapLocateModeRef = useRef(null);
+
   const [scheduleForm, setScheduleForm] = useState(
     Array.from({ length: 7 }, (_, i) => ({
       day_of_week: i,
@@ -211,6 +408,173 @@ const ActionAddDelete = () => {
     if (!res.ok) throw new Error('最新路線載入失敗');
     const data = await res.json();
     setRoutesList(data.routes || []);
+  };
+
+  const updateStationCoordinates = (lat, lng) => {
+    const nextLat = Number(lat);
+    const nextLng = Number(lng);
+    if (Number.isNaN(nextLat) || Number.isNaN(nextLng)) return;
+
+    setStationForm(prev => ({
+      ...prev,
+      latitude: nextLat.toFixed(7),
+      longitude: nextLng.toFixed(7)
+    }));
+  };
+
+  const destroyStationMap = () => {
+    if (mapRef.current && mapClickHandlerRef.current) {
+      mapRef.current.off('click', mapClickHandlerRef.current);
+    }
+
+    if (mapMarkerRef.current) {
+      mapMarkerRef.current.off();
+      mapMarkerRef.current = null;
+    }
+
+    if (mapRef.current) {
+      mapRef.current.remove();
+      mapRef.current = null;
+    }
+
+    mapClickHandlerRef.current = null;
+    mapMoveHandlerRef.current = null;
+  };
+
+  const syncMapMarker = (lat, lng, label = '已選定位置') => {
+    if (!window.L || !mapRef.current) return;
+    const pos = [lat, lng];
+
+    if (!mapMarkerRef.current) {
+      mapMarkerRef.current = window.L.marker(pos, { draggable: true }).addTo(mapRef.current);
+      mapMarkerRef.current.on('dragend', (event) => {
+        const nextLatLng = event.target.getLatLng();
+        updateStationCoordinates(nextLatLng.lat, nextLatLng.lng);
+        setMapStatusText(`已拖曳到 ${nextLatLng.lat.toFixed(6)}, ${nextLatLng.lng.toFixed(6)}`);
+      });
+    } else {
+      mapMarkerRef.current.setLatLng(pos);
+    }
+
+    mapRef.current.setView(pos, Math.max(mapRef.current.getZoom(), 17), { animate: true });
+    mapMarkerRef.current.bindPopup(label).openPopup();
+    updateStationCoordinates(lat, lng);
+    setMapStatusText(`已定位到 ${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`);
+  };
+
+  const initStationMap = async () => {
+    if (mapInitializingRef.current || !mapContainerRef.current) return;
+    if (mapRef.current) {
+      setTimeout(() => {
+        if (mapRef.current) mapRef.current.invalidateSize();
+      }, 50);
+      return;
+    }
+    mapInitializingRef.current = true;
+
+    try {
+      await ensureLeafletAssets();
+      if (!mapContainerRef.current || mapRef.current || !window.L) return;
+
+      mapRef.current = window.L.map(mapContainerRef.current, {
+        zoomControl: true,
+        scrollWheelZoom: true
+      }).setView([DEFAULT_MAP_CENTER.lat, DEFAULT_MAP_CENTER.lng], 13);
+
+      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(mapRef.current);
+
+      mapClickHandlerRef.current = (event) => {
+        const { lat, lng } = event.latlng;
+        syncMapMarker(lat, lng, '點選位置');
+      };
+
+      mapRef.current.on('click', mapClickHandlerRef.current);
+      setMapStatusText('已載入地圖，點一下地圖即可回填座標');
+    } catch (err) {
+      console.warn(err);
+      setMapStatusText('地圖載入失敗，請稍後再試');
+    } finally {
+      mapInitializingRef.current = false;
+    }
+  };
+
+  const centerMapByLocation = async ({ includeDetail = true } = {}) => {
+    const hasAreaSelection = stationSelectedCity && stationSelectedDistrict && stationSelectedVillage;
+    if (!hasAreaSelection) {
+      setMapStatusText('請先選擇完整的縣市、行政區與村里');
+      return;
+    }
+
+    const detailText = includeDetail ? (stationForm.memo || '').trim() : '';
+    const candidates = buildAddressSearchCandidates({
+      city: stationSelectedCity,
+      district: stationSelectedDistrict,
+      village: stationSelectedVillage,
+      detail: detailText,
+      includeDetail
+    });
+
+    if (candidates.length === 0) {
+      setMapStatusText('找不到可用的定位條件，請直接在地圖上點選');
+      return;
+    }
+
+    if (Date.now() < geocodeFailureUntilRef.current) {
+      setMapStatusText('地圖定位服務暫時無法使用，請直接在地圖上點選');
+      return;
+    }
+
+    setMapStatusText(includeDetail && detailText ? '正在依詳細位置定位...' : '正在依行政區域定位...');
+
+    try {
+      for (const candidate of candidates) {
+        try {
+          const hit = await geocodeOpenStreetMap(candidate);
+          if (hit) {
+            if (!mapRef.current) return;
+            geocodeFailureUntilRef.current = 0;
+            syncMapMarker(hit.lat, hit.lng, hit.displayName || candidate);
+            setMapStatusText(`已依 ${detailText ? '詳細位置' : '行政區域'} 定位到 ${candidate}`);
+            return;
+          }
+        } catch (innerErr) {
+          if (innerErr?.code === 'GEOCODE_SERVICE_UNAVAILABLE') {
+            geocodeFailureUntilRef.current = Date.now() + 30 * 1000;
+            setMapStatusText(innerErr.message || '地圖定位服務暫時無法使用，請直接在地圖上點選');
+            return;
+          }
+          console.warn('geocode candidate failed', candidate, innerErr);
+        }
+      }
+      setMapStatusText(
+        includeDetail && detailText
+          ? '找不到對應詳細位置，請直接在地圖上點選'
+          : '已開啟地圖，請輸入更詳細位置或直接點地圖選點'
+      );
+    } catch (err) {
+      console.warn(err);
+      setMapStatusText('地點定位失敗，請直接在地圖上點選');
+    }
+  };
+
+  const handleLocateByDetail = async () => {
+    if (!stationSelectedCity || !stationSelectedDistrict || !stationSelectedVillage) {
+      setMapStatusText('請先選擇完整的縣市、行政區與村里');
+      return;
+    }
+
+    if (!mapPickerOpen) {
+      pendingMapLocateModeRef.current = 'detail';
+      setMapPickerOpen(true);
+      setMapStatusText('正在開啟地圖並依詳細位置定位...');
+      return;
+    }
+
+    pendingMapLocateModeRef.current = 'detail';
+    await centerMapByLocation({ includeDetail: true });
   };
 
   const hasStationSearch = () => (
@@ -323,6 +687,58 @@ const ActionAddDelete = () => {
       setStationSelectedVillage('');
     }
   }, [selectedRouteObj, villageAreas.length]);
+
+  useEffect(() => {
+    if (!mapPickerOpen) {
+      pendingMapLocateModeRef.current = null;
+      destroyStationMap();
+      return undefined;
+    }
+
+    return () => {
+      pendingMapLocateModeRef.current = null;
+      destroyStationMap();
+    };
+  }, [mapPickerOpen]);
+
+  useEffect(() => {
+    if (!mapPickerOpen) return;
+
+    let cancelled = false;
+    const nextMode = pendingMapLocateModeRef.current;
+    clearTimeout(geocodeTimerRef.current);
+    geocodeTimerRef.current = setTimeout(async () => {
+      if (cancelled) return;
+      await initStationMap();
+      if (cancelled || !mapRef.current) return;
+
+      if (nextMode) {
+        pendingMapLocateModeRef.current = null;
+        await centerMapByLocation({ includeDetail: nextMode === 'detail' });
+        return;
+      }
+
+      const currentLat = Number(stationForm.latitude);
+      const currentLng = Number(stationForm.longitude);
+      const isPlaceholderCoords =
+        Math.abs(currentLat - DEFAULT_STATION_COORDS.lat) < 0.0000001 &&
+        Math.abs(currentLng - DEFAULT_STATION_COORDS.lng) < 0.0000001;
+      const hasSavedCoords = !Number.isNaN(currentLat) && !Number.isNaN(currentLng) && !isPlaceholderCoords;
+
+      if (hasSavedCoords) {
+        syncMapMarker(currentLat, currentLng, '目前座標');
+        setMapStatusText('地圖已開啟，可直接拖曳標記或點地圖調整位置');
+      } else {
+        mapRef.current.setView([DEFAULT_MAP_CENTER.lat, DEFAULT_MAP_CENTER.lng], 13, { animate: false });
+        setMapStatusText('地圖已開啟，請按「依詳細位置定位」或直接點地圖選點');
+      }
+    }, 150);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(geocodeTimerRef.current);
+    };
+  }, [mapPickerOpen, stationSelectedCity, stationSelectedDistrict, stationSelectedVillage]);
 
   useEffect(() => {
     if (!selectedRouteObj) {
@@ -621,6 +1037,9 @@ const handleCreateRoute = async (e) => {
       setStationSelectedDistrict('');
       setStationRouteQuery('');
       setStationSelectedVillage('');
+      setMapPickerOpen(false);
+      setMapStatusText('尚未定位，請先選擇地點或開啟地圖選點');
+      destroyStationMap();
       if (hasStationSearch()) {
         await loadStationsListBySearch();
       } else {
@@ -1056,6 +1475,60 @@ const handleCreateRoute = async (e) => {
                 </div>
               </div>
 
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>詳細位置（選填）</label>
+                <input
+                  type="text"
+                  placeholder="例如：XX便利商店前、XX路 123 號、社區大門右側"
+                  maxLength={120}
+                  value={stationForm.memo}
+                  onChange={(e) => setStationForm({ ...stationForm, memo: e.target.value })}
+                  style={styles.input}
+                />
+                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                  這裡會一起用來找地圖定位，也會存入 MySQL 的 memo 欄位。
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  disabled={!stationSelectedCity || !stationSelectedDistrict || !stationSelectedVillage}
+                  onClick={() => setMapPickerOpen(prev => !prev)}
+                  style={{
+                    ...styles.searchBtn,
+                    backgroundColor: mapPickerOpen ? '#0f172a' : '#0284c7',
+                    opacity: (!stationSelectedCity || !stationSelectedDistrict || !stationSelectedVillage) ? 0.55 : 1,
+                    cursor: (!stationSelectedCity || !stationSelectedDistrict || !stationSelectedVillage) ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {mapPickerOpen ? '收起地圖選點' : '開啟地圖選點'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLocateByDetail}
+                  style={{ ...styles.deleteBtn, padding: '8px 16px', backgroundColor: '#ecfeff', color: '#0f766e', borderColor: '#67e8f9' }}
+                >
+                  依詳細位置定位
+                </button>
+                <span style={{ fontSize: '11px', color: '#64748b' }}>
+                  {mapStatusText}
+                </span>
+              </div>
+
+              {mapPickerOpen && (
+                <div style={styles.mapPanel}>
+                  <div ref={mapContainerRef} style={styles.mapCanvas} />
+                  <div style={styles.coordSummary}>
+                    <div>經度：<strong>{stationForm.longitude}</strong></div>
+                    <div>緯度：<strong>{stationForm.latitude}</strong></div>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px' }}>
+                    提示：你可以先輸入詳細位置再按定位，也可以直接點地圖，點下去的位置會自動回填座標。
+                  </div>
+                </div>
+              )}
+
               <div style={styles.scheduleBox}>
                 <label style={{ ...styles.label, color: '#1a237e' }}>📅 配置此站點每週收運日程 (station_schedules)</label>
                 <table style={styles.scheduleTable}>
@@ -1351,6 +1824,32 @@ const styles = {
   },
   dropdownSuggestion: { position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 999, maxHeight: '200px', overflowY: 'auto', marginTop: '2px' },
   suggestionItem: { padding: '10px', fontSize: '13px', color: '#334155', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }
+};
+
+styles.mapPanel = {
+  border: '1px solid #cbd5e1',
+  borderRadius: '10px',
+  backgroundColor: '#fff',
+  padding: '12px',
+  boxShadow: '0 2px 10px rgba(0,0,0,0.04)'
+};
+styles.mapCanvas = {
+  width: '100%',
+  height: '320px',
+  borderRadius: '8px',
+  overflow: 'hidden'
+};
+styles.coordSummary = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: '12px',
+  marginTop: '10px',
+  padding: '10px 12px',
+  borderRadius: '8px',
+  backgroundColor: '#f8fafc',
+  color: '#334155',
+  fontSize: '13px',
+  flexWrap: 'wrap'
 };
 
 export default ActionAddDelete;

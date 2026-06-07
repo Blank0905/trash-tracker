@@ -3,9 +3,41 @@ from app.db import get_db_connection
 from app.utils.auth import admin_required
 from app.utils.audit import write_audit_log
 import pymysql
+import json
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+from urllib.error import URLError, HTTPError
 
 # 🟢 獨立的後台站點管理藍圖，前綴採用 /api/admin/stations
 bp = Blueprint('add_delete_station', __name__, url_prefix='/api/admin/stations')
+
+
+GEOCODE_USER_AGENT = 'greater-taipei-trash-tracker/1.0'
+
+
+def _safe_geocode_text(value):
+    if value is None:
+        return ''
+    return str(value).strip()
+
+
+def _proxy_nominatim_search(query):
+    query_string = urlencode({
+        'q': query,
+        'format': 'jsonv2',
+        'limit': 5,
+        'countrycodes': 'tw',
+        'addressdetails': 1,
+    })
+    request = Request(
+        f'https://nominatim.openstreetmap.org/search?{query_string}',
+        headers={
+            'User-Agent': GEOCODE_USER_AGENT,
+            'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8',
+        }
+    )
+    with urlopen(request, timeout=8) as response:
+        return json.loads(response.read().decode('utf-8'))
 
 
 def _time_key(value):
@@ -154,6 +186,33 @@ def get_stations_list():
         return jsonify({"status": "error", "message": f"後台站點篩選失敗: {str(e)}"}), 500
     finally:
         conn.close()
+
+
+@bp.route('/geocode', methods=['GET'])
+def geocode_station_address():
+    """後端代理 OSM Nominatim，避免瀏覽器端 CORS 並統一回傳格式。"""
+    query = _safe_geocode_text(request.args.get('q'))
+
+    if not query:
+        return jsonify({"status": "error", "message": "缺少地址查詢參數 q！"}), 400
+
+    try:
+        results = _proxy_nominatim_search(query)
+        simplified_results = []
+
+        for item in results:
+            try:
+                simplified_results.append({
+                    "display_name": item.get('display_name'),
+                    "lat": float(item.get('lat')),
+                    "lon": float(item.get('lon')),
+                })
+            except (TypeError, ValueError):
+                continue
+
+        return jsonify({"status": "success", "data": simplified_results}), 200
+    except (URLError, HTTPError, TimeoutError, json.JSONDecodeError) as e:
+        return jsonify({"status": "error", "message": f"地圖定位服務暫時無法使用: {str(e)}"}), 502
 
 
 # ==========================================
