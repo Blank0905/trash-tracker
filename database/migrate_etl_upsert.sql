@@ -6,11 +6,16 @@
 --
 -- 前置條件：先用 wipe_etl_data.sql 清乾淨歷次累積的重複資料，
 -- 否則 ALTER ADD UNIQUE 會因現有重複而失敗（duplicate entry）。
+--
+-- 此 SQL 為 idempotent（開頭先 DROP IF EXISTS），可重複執行。
 -- ================================================================
 
 -- ============== routes ==============
 -- 業務 key = (areas_id, route_code, route_name, car_number, team, trip_number)
 -- 用 STORED 生成欄位把 6 個欄位合併（NULL → 空字串，避免 UNIQUE 對 NULL 失效）
+ALTER TABLE routes DROP INDEX IF EXISTS uk_routes_biz;
+ALTER TABLE routes DROP COLUMN IF EXISTS biz_key;
+
 ALTER TABLE routes
   ADD COLUMN biz_key VARCHAR(512)
     GENERATED ALWAYS AS (
@@ -28,12 +33,22 @@ ALTER TABLE routes
   ADD UNIQUE INDEX uk_routes_biz (biz_key);
 
 -- ============== stations ==============
--- 業務 key = (station_name, ROUND(lat,5), ROUND(lng,5))
+-- 業務 key = (route_id, station_name, ROUND(lat,5), ROUND(lng,5))
+-- ----------------------------------------------------------------
+-- ⚠️ 為何要包含 route_id：現有 schema 是「每個 station 屬於一條 route」，
+--    同一個物理站若被 N 條路線經過會產生 N 筆 row（這是 schema 的設計）。
+--    若 biz_key 不含 route_id，這些 N 筆會被當「重複」撞 UNIQUE 失敗。
+--    包含 route_id 後：同條路線同站才視為同筆，跨路線各自獨立。
+--    前端 search 已用 station_name 做視覺去重，不影響顯示體驗。
 -- ROUND 5 位約 1.1m，容忍同來源資料多次匯入時座標的浮點微差
+ALTER TABLE stations DROP INDEX IF EXISTS uk_stations_biz;
+ALTER TABLE stations DROP COLUMN IF EXISTS biz_key;
+
 ALTER TABLE stations
   ADD COLUMN biz_key VARCHAR(512)
     GENERATED ALWAYS AS (
       CONCAT_WS('|',
+        CAST(route_id AS CHAR),
         COALESCE(station_name, ''),
         COALESCE(CAST(ROUND(latitude,  5) AS CHAR), ''),
         COALESCE(CAST(ROUND(longitude, 5) AS CHAR), '')

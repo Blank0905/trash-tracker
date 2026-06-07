@@ -294,7 +294,7 @@ APScheduler（`timezone="Asia/Taipei"`），背景執行緒內自行 push app co
 | 表 | biz_key 組成 | 用途 |
 |---|---|---|
 | `routes` | `areas_id` + `route_code` + `route_name` + `car_number` + `team` + `trip_number`（COALESCE NULL → ''） | 同一條清運路線跨次 ETL 視為同筆，`route_id` 穩定 |
-| `stations` | `station_name` + `ROUND(latitude, 5)` + `ROUND(longitude, 5)`（COALESCE NULL → ''；ROUND 5 位約 1.1m 容忍同來源浮點微差） | 同一物理站點跨次 ETL 視為同筆，`station_id` 穩定 |
+| `stations` | `route_id` + `station_name` + `ROUND(latitude, 5)` + `ROUND(longitude, 5)`（COALESCE NULL → ''；ROUND 5 位約 1.1m 容忍同來源浮點微差） | 同一條路線的同一站跨次 ETL 視為同筆，`station_id` 穩定。包含 `route_id` 是因 schema 採 station per route 設計，同物理站被多條路線經過會自然有多筆 row（前端 search 用 `station_name` 視覺去重） |
 
 `_insert_route` 與 `_insert_station` 走 `INSERT ... ON DUPLICATE KEY UPDATE ... = LAST_INSERT_ID(...)` UPSERT 路徑，無論該筆是新插入還是已存在，`cursor.lastrowid` 都會拿到正確的 id。`stations` 的 ON DUPLICATE 還會更新非 key 欄位（`arrive_time` / `route_id` 等）讓資料保持最新。
 

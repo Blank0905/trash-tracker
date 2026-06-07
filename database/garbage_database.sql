@@ -188,11 +188,12 @@ CREATE TABLE `stations` (
   `raw_source_id` varchar(50) DEFAULT NULL,
   `biz_key` varchar(512) GENERATED ALWAYS AS (
     CONCAT_WS('|',
+      CAST(`route_id` AS CHAR),
       COALESCE(`station_name`, ''),
       COALESCE(CAST(ROUND(`latitude`,  5) AS CHAR), ''),
       COALESCE(CAST(ROUND(`longitude`, 5) AS CHAR), '')
     )
-  ) STORED COMMENT 'ETL UPSERT 業務 key：站名 + lat/lng round 5 位（~1m），上有 UNIQUE 達成冪等'
+  ) STORED COMMENT 'ETL UPSERT 業務 key：route_id + 站名 + lat/lng round 5 位（~1m）。包含 route_id 因為現有 schema 是 station per route，同物理站被多條路線經過會有多筆 row'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
