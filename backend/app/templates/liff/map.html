@@ -452,6 +452,49 @@
         }
 
         /* ====================================================
+           LOADER — 進場/定位狀態指示（玻璃藥丸 + spinner）
+           出現在 topbar 下方，不擋地圖中心，常駐到 hideLoader()
+           ==================================================== */
+        #loader {
+            position: fixed;
+            top: calc(env(safe-area-inset-top, 0px) + 70px);
+            left: 50%;
+            transform: translate(-50%, 4px);
+            z-index: 1250;
+            background: var(--surface-glass);
+            backdrop-filter: blur(20px) saturate(160%);
+            -webkit-backdrop-filter: blur(20px) saturate(160%);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 9px 16px 9px 11px;
+            display: flex; align-items: center; gap: 10px;
+            box-shadow: var(--shadow-2);
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+            max-width: calc(100vw - 32px);
+            opacity: 0;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            pointer-events: none;
+        }
+        #loader.show {
+            opacity: 1;
+            transform: translate(-50%, 0);
+        }
+        .spinner {
+            width: 16px; height: 16px;
+            border-radius: 50%;
+            border: 2px solid var(--border-strong);
+            border-top-color: var(--brand);
+            animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ====================================================
            TOAST — 玻璃藥丸
            ==================================================== */
         #toast {
@@ -563,6 +606,12 @@
     </button>
 </div>
 
+<!-- 進場/定位狀態指示器 -->
+<div id="loader" role="status" aria-live="polite">
+    <div class="spinner" aria-hidden="true"></div>
+    <span class="loader-text">載入中…</span>
+</div>
+
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -618,6 +667,16 @@
         el._t = setTimeout(() => el.classList.remove('show'), 2500);
     }
 
+    // 進場 loader：訊息可動態更新，hideLoader() 才會收起
+    function showLoader(msg) {
+        const el = document.getElementById('loader');
+        el.querySelector('.loader-text').innerText = msg;
+        el.classList.add('show');
+    }
+    function hideLoader() {
+        document.getElementById('loader').classList.remove('show');
+    }
+
     // 定位優先序：① GPS 實際位置 → ② 第一個最愛點 → ③ 預設點
     function getGeo() {
         return new Promise(resolve => {
@@ -638,7 +697,8 @@
                     resolve(null);
                 },
                 // 低精度（網路定位）在手機/室內更快更容易成功；找附近站點不需高精度 GPS
-                { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+                // timeout 10 秒平衡「等夠久能拿到」與「使用者不耐」；maximumAge 拉長為 5 分鐘減少不必要重新定位
+                { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
             );
         });
     }
@@ -880,31 +940,54 @@
     })();
 
     // 主流程
+    // 流程改寫：先把地圖畫出來（解除黑畫面），再背景跑定位 + 搜尋；
+    // 全程用 #loader 顯示「現在在做什麼」，避免使用者看著黑屏不知所措。
     async function main() {
+        showLoader('連線 LINE…');
         await liff.init({ liffId: LIFF_ID });
         if (!liff.isLoggedIn()) { liff.login(); return; }
         const profile = await liff.getProfile();
         lineUserId = profile.userId;
 
-        const geo = await getGeo();
-        const center = geo || (await getFirstFavorite()) || DEFAULT_CENTER;
-
-        // 初始化 Leaflet 地圖 + OpenStreetMap 圖磚
-        map = L.map('map', { zoomControl: true }).setView([center.lat, center.lng], 16);
+        // 立刻初始化 Leaflet（先用 DEFAULT_CENTER + 較大範圍 zoom，使用者馬上看到地圖）
+        showLoader('載入地圖…');
+        map = L.map('map', { zoomControl: true }).setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], 13);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 貢獻者'
         }).addTo(map);
 
-        // 只有實際 GPS 定位成功才畫「使用者位置」
-        if (geo) setUserMarker(geo);
+        // 嘗試 GPS（最久等 10 秒；失敗 getGeo 內已 toast 原因）
+        showLoader('定位中…');
+        const geo = await getGeo();
+        if (geo) {
+            map.setView([geo.lat, geo.lng], 16);
+            setUserMarker(geo);
+            hideLoader();
+            searchStations(geo.lat, geo.lng);
+            return;
+        }
 
-        // 一開始不放搜尋針（圖釘住在右下按鈕裡，由使用者拖放到地圖上）
-        searchStations(center.lat, center.lng);
+        // GPS 失敗 → 嘗試第一個收藏定點
+        showLoader('讀取收藏定點…');
+        const fav = await getFirstFavorite();
+        if (fav) {
+            map.setView([fav.lat, fav.lng], 16);
+            hideLoader();
+            searchStations(fav.lat, fav.lng);
+            return;
+        }
+
+        // 都拿不到 → 用 DEFAULT_CENTER 並提示
+        hideLoader();
+        toast('使用預設位置（台北車站）；可拖右下圖釘到地圖上選搜尋點');
+        map.setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], 16);
+        searchStations(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng);
     }
 
     main().catch(e => {
         console.error(e);
+        hideLoader();
         toast('初始化失敗，請在 LINE App 內開啟此頁。');
     });
 </script>
