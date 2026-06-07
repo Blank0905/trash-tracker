@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
-import { getBackendUrl } from '../../utils/api';
+import { getBackendUrl, authedFetch } from '../../utils/api';
 import BagRegulationsEditor from './BagRegulationsEditor';
 
 // 後台法規即時預覽：Markdown→HTML 並消毒（breaks=true 與 LIFF 顯示一致）
@@ -55,7 +55,7 @@ const RulesAnnouncements = () => {
     try {
       setLoading(true);
       const baseUrl = await getBackendUrl();
-      const res = await fetch(`${baseUrl}/api/announcements/list`);
+      const res = await authedFetch(`${baseUrl}/api/announcements/list`);
       if (!res.ok) throw new Error();
       const data = await res.json();
       setAnnouncements(data.announcements || []);
@@ -76,7 +76,7 @@ const RulesAnnouncements = () => {
     try {
       setLoading(true);
       const baseUrl = await getBackendUrl();
-      const res = await fetch(`${baseUrl}/api/rules/get?city=${encodeURIComponent(city)}`);
+      const res = await authedFetch(`${baseUrl}/api/rules/get?city=${encodeURIComponent(city)}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
       
@@ -110,7 +110,7 @@ const RulesAnnouncements = () => {
     // 情況 A：如果目前處於「重新編輯」模式
     if (editingId) {
       try {
-        const response = await fetch(`${baseUrl}/api/announcements/update/${editingId}`, {
+        const response = await authedFetch(`${baseUrl}/api/announcements/update/${editingId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(newAnno)
@@ -138,7 +138,7 @@ const RulesAnnouncements = () => {
     const currentAdminId = localStorage.getItem('admin_id');
 
     try {
-      const response = await fetch(`${baseUrl}/api/announcements/create`, {
+      const response = await authedFetch(`${baseUrl}/api/announcements/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -178,7 +178,7 @@ const RulesAnnouncements = () => {
 
     try {
       const baseUrl = await getBackendUrl();
-      const response = await fetch(`${baseUrl}/api/announcements/push/${annoId}`, {
+      const response = await authedFetch(`${baseUrl}/api/announcements/push/${annoId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -208,7 +208,7 @@ const RulesAnnouncements = () => {
     if (!ruleData.title) return alert('請填寫法規標題');
     try {
       const baseUrl = await getBackendUrl();
-      const res = await fetch(`${baseUrl}/api/rules/update`, {
+      const res = await authedFetch(`${baseUrl}/api/rules/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ city: selectedCity, ...ruleData })

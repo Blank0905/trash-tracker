@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getBackendUrl } from '../../utils/api';
+import { getBackendUrl, authedFetch } from '../../utils/api';
 
 // 後台首頁：統計總覽。筆數卡可點 → 跳該資料表；最近同步卡可點 → 跳同步紀錄。
 // 資料皆用通用瀏覽端點 /api/db/browse（limit=1 只為取 total），零後端改動。
@@ -30,7 +30,7 @@ const HomeOverview = ({ dbConnected, onNavigate }) => {
         const baseUrl = await getBackendUrl();
 
         const browseTotal = async (table) => {
-          const res = await fetch(`${baseUrl}/api/db/browse?table=${table}&page=1&limit=1&sort=DESC&search=`);
+          const res = await authedFetch(`${baseUrl}/api/db/browse?table=${table}&page=1&limit=1&sort=DESC&search=`);
           if (!res.ok) return null;
           return (await res.json()).total ?? null;
         };
@@ -42,7 +42,7 @@ const HomeOverview = ({ dbConnected, onNavigate }) => {
 
         // 最近一次同步：取最新 50 筆 → 鎖定最新 run_id → 統計該 run 的狀態
         let syncSummary = null;
-        const res = await fetch(`${baseUrl}/api/db/browse?table=api_sync_log&page=1&limit=50&sort=DESC&search=`);
+        const res = await authedFetch(`${baseUrl}/api/db/browse?table=api_sync_log&page=1&limit=50&sort=DESC&search=`);
         if (res.ok) {
           const rows = (await res.json()).data || [];
           if (rows.length) {

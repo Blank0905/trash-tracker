@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getBackendUrl } from '../../utils/api';
+import { getBackendUrl, authedFetch } from '../../utils/api';
 
 const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -165,7 +165,7 @@ const ActionAddDelete = () => {
 
   const loadDistrictAreas = async () => {
     const baseUrl = await getBackendUrl();
-    const res = await fetch(`${baseUrl}/api/admin/routes/areas/village-null`);
+    const res = await authedFetch(`${baseUrl}/api/admin/routes/areas/village-null`);
     if (!res.ok) throw new Error('行政區載入失敗');
     const data = await res.json();
     setDistrictAreas(data.areas || []);
@@ -173,7 +173,7 @@ const ActionAddDelete = () => {
 
   const loadVillageAreas = async () => {
     const baseUrl = await getBackendUrl();
-    const res = await fetch(`${baseUrl}/api/admin/routes/areas/all`);
+    const res = await authedFetch(`${baseUrl}/api/admin/routes/areas/all`);
     if (!res.ok) throw new Error('村里載入失敗');
     const data = await res.json();
     setVillageAreas(data.areas || []);
@@ -191,7 +191,7 @@ const ActionAddDelete = () => {
     if (stationSearchRouteName.trim()) params.append('route_name', stationSearchRouteName.trim());
     if (stationSearchName.trim()) params.append('station_name', stationSearchName.trim());
 
-    const res = await fetch(`${baseUrl}/api/admin/stations/list?${params.toString()}`);
+    const res = await authedFetch(`${baseUrl}/api/admin/stations/list?${params.toString()}`);
     if (!res.ok) throw new Error('站點搜尋失敗');
     const data = await res.json();
     setStationsList(data.stations || []);
@@ -199,7 +199,7 @@ const ActionAddDelete = () => {
 
   const loadLatestStations = async () => {
     const baseUrl = await getBackendUrl();
-    const res = await fetch(`${baseUrl}/api/admin/stations/list?latest=1&limit=50`);
+    const res = await authedFetch(`${baseUrl}/api/admin/stations/list?latest=1&limit=50`);
     if (!res.ok) throw new Error('最新站點載入失敗');
     const data = await res.json();
     setStationsList(data.stations || []);
@@ -207,7 +207,7 @@ const ActionAddDelete = () => {
 
   const loadLatestRoutes = async () => {
     const baseUrl = await getBackendUrl();
-    const res = await fetch(`${baseUrl}/api/admin/routes/list?latest=1&limit=50`);
+    const res = await authedFetch(`${baseUrl}/api/admin/routes/list?latest=1&limit=50`);
     if (!res.ok) throw new Error('最新路線載入失敗');
     const data = await res.json();
     setRoutesList(data.routes || []);
@@ -228,7 +228,7 @@ const ActionAddDelete = () => {
 
   const fetchStationsByRouteId = async (routeId) => {
     const baseUrl = await getBackendUrl();
-    const res = await fetch(`${baseUrl}/api/admin/stations/list?route_id=${routeId}`);
+    const res = await authedFetch(`${baseUrl}/api/admin/stations/list?route_id=${routeId}`);
     if (!res.ok) throw new Error('路線站點載入失敗');
     const data = await res.json();
     return data.stations || [];
@@ -398,7 +398,7 @@ const ActionAddDelete = () => {
         const params = new URLSearchParams();
         params.append('route_name', q);
 
-        const res = await fetch(`${baseUrl}/api/admin/routes/list?${params.toString()}`);
+        const res = await authedFetch(`${baseUrl}/api/admin/routes/list?${params.toString()}`);
         if (!res.ok) throw new Error('路線搜尋失敗');
 
         const data = await res.json();
@@ -468,7 +468,7 @@ const handleCreateRoute = async (e) => {
 
     try {
       const baseUrl = await getBackendUrl();
-      const response = await fetch(`${baseUrl}/api/admin/routes/create`, {
+      const response = await authedFetch(`${baseUrl}/api/admin/routes/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -494,7 +494,7 @@ const handleCreateRoute = async (e) => {
     if (!window.confirm('☠️ 警告：刪除路線將會連帶「連鎖刪除」該路線下的所有清運站點與班次！確定執行？')) return;
     try {
       const baseUrl = await getBackendUrl();
-      await fetch(`${baseUrl}/api/admin/routes/delete/${routeId}`, { method: 'POST' });
+      await authedFetch(`${baseUrl}/api/admin/routes/delete/${routeId}`, { method: 'POST' });
       fetchAllData();
     } catch {
       setRoutesList(prev => prev.filter(r => r.route_id !== routeId));
@@ -585,7 +585,7 @@ const handleCreateRoute = async (e) => {
 
     try {
       const baseUrl = await getBackendUrl();
-      const response = await fetch(`${baseUrl}/api/admin/stations/create`, {
+      const response = await authedFetch(`${baseUrl}/api/admin/stations/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -672,7 +672,7 @@ const handleCreateRoute = async (e) => {
 
     try {
       const baseUrl = await getBackendUrl();
-      const response = await fetch(`${baseUrl}/api/admin/stations/update/${stationId}`, {
+      const response = await authedFetch(`${baseUrl}/api/admin/stations/update/${stationId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -702,7 +702,7 @@ const handleCreateRoute = async (e) => {
     if (!window.confirm('確定要永久移除此清運站點，並清除其每週清運班次表嗎？')) return;
     try {
       const baseUrl = await getBackendUrl();
-      const response = await fetch(`${baseUrl}/api/admin/stations/delete/${stationId}`, {
+      const response = await authedFetch(`${baseUrl}/api/admin/stations/delete/${stationId}`, {
         method: 'POST'
       });
 
@@ -861,7 +861,7 @@ const handleCreateRoute = async (e) => {
                       if (searchDistrict.trim()) params.append('district', searchDistrict.trim());
                       if (searchRouteName.trim()) params.append('route_name', searchRouteName.trim());
 
-                      const res = await fetch(`${baseUrl}/api/admin/routes/list?${params.toString()}`);
+                      const res = await authedFetch(`${baseUrl}/api/admin/routes/list?${params.toString()}`);
                       if (!res.ok) throw new Error();
                       const data = await res.json();
                       setRoutesList(data.routes || []);

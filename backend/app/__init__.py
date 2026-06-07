@@ -11,6 +11,7 @@ from flask_cors import CORS
 import decimal
 import datetime
 from app.db import check_db_health, get_table_structure, browse_table, get_db_connection
+from app.utils.auth import admin_required, generate_admin_token
 #這邊是雜湊後要登入所以加的
 from werkzeug.security import check_password_hash
 
@@ -87,6 +88,7 @@ def create_app():
         return jsonify({"connected": check_db_health()})
 
     @app.route('/api/db/browse', methods=['GET'])
+    @admin_required
     def api_browse():
         table = request.args.get('table')
         page = int(request.args.get('page', 1))
@@ -104,6 +106,7 @@ def create_app():
             return jsonify({"error": str(e)}), 400
 
     @app.route('/api/db/structure', methods=['GET'])
+    @admin_required
     def api_structure():
         table = request.args.get('table')
         if not table:
@@ -143,7 +146,7 @@ def create_app():
                     return jsonify({"message": "權限不足，您並非管理員"}), 403
                     
                 return jsonify({
-                    "access_token": f"session_token_admin_{user['user_id']}",
+                    "access_token": generate_admin_token(user),
                     "token_type": "bearer",
                     "user": {
                         "user_id": user['user_id'],

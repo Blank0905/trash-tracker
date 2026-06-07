@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getBackendUrl } from '../../utils/api';
+import { getBackendUrl, authedFetch } from '../../utils/api';
 
 // ETL 來源網址設定：三市固定，僅網址可改。
 // 按「驗證並儲存」時，後端會先實際下載該網址並檢查必要欄位，通過才寫入 etl_sources。
@@ -15,7 +15,7 @@ const EtlSources = () => {
     setRunning(true);
     try {
       const baseUrl = await getBackendUrl();
-      const res = await fetch(`${baseUrl}/api/admin/etl/run`, { method: 'POST' });
+      const res = await authedFetch(`${baseUrl}/api/admin/etl/run`, { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.status === 'error') throw new Error(data.message || `後端回應 HTTP ${res.status}`);
       alert(data.data?.message || 'ETL 已觸發');
@@ -31,7 +31,7 @@ const EtlSources = () => {
       setLoading(true);
       setError(null);
       const baseUrl = await getBackendUrl();
-      const res = await fetch(`${baseUrl}/api/admin/etl/sources`);
+      const res = await authedFetch(`${baseUrl}/api/admin/etl/sources`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.status === 'error') {
         throw new Error(data.message || `後端回應 HTTP ${res.status}`);
@@ -55,7 +55,7 @@ const EtlSources = () => {
     setSavingCode(code);
     try {
       const baseUrl = await getBackendUrl();
-      const res = await fetch(`${baseUrl}/api/admin/etl/sources/${code}`, {
+      const res = await authedFetch(`${baseUrl}/api/admin/etl/sources/${code}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: target.url }),

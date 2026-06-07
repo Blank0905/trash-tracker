@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.db import get_db_connection
+from app.utils.auth import admin_required
 import pymysql
 
 # 🟢 獨立的後台站點管理藍圖，前綴採用 /api/admin/stations
@@ -73,6 +74,7 @@ def _validate_sequence_and_times(cursor, route_id, sequence_order, arrive_time, 
 # 1. 📋 [後台專用] 讀取目前現存站點一覽 (支援選填動態篩選)
 # ==========================================
 @bp.route('/list', methods=['GET'])
+@admin_required
 def get_stations_list():
     """撈取站點，並 INNER JOIN 帶出路線與區域細節，支援 route_id, route_name, city, district, station_name 篩選"""
     route_id = request.args.get('route_id')
@@ -157,6 +159,7 @@ def get_stations_list():
 # 2. 🚀 [後台專用] 新增站點 ＆ 一鍵每週 7 日班次 (Transaction 級聯寫入)
 # ==========================================
 @bp.route('/create', methods=['POST'])
+@admin_required
 def create_station_with_schedule():
     """接收前端的複合型 JSON，並落實三大資工級時序防禦線"""
     data = request.get_json(silent=True) or {}
@@ -316,6 +319,7 @@ def create_station_with_schedule():
 # 3. ✏️ [後台專用] 編輯更新現存站點資料 (滿足限更欄位與夾攻防禦)
 # ==========================================
 @bp.route('/update/<int:station_id>', methods=['POST', 'PUT'])
+@admin_required
 def update_station(station_id):
     """只允許更改 station_name, arrive_time, leave_time，且新北基隆需過關時序夾攻防禦"""
     data = request.get_json(silent=True) or {}
@@ -453,6 +457,7 @@ def update_station(station_id):
 # 4. 🗑️ [後台專用] 刪除清運站點 (逆向連鎖級聯 Transaction)
 # ==========================================
 @bp.route('/delete/<int:station_id>', methods=['POST', 'DELETE'])
+@admin_required
 def delete_station(station_id):
     """逆向物理抹除線：先剁掉子表班次，再抹去站點本體，一氣呵成"""
     conn = get_db_connection()

@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.db import get_db_connection
+from app.utils.auth import admin_required
 import pymysql
 
 # 🟢 獨立的後台管理藍圖，前綴採用 /api/admin/routes
@@ -53,6 +54,7 @@ def _parse_search_fields(raw):
 # 1. 📋 [後台專用] 讀取目前系統中現存路線一覽
 # ==========================================
 @bp.route('/list', methods=['GET'])
+@admin_required
 def get_routes_list():
     """撈取所有路線，並支援選填 city, district, route_name 進行動態篩選"""
     city = request.args.get('city')
@@ -128,6 +130,7 @@ def get_routes_list():
 # 2. 🌍 [後台專用] 讀取「沒村里」的行政區清單
 # ==========================================
 @bp.route('/areas/village-null', methods=['GET'])
+@admin_required
 def get_areas_districts():
     """撈取村里為空的頂層行政區，供後台表單做『縣市->行政區』連動"""
     conn = get_db_connection()
@@ -153,6 +156,7 @@ def get_areas_districts():
 # 3. ➕ [後台專用] 新增清運收運路線 (含長度字數與必填防禦)
 # ==========================================
 @bp.route('/create', methods=['POST'])
+@admin_required
 def create_route():
     data = request.get_json(silent=True) or {}
     areas_id = data.get('areas_id')
@@ -238,6 +242,7 @@ def create_route():
 # 4. 🗑️ [後台專用] 刪除收運路線 (高階連鎖刪除防禦 Transaction)
 # ==========================================
 @bp.route('/delete/<int:route_id>', methods=['POST', 'DELETE'])
+@admin_required
 def delete_route(route_id):
     """手動連鎖抹除線：由最底層的班次、站點、一路向上抹除到路線，防止 Fk 外鍵報錯"""
     conn = get_db_connection()
@@ -266,6 +271,7 @@ def delete_route(route_id):
 
 
 @bp.route('/areas/all', methods=['GET'])
+@admin_required
 def get_all_areas():
     """撈取資料庫內完整的縣市、行政區、村里資料，供站點端與搜尋端進行三級級聯連動"""
     conn = get_db_connection()

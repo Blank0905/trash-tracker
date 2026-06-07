@@ -4,7 +4,7 @@
 三市固定（TPE/NTPC/KLU），只有 url 可改；filename / encoding / 欄位解析仍寫死在
 database/newimport.py 的 SOURCES。更新時會先下載該網址並驗證必要欄位，通過才寫入。
 
-權限：暫比照現有後台端點（未加 admin_required），日後統一處理。
+權限：全部端點需管理者 token（admin_required）。
 """
 import io
 from threading import Thread
@@ -14,6 +14,7 @@ import requests
 from flask import Blueprint, current_app, request
 
 from app.utils.responses import ok, err
+from app.utils.auth import admin_required
 from app.db import get_db_connection
 
 bp = Blueprint('etl', __name__, url_prefix='/api/admin/etl')
@@ -39,6 +40,7 @@ SOURCE_META = {
 
 
 @bp.route('/sources', methods=['GET'])
+@admin_required
 def list_sources():
     """列出三市目前的下載網址與最後更新時間。"""
     conn = get_db_connection()
@@ -66,6 +68,7 @@ def list_sources():
 
 
 @bp.route('/sources/<source>', methods=['PUT'])
+@admin_required
 def update_source(source):
     """更新某市下載網址。body: { url }
 
@@ -116,6 +119,7 @@ def update_source(source):
 
 
 @bp.route('/run', methods=['POST'])
+@admin_required
 def run_etl():
     """手動觸發一次完整 ETL（背景執行：下載三市最新資料 → 匯入 → 寫 api_sync_log）。
 

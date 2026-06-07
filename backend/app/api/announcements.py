@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.db import get_db_connection
+from app.utils.auth import admin_required
 # 💡 依賴規格：引入 P3 的 LINE 核心群發服務
 import pymysql
 import re
@@ -107,6 +108,7 @@ def _push_announcement_to_line(line_ids: list, title: str, content: str, target_
     return line_service.multicast_text(line_ids, push_text)
 
 @bp.route('/push/<int:anno_id>', methods=['POST'])
+@admin_required
 def push_existing_announcement(anno_id):
     """專門幫已經存在資料庫、但尚未推播的公告進行補發 LINE 推播"""
     conn = get_db_connection()
@@ -166,6 +168,7 @@ def push_existing_announcement(anno_id):
 
 #補上這個 如果存著沒推到line 可以編輯更改
 @bp.route('/update/<int:anno_id>', methods=['POST'])
+@admin_required
 def update_announcement(anno_id):
     """專門處理未發布歷史公告的文字與受眾修改"""
     data = request.get_json(silent=True) or {}
@@ -234,6 +237,7 @@ def get_announcements_list():
 
 # 2. 🚀 發布新公告（含一鍵群發 LINE Bot 核心邏輯）
 @bp.route('/create', methods=['POST'])
+@admin_required
 def create_announcement():
     data = request.get_json(silent=True) or {}
     title = data.get('title')

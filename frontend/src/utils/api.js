@@ -29,3 +29,25 @@ export const getBackendUrl = async () => {
 
   return cachedBackendUrl;
 };
+
+// 從 localStorage 拿管理者 token，組成 Authorization header
+export const authHeader = () => {
+  const token = localStorage.getItem('access_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+// 管理後台專用 fetch：自動帶 Authorization、收到 401 就清除登入狀態回登入頁
+export const authedFetch = async (url, options = {}) => {
+  const headers = {
+    ...(options.headers || {}),
+    ...authHeader(),
+  };
+  const response = await fetch(url, { ...options, headers });
+
+  if (response.status === 401) {
+    localStorage.clear();
+    // 強制回到根路徑，App.js 會偵測 token 不存在自動切回 Login
+    window.location.href = '/';
+  }
+  return response;
+};

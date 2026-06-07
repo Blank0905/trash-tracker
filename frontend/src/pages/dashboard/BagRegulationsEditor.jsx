@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getBackendUrl } from '../../utils/api';
+import { getBackendUrl, authedFetch } from '../../utils/api';
 
 // 垃圾袋規範編輯器（規則與公告的第 3 分頁）。
 // 讀取沿用公開 GET /api/info/bag-regulations?city=；寫入走 /api/admin/bag-regulations。
@@ -59,7 +59,7 @@ const BagRegulationsEditor = () => {
       const url = isNew
         ? `${baseUrl}/api/admin/bag-regulations`
         : `${baseUrl}/api/admin/bag-regulations/${row.reg_id}`;
-      const res = await fetch(url, {
+      const res = await authedFetch(url, {
         method: isNew ? 'POST' : 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -80,7 +80,7 @@ const BagRegulationsEditor = () => {
     if (!window.confirm(`確定刪除「${row.name}」這筆垃圾袋規範？`)) return;
     try {
       const baseUrl = await getBackendUrl();
-      const res = await fetch(`${baseUrl}/api/admin/bag-regulations/${row.reg_id}`, { method: 'DELETE' });
+      const res = await authedFetch(`${baseUrl}/api/admin/bag-regulations/${row.reg_id}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.status === 'error') throw new Error(data.message || `HTTP ${res.status}`);
       await fetchRows(city);

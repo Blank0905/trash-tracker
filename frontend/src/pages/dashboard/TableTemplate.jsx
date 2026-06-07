@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getBackendUrl } from '../../utils/api'; 
+import { getBackendUrl, authedFetch } from '../../utils/api';
 
 const TableTemplate = ({ tableName }) => {
   const [currentTab, setCurrentTab] = useState('browse');
@@ -39,7 +39,7 @@ const TableTemplate = ({ tableName }) => {
           }
 
           const url = `${baseUrl}/api/db/browse?${params.toString()}`;
-          const res = await fetch(url);
+          const res = await authedFetch(url);
           if (!res.ok) throw new Error(`無法取得 ${tableName} 的瀏覽資料`);
           
           const result = await res.json();
@@ -48,7 +48,7 @@ const TableTemplate = ({ tableName }) => {
           setTableColumns(result.columns || []); // 👈 2. 存入後端傳來最嚴謹的實體順序
         } else {
           const url = `${baseUrl}/api/db/structure?table=${tableName}`;
-          const res = await fetch(url);
+          const res = await authedFetch(url);
           if (!res.ok) throw new Error(`無法取得 ${tableName} 的結構資訊`);
           const data = await res.json();
           setStructureData(data);

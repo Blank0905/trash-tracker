@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.db import get_db_connection
+from app.utils.auth import admin_required
 import pymysql
 
 bp = Blueprint('rules', __name__, url_prefix='/api/rules')
@@ -33,6 +34,7 @@ def get_city_rule():
 
 # 2. 💾 更新或新增指定縣市的法規內容
 @bp.route('/update', methods=['POST'])
+@admin_required
 def update_city_rule():
     data = request.get_json(silent=True) or {}
     city = data.get('city')

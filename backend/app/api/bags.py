@@ -5,6 +5,7 @@
 """
 from flask import Blueprint, request, jsonify
 from app.db import get_db_connection
+from app.utils.auth import admin_required
 
 bp = Blueprint('bags', __name__, url_prefix='/api/admin/bag-regulations')
 
@@ -47,6 +48,7 @@ def _clean(data):
 
 
 @bp.route('', methods=['POST'])
+@admin_required
 def create_bag():
     fields, errmsg = _clean(request.get_json(silent=True) or {})
     if errmsg:
@@ -72,6 +74,7 @@ def create_bag():
 
 
 @bp.route('/<int:reg_id>', methods=['PUT'])
+@admin_required
 def update_bag(reg_id):
     fields, errmsg = _clean(request.get_json(silent=True) or {})
     if errmsg:
@@ -95,6 +98,7 @@ def update_bag(reg_id):
 
 
 @bp.route('/<int:reg_id>', methods=['DELETE'])
+@admin_required
 def delete_bag(reg_id):
     conn = get_db_connection()
     try:

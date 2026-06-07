@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getBackendUrl } from '../../utils/api';
+import { getBackendUrl, authedFetch } from '../../utils/api';
 
 // api_sync_log 人性化檢視頁：彩色狀態徽章 + 點選式篩選（不用手打），最新在上。
 // 資料沿用通用瀏覽端點 /api/db/browse?table=api_sync_log（DESC 取最新一批），前端做篩選。
@@ -28,7 +28,7 @@ const SyncLog = () => {
       setError(null);
       const baseUrl = await getBackendUrl();
       const url = `${baseUrl}/api/db/browse?table=api_sync_log&page=1&limit=${FETCH_LIMIT}&sort=DESC&search=`;
-      const res = await fetch(url);
+      const res = await authedFetch(url);
       if (!res.ok) throw new Error(`後端回應 HTTP ${res.status}`);
       const result = await res.json();
       setLogs(result.data || []);
