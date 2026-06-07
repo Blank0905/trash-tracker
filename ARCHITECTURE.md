@@ -191,7 +191,7 @@ trash-tracker/
 ## 第四章　資料存取層（`app/db.py`）
 
 - PyMySQL + DBUtils `PooledDB` 連線池（maxconnections=10、mincached=2、DictCursor、連線時 `SET time_zone='+08:00'`），DB 設定全讀環境變數。
-- `ALLOWED_TABLES` 白名單 12 張表 + 各表 `PRIMARY_KEYS`；DB Browser 僅允許白名單內資料表。
+- `ALLOWED_TABLES` 白名單 13 張表 + 各表 `PRIMARY_KEYS`；DB Browser 僅允許白名單內資料表。
 - `browse_table()` 防呆：`page`/`limit` 夾範圍（limit 上限 500）、`search_fields` 與 `sort` 欄位/方向皆比對欄位白名單，非法即丟錯；`users` 表的 `password_hash` 一律遮成 `***`。
 
 ---

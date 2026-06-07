@@ -15,6 +15,7 @@ import TableAnnouncements from './dashboard/TableAnnouncements';
 import TableApiSyncLog from './dashboard/TableApiSyncLog';
 import TableBulkyWasteInfo from './dashboard/TableBulkyWasteInfo';
 import TableEtlSources from './dashboard/TableEtlSources';
+import TableAdminAuditLog from './dashboard/TableAdminAuditLog';
 import UsersManage from './dashboard/UsersManage';
 import ActionAddDelete from './dashboard/ActionAddDelete';
 import RulesAnnouncements from './dashboard/RulesAnnouncements';
@@ -78,6 +79,7 @@ const Dashboard = ({ onLogout }) => {
       case 'table-api_sync_log': return <TableApiSyncLog />;
       case 'table-bulky_waste_info': return <TableBulkyWasteInfo />;
       case 'table-etl_sources': return <TableEtlSources />;
+      case 'table-admin_audit_log': return <TableAdminAuditLog />;
 
       case 'users-manage': return <UsersManage />;
       case 'action-add-delete': return <ActionAddDelete />;
@@ -110,7 +112,7 @@ const Dashboard = ({ onLogout }) => {
             {openDropdown.tables && (
               <div style={styles.submenuBox}>
                 {[
-                  'announcements', 'api_sync_log', 'areas', 'bag_regulations',
+                  'admin_audit_log', 'announcements', 'api_sync_log', 'areas', 'bag_regulations',
                   'bulky_waste_info', 'etl_sources', 'favorites', 'notifications',
                   'routes', 'stations', 'station_schedules', 'users'
                 ].map(tid => (
