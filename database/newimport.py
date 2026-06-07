@@ -339,6 +339,32 @@ class GarbageTruckImporter:
         self._commit_if_needed()
         return self.cursor.lastrowid
 
+    def _find_existing_route(
+        self,
+        areas_id: int,
+        route_code: Optional[str],
+        route_name: Optional[str],
+        car_number: Optional[str],
+        team: Optional[str],
+        trip_number: Optional[str],
+    ) -> Optional[int]:
+        """依業務 key 查現有 route_id；找不到回 None。
+        <=> 是 NULL-safe 等於：NULL 與 NULL 視為相等，避免 NULL 欄位失效。
+        """
+        sql = """
+            SELECT route_id FROM routes
+            WHERE areas_id = %s
+              AND route_code  <=> %s
+              AND route_name  <=> %s
+              AND car_number  <=> %s
+              AND team        <=> %s
+              AND trip_number <=> %s
+            LIMIT 1
+        """
+        self.cursor.execute(sql, (areas_id, route_code, route_name, car_number, team, trip_number))
+        row = self.cursor.fetchone()
+        return row[0] if row else None
+
     def _insert_route(
         self,
         areas_id: int,
@@ -348,28 +374,57 @@ class GarbageTruckImporter:
         team: str = None,
         trip_number: str = None,
     ) -> int:
-        # UPSERT：依 biz_key (=全部 6 欄業務欄位) 判斷是否已存在；
-        # 存在 → ON DUPLICATE 觸發，用 LAST_INSERT_ID(route_id) 把現有 id 寫進
-        # connection 的 insert_id，讓 cursor.lastrowid 回傳正確 id（不論 INSERT 或 UPDATE）。
-        # 業務 key = 所有欄位，所以「同 biz_key」=「row 完全相同」→ UPDATE 部分不需動其他欄位。
+        # 冪等：先查業務 key 是否已存在；存在就回現有 id（不重複 INSERT）
+        cleaned = (
+            self._clean(areas_id),
+            self._clean(route_code),
+            self._clean(route_name),
+            self._clean(car_number),
+            self._clean(team),
+            self._clean(trip_number),
+        )
+        existing = self._find_existing_route(*cleaned)
+        if existing is not None:
+            return existing
+
         sql = """
             INSERT INTO routes (areas_id, route_code, route_name, car_number, team, trip_number)
             VALUES (%s, %s, %s, %s, %s, %s)
-            ON DUPLICATE KEY UPDATE route_id = LAST_INSERT_ID(route_id)
+        """
+        self.cursor.execute(sql, cleaned)
+        self._commit_if_needed()
+        return self.cursor.lastrowid
+
+    def _find_existing_station(
+        self,
+        route_id: Optional[int],
+        station_name: Optional[str],
+        latitude: Optional[float],
+        longitude: Optional[float],
+        arrive_time: Optional[str],
+        leave_time: Optional[str],
+        sequence_order: Optional[int],
+    ) -> Optional[int]:
+        """依業務 key 查現有 station_id；找不到回 None。
+        lat/lng 用 ROUND(., 5) 容忍同來源浮點微差（~1m）；其餘用 <=> NULL-safe 比較。
+        """
+        sql = """
+            SELECT station_id FROM stations
+            WHERE route_id = %s
+              AND station_name <=> %s
+              AND (ROUND(latitude,  5) <=> ROUND(%s, 5))
+              AND (ROUND(longitude, 5) <=> ROUND(%s, 5))
+              AND arrive_time    <=> %s
+              AND leave_time     <=> %s
+              AND sequence_order <=> %s
+            LIMIT 1
         """
         self.cursor.execute(
             sql,
-            (
-                self._clean(areas_id),
-                self._clean(route_code),
-                self._clean(route_name),
-                self._clean(car_number),
-                self._clean(team),
-                self._clean(trip_number),
-            ),
+            (route_id, station_name, latitude, longitude, arrive_time, leave_time, sequence_order),
         )
-        self._commit_if_needed()
-        return self.cursor.lastrowid
+        row = self.cursor.fetchone()
+        return row[0] if row else None
 
     def _insert_station(
         self,
@@ -385,40 +440,53 @@ class GarbageTruckImporter:
         memo: str = None,
         raw_source_id: str = None,
     ) -> int:
-        # UPSERT：依 biz_key (= station_name + ROUND(lat,5) + ROUND(lng,5)) 判重
-        # 存在 → 用 LAST_INSERT_ID 拿回現有 station_id（讓下游 schedules 能掛上去）
-        #        並更新「非業務 key」欄位（route_id / arrive_time 等），保持資料最新
-        # 注意：站點 station_id 跨次 ETL 穩定 → 使用者收藏的 favorites.station_id 不失效
+        # 冪等：先查業務 key 是否已存在；存在就回現有 id（讓下游 schedules 掛在同一個 station_id 上）
+        # 業務 key = route_id + station_name + lat + lng + arrive_time + leave_time + sequence_order
+        # 對應 CSV 每一行的自然 key；station_id 跨次 ETL 穩定 → 使用者收藏不失效
+        cleaned_route_id       = self._clean(route_id)
+        cleaned_areas_id       = self._clean(areas_id)
+        cleaned_station_name   = self._clean(station_name)
+        cleaned_sequence_order = self._clean(sequence_order)
+        cleaned_longitude      = self._clean(longitude)
+        cleaned_latitude       = self._clean(latitude)
+        cleaned_arrive_time    = self._clean(arrive_time)
+        cleaned_leave_time     = self._clean(leave_time)
+        cleaned_stay_type      = self._clean(stay_type)
+        cleaned_memo           = self._clean(memo)
+        cleaned_raw_source_id  = self._clean(raw_source_id)
+
+        existing = self._find_existing_station(
+            cleaned_route_id,
+            cleaned_station_name,
+            cleaned_latitude,
+            cleaned_longitude,
+            cleaned_arrive_time,
+            cleaned_leave_time,
+            cleaned_sequence_order,
+        )
+        if existing is not None:
+            return existing
+
         sql = """
             INSERT INTO stations
             (route_id, areas_id, station_name, sequence_order,
              longitude, latitude, arrive_time, leave_time, stay_type, memo, raw_source_id)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON DUPLICATE KEY UPDATE
-                station_id     = LAST_INSERT_ID(station_id),
-                route_id       = VALUES(route_id),
-                areas_id       = VALUES(areas_id),
-                sequence_order = VALUES(sequence_order),
-                arrive_time    = VALUES(arrive_time),
-                leave_time     = VALUES(leave_time),
-                stay_type      = VALUES(stay_type),
-                memo           = VALUES(memo),
-                raw_source_id  = VALUES(raw_source_id)
         """
         self.cursor.execute(
             sql,
             (
-                self._clean(route_id),
-                self._clean(areas_id),
-                self._clean(station_name),
-                self._clean(sequence_order),
-                self._clean(longitude),
-                self._clean(latitude),
-                self._clean(arrive_time),
-                self._clean(leave_time),
-                self._clean(stay_type),
-                self._clean(memo),
-                self._clean(raw_source_id),
+                cleaned_route_id,
+                cleaned_areas_id,
+                cleaned_station_name,
+                cleaned_sequence_order,
+                cleaned_longitude,
+                cleaned_latitude,
+                cleaned_arrive_time,
+                cleaned_leave_time,
+                cleaned_stay_type,
+                cleaned_memo,
+                cleaned_raw_source_id,
             ),
         )
         self._commit_if_needed()

@@ -154,17 +154,7 @@ CREATE TABLE `routes` (
   `route_name` varchar(100) NOT NULL,
   `car_number` varchar(20) DEFAULT NULL,
   `team` varchar(50) DEFAULT NULL,
-  `trip_number` varchar(20) DEFAULT NULL,
-  `biz_key` varchar(512) GENERATED ALWAYS AS (
-    CONCAT_WS('|',
-      CAST(`areas_id` AS CHAR),
-      COALESCE(`route_code`,  ''),
-      COALESCE(`route_name`,  ''),
-      COALESCE(`car_number`,  ''),
-      COALESCE(`team`,        ''),
-      COALESCE(`trip_number`, '')
-    )
-  ) VIRTUAL COMMENT 'ETL UPSERT 業務 key：6 欄位串接（NULL→空），上有 UNIQUE 達成冪等。VIRTUAL 不佔儲存空間，索引仍 work'
+  `trip_number` varchar(20) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -185,15 +175,7 @@ CREATE TABLE `stations` (
   `leave_time` time DEFAULT NULL,
   `stay_type` varchar(20) DEFAULT NULL,
   `memo` text DEFAULT NULL,
-  `raw_source_id` varchar(50) DEFAULT NULL,
-  `biz_key` varchar(512) GENERATED ALWAYS AS (
-    CONCAT_WS('|',
-      CAST(`route_id` AS CHAR),
-      COALESCE(`station_name`, ''),
-      COALESCE(CAST(ROUND(`latitude`,  5) AS CHAR), ''),
-      COALESCE(CAST(ROUND(`longitude`, 5) AS CHAR), '')
-    )
-  ) STORED COMMENT 'ETL UPSERT 業務 key：route_id + 站名 + lat/lng round 5 位（~1m）。包含 route_id 因為現有 schema 是 station per route，同物理站被多條路線經過會有多筆 row'
+  `raw_source_id` varchar(50) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -294,7 +276,6 @@ ALTER TABLE `notifications`
 --
 ALTER TABLE `routes`
   ADD PRIMARY KEY (`route_id`),
-  ADD UNIQUE KEY `uk_routes_biz` (`biz_key`),
   ADD KEY `idx_areas` (`areas_id`),
   ADD KEY `idx_route_code` (`route_code`);
 
@@ -303,7 +284,6 @@ ALTER TABLE `routes`
 --
 ALTER TABLE `stations`
   ADD PRIMARY KEY (`station_id`),
-  ADD UNIQUE KEY `uk_stations_biz` (`biz_key`),
   ADD KEY `route_id` (`route_id`),
   ADD KEY `idx_areas` (`areas_id`),
   ADD KEY `idx_arrive_time` (`arrive_time`),
