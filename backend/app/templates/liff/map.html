@@ -395,20 +395,21 @@
         }
 
         /* ====================================================
-           ACTION BUTTONS — 三階層級
-           p-route 動態 display:none 時，flex-wrap 會自動讓 fav/close
-           回到第一行各佔 50%，layout 不會崩
+           ACTION BUTTONS — 顯示路線 + 加入最愛 並排（50/50）
+           關閉鈕已移除（保留 #p-close 在 DOM 但隱藏，避免動到 JS）
+           關閉改由：① 點地圖空白處 ② panel 向下滑 觸發
+           p-route 動態 display:none 時，剩 p-fav 用 flex:1 自動撐滿
            ==================================================== */
         .p-actions {
             display: flex;
-            flex-wrap: wrap;
             gap: 8px;
             margin-top: 18px;
         }
         .p-actions button {
+            flex: 1;
             border: 1px solid var(--border-strong);
             border-radius: 12px;
-            padding: 13px 12px;
+            padding: 14px 12px;
             font-family: var(--font-cjk);
             font-size: 14px;
             font-weight: 600;
@@ -420,14 +421,12 @@
         }
         .p-actions button:active { transform: scale(0.96); }
 
-        /* PRIMARY — 顯示路線：滿版、LINE 綠實心、帶綠光 */
+        /* PRIMARY — 顯示路線：LINE 綠實心、帶綠光 */
         #p-route {
-            flex: 1 1 100%;
             background: var(--brand);
             border-color: var(--brand);
             color: #001a00;
             font-weight: 700;
-            padding: 14px;
             box-shadow: 0 4px 14px rgba(0,185,0,0.28);
         }
         #p-route:active {
@@ -437,19 +436,16 @@
 
         /* SECONDARY — 加入最愛：綠色描邊 + soft 背景 */
         #p-fav {
-            flex: 1 1 calc(50% - 4px);
             background: var(--brand-soft);
             border-color: rgba(0,185,0,0.32);
             color: var(--brand-light);
         }
 
-        /* TERTIARY — 關閉：透明 + 細邊 */
-        #p-close {
-            flex: 1 1 calc(50% - 4px);
-            background: transparent;
-            color: var(--text-dim);
-            border-color: var(--border);
-        }
+        /* 關閉鈕：永遠隱藏（保留 DOM 與 JS onclick 綁定不動） */
+        #p-close { display: none !important; }
+
+        /* handle bar 區域加大可點擊範圍，視覺上像可拖曳手把 */
+        #panel { touch-action: pan-y; }  /* 容許垂直滑動觸發 panel 自己的下滑關閉 */
 
         /* ====================================================
            LOADER — 進場/定位狀態指示（玻璃藥丸 + spinner）
@@ -876,8 +872,38 @@
         }
     };
 
-    document.getElementById('p-close').onclick = () =>
+    // 關閉 panel 的統一入口（取代原本 #p-close 按鈕；按鈕已 CSS 隱藏）
+    function closePanel() {
         document.getElementById('panel').classList.remove('open');
+    }
+    document.getElementById('p-close').onclick = closePanel;   // 保留綁定避免破壞 JS 結構
+
+    // 向下滑關閉 panel：只在 panel 已捲到頂時才視為「想關閉」（否則是滾動內容）
+    (function () {
+        const panel = document.getElementById('panel');
+        let startY = null;
+        const THRESHOLD = 60;   // 下滑超過 60px 就關閉
+
+        panel.addEventListener('pointerdown', (e) => {
+            // 只在內容已捲到最頂時才開始監測下滑關閉手勢
+            if (panel.scrollTop <= 0) startY = e.clientY;
+        });
+        panel.addEventListener('pointermove', (e) => {
+            if (startY === null) return;
+            const dy = e.clientY - startY;
+            if (dy > THRESHOLD) {
+                closePanel();
+                startY = null;
+            } else if (dy < 0) {
+                // 使用者改成往上滑（要看更多內容） → 取消關閉手勢
+                startY = null;
+            }
+        });
+        const reset = () => { startY = null; };
+        panel.addEventListener('pointerup', reset);
+        panel.addEventListener('pointercancel', reset);
+        panel.addEventListener('pointerleave', reset);
+    })();
 
     // 改搜尋半徑 → 立即以目前查詢中心重查
     document.getElementById('radius').addEventListener('change', () => {
@@ -956,6 +982,9 @@
             maxZoom: 19,
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 貢獻者'
         }).addTo(map);
+
+        // 點地圖空白處（不是 marker；Leaflet 會自動避開 marker click）→ 關 panel
+        map.on('click', closePanel);
 
         // 嘗試 GPS（最久等 10 秒；失敗 getGeo 內已 toast 原因）
         showLoader('定位中…');
