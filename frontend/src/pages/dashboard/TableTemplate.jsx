@@ -7,12 +7,11 @@ const TableTemplate = ({ tableName }) => {
   const [pageSize, setPageSize] = useState(500); 
   const [filterText, setFilterText] = useState('');
   const [filterTextDraft, setFilterTextDraft] = useState('');
-  const [isComposing, setIsComposing] = useState(false);
   const [searchField, setSearchField] = useState('__all__');
   const [sortOrder, setSortOrder] = useState('none'); 
 
   const [browseData, setBrowseData] = useState([]); 
-  const [tableColumns, setTableColumns] = useState([]); // 👈 1. 新增狀態：儲存資料庫實體欄位順序
+  const [tableColumns, setTableColumns] = useState([]); 
   const [totalRows, setTotalRows] = useState(0); 
   const [structureData, setStructureData] = useState([]); 
   const [loading, setLoading] = useState(true);
@@ -45,7 +44,7 @@ const TableTemplate = ({ tableName }) => {
           const result = await res.json();
           setBrowseData(result.data || []); 
           setTotalRows(result.total || 0);  
-          setTableColumns(result.columns || []); // 👈 2. 存入後端傳來最嚴謹的實體順序
+          setTableColumns(result.columns || []); 
         } else {
           const url = `${baseUrl}/api/db/structure?table=${tableName}`;
           const res = await authedFetch(url);
@@ -65,6 +64,7 @@ const TableTemplate = ({ tableName }) => {
 
   useEffect(() => {
     setSearchField('__all__');
+    setFilterText(''); // 切換資料表時清空搜尋條件
   }, [tableName]);
 
   useEffect(() => {
@@ -74,10 +74,15 @@ const TableTemplate = ({ tableName }) => {
   const totalPages = Math.ceil(totalRows / pageSize) || 1;
   const pageOptions = Array.from({ length: totalPages }, (_, i) => i + 1);
 
+  // 執行搜尋的動作：將草稿同步到實際觸發 API 的狀態中
+  const handleSearchSubmit = () => {
+    setFilterText(filterTextDraft);
+    setCurrentPage(1); // 搜尋時重設回第一頁
+  };
+
   const renderBrowseTab = () => {
     if (browseData.length === 0) return <div style={styles.noData}>此資料表目前沒有任何數據。</div>;
     
-    // 優先採用後端給的實體順序，若沒有才降級用 Object.keys
     const headers = tableColumns.length > 0 ? tableColumns : Object.keys(browseData[0]);
     
     return (
@@ -97,7 +102,7 @@ const TableTemplate = ({ tableName }) => {
               </tr>
             ))}
           </tbody>
-        </table> {/* 🟢 這裡原本錯打成 </tbody>，已修正為 </table> */}
+        </table>
       </div>
     );
   };
@@ -169,29 +174,35 @@ const TableTemplate = ({ tableName }) => {
               </select>
 
               <span style={styles.toolbarLabel}>篩選資料列：</span>
-              <input
-                type="text"
-                placeholder="搜尋此資料表"
-                value={filterTextDraft}
-                onCompositionStart={() => setIsComposing(true)}
-                onCompositionEnd={(e) => {
-                  const committed = e.currentTarget.value;
-                  setIsComposing(false);
-                  setFilterTextDraft(committed);
-                  setFilterText(committed);
-                  setCurrentPage(1);
-                }}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  const composingNow = Boolean(e.nativeEvent && e.nativeEvent.isComposing);
-                  setFilterTextDraft(next);
-                  if (!isComposing && !composingNow) {
-                    setFilterText(next);
-                    setCurrentPage(1);
-                  }
-                }}
-                style={styles.input}
-              />
+              <div style={{ display: 'inline-flex', alignItems: 'center()', position: 'relative' }}>
+                <input
+                  type="text"
+                  placeholder="搜尋後按 Enter 或點擊 🔍"
+                  value={filterTextDraft}
+                  onChange={(e) => setFilterTextDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSearchSubmit();
+                    }
+                  }}
+                  style={{ ...styles.input, paddingRight: '30px' }} // 留右邊空間給放大鏡
+                />
+                <button 
+                  onClick={handleSearchSubmit}
+                  title="執行搜尋"
+                  style={{
+                    position: 'absolute',
+                    right: '5px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    padding: '4px'
+                  }}
+                >
+                  🔍
+                </button>
+              </div>
 
               <span style={styles.toolbarLabel}>搜尋欄位：</span>
               <select value={searchField} onChange={(e) => { setSearchField(e.target.value); setCurrentPage(1); }} style={styles.select}>
@@ -221,7 +232,6 @@ const TableTemplate = ({ tableName }) => {
   );
 };
 
-// 🔴 完全保留，未作任何更動
 const styles = {
   card: {
     backgroundColor: '#ffffff',
