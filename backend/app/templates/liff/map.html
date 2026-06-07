@@ -443,8 +443,8 @@
         /* 關閉鈕：永遠隱藏（保留 DOM 與 JS onclick 綁定不動） */
         #p-close { display: none !important; }
 
-        /* handle bar 區域加大可點擊範圍，視覺上像可拖曳手把 */
-        #panel { touch-action: pan-y; }  /* 容許垂直滑動觸發 panel 自己的下滑關閉 */
+        /* panel 完全鎖住觸控手勢交給 JS 處理；避免瀏覽器把下滑當成 pull-to-refresh 或 viewport scroll */
+        #panel { touch-action: none; overscroll-behavior: contain; }
 
         /* ====================================================
            LOADER — 進場/定位狀態指示（玻璃藥丸 + spinner）
