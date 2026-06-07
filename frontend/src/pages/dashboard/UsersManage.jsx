@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getBackendUrl } from '../../utils/api';
+import { getBackendUrl, authedFetch } from '../../utils/api';
 
 const UsersManage = () => {
   const [users, setUsers] = useState([]);
@@ -14,7 +14,7 @@ const UsersManage = () => {
       setError(null);
       const baseUrl = await getBackendUrl();
       
-      const res = await fetch(`${baseUrl}/api/users/list`);
+      const res = await authedFetch(`${baseUrl}/api/users/list`);
       if (!res.ok) throw new Error('無法取得使用者管理清單');
       
       const data = await res.json();
@@ -37,7 +37,7 @@ const UsersManage = () => {
 
     try {
       const baseUrl = await getBackendUrl();
-      const res = await fetch(`${baseUrl}/api/users/promote`, {
+      const res = await authedFetch(`${baseUrl}/api/users/promote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId }) // 傳送資料庫 user_id 門牌
@@ -62,7 +62,7 @@ const UsersManage = () => {
 
     try {
       const baseUrl = await getBackendUrl();
-      const res = await fetch(`${baseUrl}/api/users/suspend`, {
+      const res = await authedFetch(`${baseUrl}/api/users/suspend`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId })
