@@ -20,16 +20,6 @@
 
 ### 啟動後端
 
-PowerShell： (這個我不知道有沒有用 我是用CMD的 讚讚喔)
-
-```powershell
-cd backend
-..\.venv\Scripts\activate.bat
-set DISABLE_SCHEDULER=1
-set FLASK_APP=app:create_app
-python -m flask run --host=0.0.0.0 --port=5000
-```
-
 cmd.exe（注意 set 等號兩邊不可有空格、值不加引號）：
 
 ```bat
@@ -39,7 +29,7 @@ set DISABLE_SCHEDULER=1 # 不一定要
 python run.py
 ```
 
-啟動後開 http://localhost:5000/health 應回 `{"status":"ok"}`。
+啟動後開 http://localhost:8000/health 應回 `{"status":"ok"}`。
 
 ### ngrok 對外（連到本地 5000）
 

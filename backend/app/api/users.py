@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, g
 from werkzeug.security import generate_password_hash
 from app.db import get_db_connection
 from app.utils.responses import ok, err
-from app.utils.auth import line_required
+from app.utils.auth import line_required, admin_required
 import pymysql
 
 bp = Blueprint('users', __name__, url_prefix='/api/users')
@@ -134,6 +134,7 @@ def set_credentials():
 # ─── 以下為全新加裝的管理者高階控制端點 ───
 
 @bp.route('/list', methods=['GET'])
+@admin_required
 def get_users_list():
     """
     📊 讀取實體資料庫的所有用戶清單
@@ -155,6 +156,7 @@ def get_users_list():
 
 
 @bp.route('/promote', methods=['POST'])
+@admin_required
 def promote_user():
     """
     🔼 權限升等：將指定的一般用戶提升為管理員 (Admin)
@@ -193,6 +195,7 @@ def promote_user():
 
 
 @bp.route('/suspend', methods=['POST'])
+@admin_required
 def suspend_user():
     """
     🚫 違規懲處：將違規用戶黑名單停權
