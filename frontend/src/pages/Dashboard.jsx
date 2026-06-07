@@ -20,6 +20,7 @@ import ActionAddDelete from './dashboard/ActionAddDelete';
 import RulesAnnouncements from './dashboard/RulesAnnouncements';
 import EtlSources from './dashboard/EtlSources';
 import SyncLog from './dashboard/SyncLog';
+import AuditLog from './dashboard/AuditLog';
 import HomeOverview from './dashboard/HomeOverview';
 import { getBackendUrl } from '../utils/api';
 
@@ -83,6 +84,7 @@ const Dashboard = ({ onLogout }) => {
       case 'rules-announcements': return <RulesAnnouncements />;
       case 'etl-sources': return <EtlSources />;
       case 'sync-log': return <SyncLog />;
+      case 'audit-log': return <AuditLog />;
 
       default: return <div>頁面建構中...</div>;
     }
@@ -129,6 +131,7 @@ const Dashboard = ({ onLogout }) => {
           <div onClick={() => setActivePage('rules-announcements')} style={{...styles.menuItem, ...(activePage === 'rules-announcements' ? styles.menuActive : {})}}>📢 規則與公告</div>
           <div onClick={() => setActivePage('etl-sources')} style={{...styles.menuItem, ...(activePage === 'etl-sources' ? styles.menuActive : {})}}>🔗 ETL 來源設定</div>
           <div onClick={() => setActivePage('sync-log')} style={{...styles.menuItem, ...(activePage === 'sync-log' ? styles.menuActive : {})}}>🔄 API 同步紀錄</div>
+          <div onClick={() => setActivePage('audit-log')} style={{...styles.menuItem, ...(activePage === 'audit-log' ? styles.menuActive : {})}}>🛡️ 操作紀錄</div>
         </div>
 
         <div style={styles.sidebarFooter}>

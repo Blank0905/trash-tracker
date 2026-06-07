@@ -86,7 +86,7 @@ trash-tracker/
 2. 註冊自訂 `CustomJSONProvider`：自動把 `Decimal` → float、`date/datetime` → ISO 字串、`timedelta` → `HH:MM:SS`。
 3. 啟用 CORS（全開放）。
 4. 定義數個 **inline 端點**（見 3.3）。
-5. 註冊 12 個 Blueprint（見 3.4）。
+5. 註冊 13 個 Blueprint（見 3.4）。
 6. 啟動背景排程（見第五章），可用 `DISABLE_SCHEDULER=1` 停用。
 
 ### 3.3 `__init__.py` 內的 inline 端點
@@ -168,6 +168,9 @@ trash-tracker/
 - `GET /sources`：列三市目前下載網址與更新時間
 - `PUT /sources/<source>`：更新某市 url（會先下載驗證必要欄位才寫入 `etl_sources`）
 - `POST /run`：背景觸發一次完整 ETL
+
+#### `audit`（`api/audit.py`，`/api/admin/audit-log`）— 管理
+- `GET /`：列出管理者操作紀錄（最新在前），支援 `limit`/`offset`/`action`/`target_type`/`actor_user_id` 篩選，回傳含 `total`。寫入端點分散在各業務 API，請見 7.4。
 
 #### `pages`（`api/pages.py`）— 公開
 - `GET /liff`、`GET /liff/`、`GET /liff/<page>`：渲染 `templates/liff/<page>.html` 並注入 `liff_id`（見第六章）
@@ -313,6 +316,7 @@ APScheduler（`timezone="Asia/Taipei"`），背景執行緒內自行 push app co
   - **規則與公告** `RulesAnnouncements`（`/api/rules`、`/api/announcements`）
   - **ETL 來源設定** `EtlSources`（`/api/admin/etl/sources`）
   - **API 同步紀錄** `SyncLog`（`api_sync_log`）
+  - **操作紀錄** `AuditLog`（`/api/admin/audit-log`，列出管理者敏感操作審計，支援篩選與分頁）
 - `utils/api.js`：
   - `getBackendUrl()`：優先用 `REACT_APP_BACKEND_URL`，否則探測公網/本機（硬編在 `:8000`）。
   - `authHeader()`：從 `localStorage.access_token` 組出 `{ Authorization: 'Bearer ...' }`。
@@ -368,6 +372,7 @@ APScheduler（`timezone="Asia/Taipei"`），背景執行緒內自行 push app co
 - ✅ Webhook 導向 `/favorites`、`/notifications` 的不存在頁面已修
 - ✅ 刪除前端 CRA 預設測試殘檔（`App.test.js`、`setupTests.js`），CI 不再紅燈
 - ✅ 新增 `admin_audit_log` 審計表 + `write_audit_log()` helper；9 個敏感端點（升降權 / 停權 / 公告 CRUD+推播 / ETL / 路線站點刪除）已埋點
+- ✅ 新增 `/api/admin/audit-log` 唯讀查詢 API 與 React 後台「操作紀錄」頁（篩選 + 分頁）
 
 ---
 

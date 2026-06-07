@@ -173,10 +173,12 @@ def create_app():
     from app.api.add_delete_route import bp as add_delete_route_bp
     from app.api.bags import bp as bags_bp
     from app.api.add_delete_station import bp as add_delete_station_bp
+    from app.api.audit import bp as audit_bp
 
     for blueprint in (
         stations_bp, users_bp, line_bp,
-        info_bp, pages_bp, announcements_bp, rules_bp, me_bp, etl_bp, add_delete_route_bp, bags_bp, add_delete_station_bp
+        info_bp, pages_bp, announcements_bp, rules_bp, me_bp, etl_bp, add_delete_route_bp, bags_bp, add_delete_station_bp,
+        audit_bp,
     ):
         app.register_blueprint(blueprint)
 
