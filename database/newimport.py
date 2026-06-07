@@ -348,9 +348,14 @@ class GarbageTruckImporter:
         team: str = None,
         trip_number: str = None,
     ) -> int:
+        # UPSERT：依 biz_key (=全部 6 欄業務欄位) 判斷是否已存在；
+        # 存在 → ON DUPLICATE 觸發，用 LAST_INSERT_ID(route_id) 把現有 id 寫進
+        # connection 的 insert_id，讓 cursor.lastrowid 回傳正確 id（不論 INSERT 或 UPDATE）。
+        # 業務 key = 所有欄位，所以「同 biz_key」=「row 完全相同」→ UPDATE 部分不需動其他欄位。
         sql = """
             INSERT INTO routes (areas_id, route_code, route_name, car_number, team, trip_number)
             VALUES (%s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE route_id = LAST_INSERT_ID(route_id)
         """
         self.cursor.execute(
             sql,
@@ -380,11 +385,25 @@ class GarbageTruckImporter:
         memo: str = None,
         raw_source_id: str = None,
     ) -> int:
+        # UPSERT：依 biz_key (= station_name + ROUND(lat,5) + ROUND(lng,5)) 判重
+        # 存在 → 用 LAST_INSERT_ID 拿回現有 station_id（讓下游 schedules 能掛上去）
+        #        並更新「非業務 key」欄位（route_id / arrive_time 等），保持資料最新
+        # 注意：站點 station_id 跨次 ETL 穩定 → 使用者收藏的 favorites.station_id 不失效
         sql = """
             INSERT INTO stations
             (route_id, areas_id, station_name, sequence_order,
              longitude, latitude, arrive_time, leave_time, stay_type, memo, raw_source_id)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                station_id     = LAST_INSERT_ID(station_id),
+                route_id       = VALUES(route_id),
+                areas_id       = VALUES(areas_id),
+                sequence_order = VALUES(sequence_order),
+                arrive_time    = VALUES(arrive_time),
+                leave_time     = VALUES(leave_time),
+                stay_type      = VALUES(stay_type),
+                memo           = VALUES(memo),
+                raw_source_id  = VALUES(raw_source_id)
         """
         self.cursor.execute(
             sql,

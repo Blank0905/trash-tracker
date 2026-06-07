@@ -287,6 +287,19 @@ APScheduler（`timezone="Asia/Taipei"`），背景執行緒內自行 push app co
 
 ## 第八章　ETL 與同步
 
+### 8.0 冪等機制（重要）
+
+`routes` 與 `stations` 各有一個 `STORED` generated column `biz_key` 與其上 `UNIQUE` 索引（見 `database/migrate_etl_upsert.sql`）：
+
+| 表 | biz_key 組成 | 用途 |
+|---|---|---|
+| `routes` | `areas_id` + `route_code` + `route_name` + `car_number` + `team` + `trip_number`（COALESCE NULL → ''） | 同一條清運路線跨次 ETL 視為同筆，`route_id` 穩定 |
+| `stations` | `station_name` + `ROUND(latitude, 5)` + `ROUND(longitude, 5)`（COALESCE NULL → ''；ROUND 5 位約 1.1m 容忍同來源浮點微差） | 同一物理站點跨次 ETL 視為同筆，`station_id` 穩定 |
+
+`_insert_route` 與 `_insert_station` 走 `INSERT ... ON DUPLICATE KEY UPDATE ... = LAST_INSERT_ID(...)` UPSERT 路徑，無論該筆是新插入還是已存在，`cursor.lastrowid` 都會拿到正確的 id。`stations` 的 ON DUPLICATE 還會更新非 key 欄位（`arrive_time` / `route_id` 等）讓資料保持最新。
+
+**對下游的意義**：使用者收藏的 `favorites.station_id` 不會因 ETL 跑很多次而失效；通知設定同樣穩定。
+
 ### 8.1 來源（`database/newimport.py` 的 `SOURCES`）
 
 | 縣市 | 本地檔 | 線上來源 |
@@ -373,6 +386,7 @@ APScheduler（`timezone="Asia/Taipei"`），背景執行緒內自行 push app co
 - ✅ 刪除前端 CRA 預設測試殘檔（`App.test.js`、`setupTests.js`），CI 不再紅燈
 - ✅ 新增 `admin_audit_log` 審計表 + `write_audit_log()` helper；9 個敏感端點（升降權 / 停權 / 公告 CRUD+推播 / ETL / 路線站點刪除）已埋點
 - ✅ 新增 `/api/admin/audit-log` 唯讀查詢 API 與 React 後台「操作紀錄」頁（篩選 + 分頁）
+- ✅ ETL 冪等化：`routes` / `stations` 加 `biz_key` + UNIQUE，`_insert_route` / `_insert_station` 改 UPSERT；ETL 跑多次資料不再疊加，`station_id` / `route_id` 跨次穩定（見 8.0）
 
 ---
 
