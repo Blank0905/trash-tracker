@@ -2,76 +2,234 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0c0b">
     <title>垃圾袋規範</title>
     <!-- 引入 LINE LIFF SDK -->
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <style>
+        /* ===== Design tokens ===== */
         :root {
-            --primary: #00B900; /* LINE Green */
-            --bg-color: #121212;
-            --surface: #1e1e1e;
-            --text-main: #ffffff;
-            --text-muted: #888888;
+            --bg:            #0a0c0b;
+            --surface:       #14181a;
+            --surface-2:     #1c2024;
+            --surface-glass: rgba(20, 24, 26, 0.78);
+            --border:        #262d31;
+            --border-strong: #3a4046;
+
+            --text:      #eef0ec;
+            --text-dim:  #a8b0ac;
+            --text-mute: #606a66;
+
+            --brand:       #00B900;
+            --brand-light: #2bd84e;
+            --brand-soft:  rgba(0, 185, 0, 0.12);
+            --brand-tint:  rgba(0, 185, 0, 0.22);
+            --brand-glow:  0 0 24px rgba(0, 185, 0, 0.35);
+
+            --amber:       #ffb547;
+            --amber-soft:  rgba(255, 181, 71, 0.14);
+
+            --font-cjk:  'PingFang TC', -apple-system, BlinkMacSystemFont, 'Microsoft JhengHei', 'Heiti TC', 'Noto Sans CJK TC', sans-serif;
+            --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, 'Cascadia Code', Consolas, 'Liberation Mono', Menlo, monospace;
         }
-        * { box-sizing: border-box; }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { margin: 0; }
         body {
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
+            min-height: 100vh;
+            font-family: var(--font-cjk);
+            font-feature-settings: "tnum" 1, "kern" 1;
+            color: var(--text);
+            background: var(--bg);
+            background-image:
+                radial-gradient(ellipse 80% 40% at 50% -10%, rgba(0,185,0,0.05), transparent 60%);
+            padding:
+                calc(env(safe-area-inset-top, 0px) + 20px)
+                18px
+                calc(env(safe-area-inset-bottom, 0px) + 32px);
             display: flex;
             justify-content: center;
             align-items: flex-start;
-            min-height: 100vh;
         }
-        .container { width: 100%; max-width: 420px; }
-        h2 { text-align: center; font-weight: 600; letter-spacing: 1px; }
 
-        /* 縣市選單 */
-        .city-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+        .container { width: 100%; max-width: 440px; }
+
+        /* === Eyebrow + Title === */
+        .page-eyebrow {
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 14px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: 500;
+            letter-spacing: 0.26em;
+            text-transform: uppercase;
+            color: var(--text-mute);
+        }
+        .page-eyebrow::before {
+            content: '';
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--brand);
+            box-shadow: var(--brand-glow);
+        }
+        .page-eyebrow .line {
+            flex: 1; height: 1px;
+            background: linear-gradient(90deg, var(--border), transparent);
+        }
+
+        h2 {
+            margin: 0 0 22px;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.01em;
+            line-height: 1.2;
+        }
+
+        /* === 縣市 segmented control（city-bar 與 city-btn 是 JS hook） === */
+        .city-bar {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 18px;
+            padding: 4px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
         .city-btn {
             flex: 1;
-            border: 1px solid #2c2c2c;
-            background: var(--surface);
-            color: var(--text-muted);
-            border-radius: 10px;
+            border: none;
+            background: transparent;
+            color: var(--text-dim);
+            border-radius: 9px;
             padding: 10px 0;
-            font-size: 0.9rem;
-            cursor: pointer;
-        }
-        .city-btn.active {
-            background: var(--primary);
-            color: #fff;
-            border-color: var(--primary);
+            font-family: var(--font-cjk);
+            font-size: 14px;
             font-weight: 600;
+            letter-spacing: 0.02em;
+            cursor: pointer;
+            transition: background 0.18s ease, color 0.18s ease;
+        }
+        .city-btn:active { transform: scale(0.97); }
+        .city-btn.active {
+            background: var(--brand);
+            color: #001a00;
+            font-weight: 700;
+            box-shadow: 0 2px 8px rgba(0,185,0,0.3);
         }
 
-        #status { text-align: center; color: var(--text-muted); margin: 30px 0; }
+        /* === Status text === */
+        #status {
+            text-align: center;
+            color: var(--text-mute);
+            margin: 40px 0;
+            font-size: 13px;
+            letter-spacing: 0.02em;
+        }
 
+        /* === 垃圾袋卡片（card / card-title / card-sub / kv / badge 是 JS hook） === */
         .card {
-            background-color: var(--surface);
-            border-radius: 14px;
-            padding: 16px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 18px;
             margin-bottom: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.2s ease;
         }
-        .card-title { font-size: 1.05rem; font-weight: 600; }
-        .card-sub { font-size: 0.85rem; color: var(--primary); margin-top: 4px; }
-        .kv { font-size: 0.85rem; color: var(--text-muted); margin-top: 6px; }
-        .kv b { color: var(--text-main); font-weight: 600; }
+        .card:active { border-color: var(--border-strong); }
+        /* 左側細條，視覺呼應產品價籤 */
+        .card::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 18px; bottom: 18px;
+            width: 3px;
+            background: linear-gradient(180deg, var(--brand-light), var(--brand));
+            border-radius: 0 2px 2px 0;
+            opacity: 0.7;
+        }
+
+        /* 標題：產品名稱大字 + 行內 badge */
+        .card-title {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--text);
+            line-height: 1.35;
+            letter-spacing: -0.005em;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        /* 規格分類徽章：（環保兩用 / 提耳式 等） */
         .badge {
-            display: inline-block; font-size: 0.72rem; padding: 2px 8px;
-            border-radius: 6px; background: #2c2c2c; color: var(--text-muted);
-            margin-left: 6px; vertical-align: middle;
+            display: inline-flex;
+            align-items: center;
+            font-family: var(--font-cjk);
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 9px;
+            border-radius: 6px;
+            background: var(--surface-2);
+            color: var(--text-dim);
+            border: 1px solid var(--border-strong);
+            letter-spacing: 0.03em;
+            margin-left: 0; /* 覆蓋舊版 6px，改用 gap 控間距 */
+            vertical-align: baseline;
+        }
+
+        /* 規格與價格列：mono 字體，呈現「資料感」 */
+        .card-sub {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--brand-light);
+            margin-top: 8px;
+            padding: 8px 10px;
+            background: var(--brand-soft);
+            border: 1px solid var(--brand-tint);
+            border-radius: 8px;
+            letter-spacing: 0.01em;
+            line-height: 1.5;
+        }
+
+        /* 附加資訊列（購買地點、備註） */
+        .kv {
+            font-size: 13px;
+            color: var(--text-dim);
+            margin-top: 10px;
+            line-height: 1.55;
+            padding-left: 12px;
+            position: relative;
+        }
+        .kv::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 8px;
+            width: 4px; height: 4px;
+            border-radius: 50%;
+            background: var(--text-mute);
+        }
+        .kv b {
+            color: var(--text);
+            font-weight: 600;
+            margin-right: 2px;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>垃圾袋規範</h2>
+
+    <div class="page-eyebrow">
+        BAG · 垃圾袋規範
+        <span class="line"></span>
+    </div>
+
+    <h2>專用垃圾袋規範</h2>
+
     <div class="city-bar" id="cityBar"></div>
     <div id="status">載入中…</div>
     <div id="list"></div>

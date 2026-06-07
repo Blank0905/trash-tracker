@@ -68,8 +68,13 @@
             position: fixed; inset: 0;
             background: radial-gradient(ellipse at 50% 40%, #1a2020 0%, #0a0c0b 75%);
         }
-        .leaflet-tile-pane {
+        /* 暗色地圖只在 body.map-dark 時生效；JS 預設套上 + localStorage 記住偏好 */
+        body.map-dark .leaflet-tile-pane {
             filter: invert(0.92) hue-rotate(180deg) brightness(0.92) contrast(0.86) saturate(0.65);
+        }
+        /* 亮色地圖切換時，地圖底圖底色換成淺灰，避免黑色背景在 tile 載入間漏色 */
+        body.map-light #map {
+            background: radial-gradient(ellipse at 50% 40%, #e9eced 0%, #c9ced0 75%);
         }
 
         /* Leaflet tooltip 對齊主題 */
@@ -254,6 +259,11 @@
         }
         /* dragPin 內紅色 SVG：尺寸對齊地圖上會放的搜尋大頭針 */
         #dragPin .pin-svg { width: 30px; height: 38px; pointer-events: none; }
+
+        /* 主題切換鍵：依當前主題只顯示其中一顆圖示（按了會切到另一個） */
+        #themeToggle .icon-sun, #themeToggle .icon-moon { display: none; }
+        body.map-dark  #themeToggle .icon-sun  { display: block; } /* 暗色中：顯示太陽（點了會變亮） */
+        body.map-light #themeToggle .icon-moon { display: block; } /* 亮色中：顯示月亮（點了會變暗） */
 
         /* ====================================================
            SEARCH PIN / GHOST — 地圖上紅針 & 拖曳分身
@@ -512,8 +522,26 @@
     </div>
 </div>
 
-<!-- 右下浮動按鈕：拖曳搜尋針（次）+ 定位（主） -->
+<!-- 右下浮動按鈕：主題切換、拖曳搜尋針（次）、定位（主） -->
 <div class="fab-stack">
+    <button id="themeToggle" class="fab" title="切換地圖亮暗" aria-label="切換地圖亮暗">
+        <!-- 太陽（暗色中顯示，按了會變亮） -->
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4"/>
+            <line x1="12" y1="2"  x2="12" y2="4.5"/>
+            <line x1="12" y1="19.5" x2="12" y2="22"/>
+            <line x1="2"  y1="12" x2="4.5" y2="12"/>
+            <line x1="19.5" y1="12" x2="22" y2="12"/>
+            <line x1="4.6" y1="4.6" x2="6.4" y2="6.4"/>
+            <line x1="17.6" y1="17.6" x2="19.4" y2="19.4"/>
+            <line x1="4.6" y1="19.4" x2="6.4" y2="17.6"/>
+            <line x1="17.6" y1="6.4" x2="19.4" y2="4.6"/>
+        </svg>
+        <!-- 月亮（亮色中顯示，按了會變暗） -->
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+        </svg>
+    </button>
     <button id="dragPin" class="fab" title="拖我到地圖上選搜尋點" aria-label="拖曳設定搜尋點">
         <!-- 紅色搜尋大頭針（與地圖上會放的針視覺一致；class .pin-svg 是 CSS hook） -->
         <svg class="pin-svg" viewBox="0 0 24 32" aria-hidden="true">
@@ -541,6 +569,21 @@
     // 後端注入（見 app/api/pages.py）。改用 Leaflet/OSM 後不再需要 Google Maps 金鑰。
     const LIFF_ID = "{{ liff_id }}";
     const DEFAULT_CENTER = { lat: 25.0478, lng: 121.5170 }; // 台北車站，最終後備
+
+    // 地圖主題：dark（預設）/ light，存於 localStorage；同步加到 body class 控制 tile filter
+    const MAP_THEME_KEY = 'mapTheme';
+    function applyMapTheme(theme) {
+        const t = theme === 'light' ? 'light' : 'dark';
+        document.body.classList.toggle('map-dark',  t === 'dark');
+        document.body.classList.toggle('map-light', t === 'light');
+    }
+    // 頁面一載入就套用（避免按鈕出現後才切，瞬閃）
+    applyMapTheme(localStorage.getItem(MAP_THEME_KEY) || 'dark');
+    document.getElementById('themeToggle').addEventListener('click', () => {
+        const next = document.body.classList.contains('map-dark') ? 'light' : 'dark';
+        applyMapTheme(next);
+        localStorage.setItem(MAP_THEME_KEY, next);
+    });
 
     let lineUserId = null;
     let map = null;

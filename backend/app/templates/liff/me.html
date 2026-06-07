@@ -2,159 +2,375 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0c0b">
     <title>收藏與通知</title>
     <!-- 引入 LINE LIFF SDK -->
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <style>
+        /* ===== Design tokens ===== */
         :root {
-            --primary: #00B900; /* LINE Green */
-            --danger: #e74c3c;
-            --bg-color: #121212;
-            --surface: #1e1e1e;
-            --text-main: #ffffff;
-            --text-muted: #888888;
+            --bg:            #0a0c0b;
+            --surface:       #14181a;
+            --surface-2:     #1c2024;
+            --surface-3:     #232a2e;
+            --border:        #262d31;
+            --border-strong: #3a4046;
+
+            --text:      #eef0ec;
+            --text-dim:  #a8b0ac;
+            --text-mute: #606a66;
+
+            --brand:       #00B900;
+            --brand-light: #2bd84e;
+            --brand-soft:  rgba(0, 185, 0, 0.12);
+            --brand-tint:  rgba(0, 185, 0, 0.22);
+            --brand-glow:  0 0 24px rgba(0, 185, 0, 0.35);
+
+            --danger:      #ff5e5b;
+            --danger-soft: rgba(255, 94, 91, 0.12);
+            --danger-tint: rgba(255, 94, 91, 0.28);
+
+            --font-cjk:  'PingFang TC', -apple-system, BlinkMacSystemFont, 'Microsoft JhengHei', 'Heiti TC', 'Noto Sans CJK TC', sans-serif;
+            --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, 'Cascadia Code', Consolas, 'Liberation Mono', Menlo, monospace;
         }
-        * { box-sizing: border-box; }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { margin: 0; }
         body {
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
+            min-height: 100vh;
+            font-family: var(--font-cjk);
+            font-feature-settings: "tnum" 1, "kern" 1;
+            color: var(--text);
+            background: var(--bg);
+            background-image:
+                radial-gradient(ellipse 80% 40% at 50% -10%, rgba(0,185,0,0.05), transparent 60%);
+            padding:
+                calc(env(safe-area-inset-top, 0px) + 20px)
+                18px
+                calc(env(safe-area-inset-bottom, 0px) + 36px);
             display: flex;
             justify-content: center;
             align-items: flex-start;
-            min-height: 100vh;
         }
-        .container { width: 100%; max-width: 420px; }
-        h2 { text-align: center; font-weight: 600; letter-spacing: 1px; }
-        #status { text-align: center; color: var(--text-muted); margin: 30px 0; }
 
-        .card {
-            background-color: var(--surface);
+        .container { width: 100%; max-width: 460px; }
+
+        /* === Eyebrow + Title === */
+        .page-eyebrow {
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 14px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: 500;
+            letter-spacing: 0.26em;
+            text-transform: uppercase;
+            color: var(--text-mute);
+        }
+        .page-eyebrow::before {
+            content: '';
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--brand);
+            box-shadow: var(--brand-glow);
+            animation: pulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .page-eyebrow .line {
+            flex: 1; height: 1px;
+            background: linear-gradient(90deg, var(--border), transparent);
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50%      { opacity: 0.35; transform: scale(0.8); }
+        }
+
+        h2 {
+            margin: 0 0 22px;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.01em;
+            line-height: 1.2;
+        }
+
+        /* === 狀態文字（載入中 / 尚無收藏） === */
+        #status {
+            text-align: center;
+            color: var(--text-mute);
+            margin: 50px 0;
+            font-size: 13px;
+            letter-spacing: 0.02em;
+            padding: 32px 20px;
+            background: var(--surface);
+            border: 1px dashed var(--border);
             border-radius: 14px;
-            padding: 16px;
-            margin-bottom: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
-        .card.inactive .days { opacity: 0.45; }
 
+        /* ============================================
+           CARD — 站點卡片（JS render 寫入：card / card-head / title-wrap / card-title / icon-btn / fav-sub / toggle / days / muted / row / select / btn-small / btn-delete）
+           card.inactive class 由 JS 加上以表示通知關閉狀態
+           data-active="0/1" 由 JS 設定
+           ============================================ */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px 16px 14px;
+            margin-bottom: 12px;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.25s ease;
+        }
+        /* 啟用狀態：左側 LINE 綠竖條會「亮」起來，類似 ops console 中 active row 視覺 */
+        .card::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 16px; bottom: 16px;
+            width: 3px;
+            background: var(--border-strong);
+            border-radius: 0 2px 2px 0;
+            transition: background 0.25s ease, box-shadow 0.25s ease;
+        }
+        .card:not(.inactive)::before {
+            background: linear-gradient(180deg, var(--brand-light), var(--brand));
+            box-shadow: 0 0 8px rgba(0,185,0,0.4);
+        }
+        .card.inactive { border-color: var(--border); }
+        .card.inactive .days { opacity: 0.4; }
+        .card.inactive .row select { opacity: 0.4; }
+
+        /* === Card head：站名 + 通知 toggle === */
         .card-head {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 10px;
+            gap: 12px;
         }
         .title-wrap {
             display: flex;
             align-items: center;
             gap: 6px;
             min-width: 0;
+            flex: 1;
         }
         .card-title {
-            font-size: 1.05rem;
-            font-weight: 600;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: -0.005em;
+            line-height: 1.3;
             min-width: 0;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        /* 站名旁的改別名鉛筆鈕 */
+
+        /* 改別名鉛筆鈕：點擊區比視覺大一點 */
         .icon-btn {
             flex-shrink: 0;
             border: none;
-            background: transparent;
-            color: var(--text-muted);
-            font-size: 1rem;
+            background: var(--surface-2);
+            color: var(--text-mute);
+            font-size: 13px;
             line-height: 1;
-            padding: 2px;
+            padding: 6px 8px;
+            border-radius: 8px;
             cursor: pointer;
+            transition: background 0.18s ease, color 0.18s ease;
         }
-        .icon-btn:active { transform: scale(0.9); }
+        .icon-btn:active { transform: scale(0.9); background: var(--surface-3); color: var(--text-dim); }
+
+        /* 副標：站名（若 alias 顯示在主標）+ 表定到站時間 */
         .fav-sub {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            margin-top: 4px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-mute);
+            margin-top: 6px;
+            letter-spacing: 0.02em;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
 
-        /* 通知總開關 */
+        /* === 通知總開關 toggle：做成「指示燈」型按鈕 === */
         .toggle {
             flex-shrink: 0;
-            border: none;
-            border-radius: 8px;
-            padding: 6px 12px;
-            font-size: 0.8rem;
-            font-weight: bold;
-            color: #fff;
-            background: #555;
+            border: 1px solid var(--border-strong);
+            border-radius: 999px;
+            padding: 6px 12px 6px 8px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--text-mute);
+            background: var(--surface-2);
             cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
         }
-        .toggle.on { background: var(--primary); }
+        .toggle::before {
+            content: '';
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: var(--text-mute);
+            transition: background 0.2s ease, box-shadow 0.2s ease;
+        }
+        .toggle.on {
+            color: var(--brand-light);
+            border-color: var(--brand-tint);
+            background: var(--brand-soft);
+        }
+        .toggle.on::before {
+            background: var(--brand);
+            box-shadow: 0 0 6px rgba(0,185,0,0.6);
+        }
         .toggle:active { transform: scale(0.96); }
 
+        /* === 7 天逐日通知：把 checkbox 樣化成圓型 chips === */
         .days {
             display: flex;
-            gap: 14px;
+            gap: 6px;
             flex-wrap: wrap;
             margin-top: 14px;
-            font-size: 0.9rem;
+            transition: opacity 0.25s ease;
         }
-        .days label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
-        .days input { accent-color: var(--primary); width: 16px; height: 16px; }
-        .days input:disabled { cursor: not-allowed; }
-        .muted { color: var(--text-muted); margin-top: 14px; font-size: 0.9rem; }
+        .days label {
+            display: flex; align-items: center;
+            cursor: pointer;
+            position: relative;
+        }
+        /* 隱藏原生 checkbox；用 label 包住的視覺取代 */
+        .days input[type="checkbox"] {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+        /* checkbox 後的文字「週X」轉成圓形 chip */
+        .days label {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            width: 36px; height: 36px;
+            border-radius: 10px;
+            border: 1px solid var(--border-strong);
+            background: var(--surface-2);
+            color: var(--text-mute);
+            justify-content: center;
+            transition: all 0.18s ease;
+        }
+        /* 開啟通知（checkbox checked）→ chip 變綠 */
+        .days label:has(input:checked) {
+            background: var(--brand);
+            border-color: var(--brand);
+            color: #001a00;
+            font-weight: 700;
+            box-shadow: 0 2px 6px rgba(0,185,0,0.3);
+        }
+        /* disabled：靜止灰 */
+        .days label:has(input:disabled) {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        .days label:active { transform: scale(0.92); }
 
+        /* 無收運狀態文字（.muted 在 days 區內） */
+        .muted {
+            color: var(--text-mute);
+            margin-top: 14px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.06em;
+            padding: 12px;
+            text-align: center;
+            background: var(--surface-2);
+            border-radius: 10px;
+            border: 1px dashed var(--border);
+            width: 100%;
+        }
+
+        /* === Row：提前分鐘下拉 + 取消收藏 === */
         .row {
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 10px;
-            margin-top: 14px;
-            font-size: 0.9rem;
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px dashed var(--border);
+            font-size: 13px;
+            color: var(--text-dim);
         }
-        select {
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            appearance: none;
-            background-color: #2c2c2c;
-            /* 自訂下拉箭頭，取代瀏覽器原生箭頭以縮窄框寬 */
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 5px center;
-            background-size: 8px;
-            color: var(--text-main);
-            border: 1px solid #3a3a3a;
-            border-radius: 4px;
-            padding: 3px 16px 3px 6px;
-            font-size: 0.85rem;
-            margin: 0 3px;
-            width: 50px;   /* 固定寬度，避免被最寬選項「自訂…」撐大 */
-        }
-        select:disabled { opacity: 0.5; cursor: not-allowed; }
-        /* 與下拉同排的取消收藏鈕：字小一點避免換行 */
-        .row .btn-small { padding: 5px 10px; font-size: 0.78rem; }
 
-        .btn-small {
-            border: none;
-            border-radius: 8px;
-            padding: 8px 12px;
-            font-size: 0.85rem;
-            font-weight: bold;
-            color: #fff;
+        /* select 在 row 內：mono 字體、藥丸狀；JS 預設給的 inline style 會被覆蓋 */
+        .row select {
+            appearance: none; -webkit-appearance: none;
+            background-color: var(--surface-2);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23a8b0ac' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='3,4.5 6,7.5 9,4.5'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            background-size: 9px;
+            color: var(--text);
+            border: 1px solid var(--border-strong);
+            border-radius: 999px;
+            padding: 5px 22px 5px 12px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            margin: 0 4px;
+            min-width: 56px;
+            width: auto;
             cursor: pointer;
         }
-        .btn-delete { background: var(--danger); }
+        .row select:focus { outline: none; border-color: var(--brand); }
+        .row select:disabled { cursor: not-allowed; opacity: 0.4; }
+
+        /* 與下拉同排的取消收藏鈕 */
+        .row .btn-small { padding: 7px 12px; font-size: 11px; }
+
+        /* === 共用按鈕 === */
+        .btn-small {
+            border: 1px solid var(--border-strong);
+            background: var(--surface-2);
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-family: var(--font-cjk);
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            color: var(--text);
+            cursor: pointer;
+            transition: transform 0.12s ease, background 0.18s ease, border-color 0.18s ease;
+        }
         .btn-small:active { transform: scale(0.96); }
+
+        /* 取消收藏：紅色危險動作 */
+        .btn-delete {
+            background: var(--danger-soft);
+            color: var(--danger);
+            border-color: var(--danger-tint);
+        }
+        .btn-delete:active {
+            background: var(--danger);
+            color: white;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>收藏與通知</h2>
+
+    <div class="page-eyebrow">
+        ME · 收藏與通知
+        <span class="line"></span>
+    </div>
+
+    <h2>我的收藏與提醒</h2>
+
     <div id="status">載入中…</div>
     <div id="list"></div>
 </div>
@@ -200,7 +416,7 @@
     function render(items) {
         if (!items || items.length === 0) {
             statusEl.style.display = 'block';
-            statusEl.innerText = '尚無收藏';
+            statusEl.innerText = '尚無收藏。到地圖頁點選站點加入吧。';
             listEl.innerHTML = '';
             return;
         }
@@ -217,7 +433,7 @@
             // 只列出該站「有收運的星期」，每天一個開關（對應 notify_d{day}）；通知關閉時 disabled
             const dayChecks = days.length
                 ? days.map(d => `<label><input type="checkbox" data-day="${d}" `
-                    + `${Number(notifyDays[d]) === 1 ? 'checked' : ''} ${active ? '' : 'disabled'}> 週${DOW[d]}</label>`).join('')
+                    + `${Number(notifyDays[d]) === 1 ? 'checked' : ''} ${active ? '' : 'disabled'}>${DOW[d]}</label>`).join('')
                 : '<div class="muted">本站近期無收運</div>';
 
             return `
@@ -227,7 +443,7 @@
                         <span class="card-title">${esc(title)}</span>
                         <button class="icon-btn" data-action="rename" data-alias="${esc(s.alias || '')}" title="改別名">✏️</button>
                     </div>
-                    <button class="toggle ${active ? 'on' : ''}" data-action="toggle">${active ? '通知開啟' : '通知關閉'}</button>
+                    <button class="toggle ${active ? 'on' : ''}" data-action="toggle">${active ? '通知中' : '已關閉'}</button>
                 </div>
                 <div class="fav-sub">${sub}</div>
                 <div class="days">${dayChecks}</div>
