@@ -50,6 +50,42 @@ except ImportError:
 bp = Blueprint('announcements', __name__, url_prefix='/api/announcements')
 
 
+def _get_announcement_recipient_line_ids(cursor, target_city):
+    if not target_city:
+        cursor.execute(
+            """
+            SELECT line_user_id
+            FROM users
+            WHERE line_user_id IS NOT NULL
+              AND status = 'active'
+            """
+        )
+        return [row['line_user_id'] for row in cursor.fetchall() if row.get('line_user_id')]
+
+    cursor.execute(
+        """
+        SELECT DISTINCT u.line_user_id
+        FROM favorites f
+        INNER JOIN users u ON u.user_id = f.user_id
+        INNER JOIN stations s ON s.station_id = f.station_id
+        INNER JOIN areas a ON a.areas_id = s.areas_id
+        WHERE u.line_user_id IS NOT NULL
+          AND u.status = 'active'
+          AND a.city = %s
+        """,
+        (target_city,)
+    )
+    return [row['line_user_id'] for row in cursor.fetchall() if row.get('line_user_id')]
+
+
+def _filter_valid_line_ids(line_ids):
+    return [
+        line_user_id
+        for line_user_id in line_ids
+        if line_user_id and re.match(r'^U[0-9a-fA-F]{32}$', line_user_id)
+    ]
+
+
 def _build_push_text(title: str, content: str, target_city: str = None) -> str:
     scope = f"{target_city}限定通報" if target_city else "系統公告"
     title_text = (title or '').strip()
@@ -114,7 +150,7 @@ def push_existing_announcement(anno_id):
     """專門幫已經存在資料庫、但尚未推播的公告進行補發 LINE 推播"""
     conn = get_db_connection()
     try:
-        with conn.cursor() as cursor:
+        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
             # 1. 先去資料庫把這則公告的標題、內文、目標縣市撈出來
             find_sql = "SELECT title, content, target_city, is_pushed FROM announcements WHERE announcement_id = %s"
             cursor.execute(find_sql, [anno_id])
@@ -131,19 +167,12 @@ def push_existing_announcement(anno_id):
             db_city = anno['target_city']
 
             # 2. 撈取所有要接收的 LINE 用戶
-            user_sql = "SELECT line_user_id FROM users WHERE line_user_id IS NOT NULL AND status = 'active'"
-            cursor.execute(user_sql)
-            user_rows = cursor.fetchall()
-            
-            # 使用字典格式取回 line_user_id
-            line_ids = [
-                row['line_user_id'] 
-                for row in user_rows 
-                if row.get('line_user_id') and re.match(r'^U[0-9a-fA-F]{32}$', row['line_user_id'])
-            ]
+            line_ids = _filter_valid_line_ids(
+                _get_announcement_recipient_line_ids(cursor, db_city)
+            )
 
             if not line_ids:
-                return jsonify({"status": "error", "message": "目前沒有任何活躍的 LINE 訂閱用戶"}), 400
+                return jsonify({"status": "error", "message": "目前沒有符合此公告受眾的 LINE 訂閱用戶"}), 400
 
             # 3. 🚀 物理發射（Flex 卡片 + 文字備援）
             sent_ok = _push_announcement_to_line(line_ids, title, content, db_city)
@@ -255,6 +284,32 @@ def get_announcements_list():
         conn.close()
 
 # 2. 🚀 發布新公告（含一鍵群發 LINE Bot 核心邏輯）
+@bp.route('/template/<int:announcement_id>', methods=['GET'])
+@admin_required
+def get_announcement_template(announcement_id):
+    conn = get_db_connection()
+    try:
+        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+            cursor.execute(
+                """
+                SELECT announcement_id, title, content, target_city, is_pushed, pushed_at, created_at
+                FROM announcements
+                WHERE announcement_id = %s
+                """,
+                (announcement_id,)
+            )
+            announcement = cursor.fetchone()
+
+        if not announcement:
+            return jsonify({"status": "error", "message": "找不到該則公告"}), 404
+
+        return jsonify({"status": "success", "announcement": announcement}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"公告模板讀取失敗: {str(e)}"}), 500
+    finally:
+        conn.close()
+
+
 @bp.route('/create', methods=['POST'])
 @admin_required
 def create_announcement():
@@ -272,7 +327,7 @@ def create_announcement():
 
     conn = get_db_connection()
     try:
-        with conn.cursor() as cursor:
+        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
             # A. 將公告本體寫入 MySQL 存檔
             insert_sql = """
                 INSERT INTO announcements (title, content, target_city, is_pushed, created_by) 
@@ -300,17 +355,9 @@ def create_announcement():
             if trigger_push == 1:
                 # 🟢 修正點二：用獨立的 try-except 罩住 LINE 引擎，就算它爆炸，API 依然算成功
                 try:
-                    # 撈取所有 LINE 用戶
-                    user_sql = "SELECT line_user_id FROM users WHERE line_user_id IS NOT NULL AND status = 'active'"
-                    cursor.execute(user_sql)
-                    user_rows = cursor.fetchall()
-                    
-                    # 🟢 修正點三：因為是 DictCursor，必須用 row['line_user_id'] 讀取
-                    line_ids = [
-                        row['line_user_id'] 
-                        for row in user_rows 
-                        if row.get('line_user_id') and re.match(r'^U[0-9a-fA-F]{32}$', row['line_user_id'])
-                    ]
+                    line_ids = _filter_valid_line_ids(
+                        _get_announcement_recipient_line_ids(cursor, db_city)
+                    )
 
                     if line_ids:
                         sent_ok = _push_announcement_to_line(line_ids, title, content, db_city)
@@ -325,6 +372,8 @@ def create_announcement():
                             conn.commit() # 更新成功才 commit 狀態
                         else:
                             print("⚠️ [LINE 推播失敗] 發送回傳 False，公告僅存檔未標記已推播")
+                    else:
+                        print("⚠️ [LINE 推播略過] 沒有符合公告受眾條件的有效 LINE 用戶")
                         
                 except Exception as line_err:
                     # LINE 功能有任何閃失，只在後端印出警告，不連累前方的公告存檔
