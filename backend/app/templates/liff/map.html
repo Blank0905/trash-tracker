@@ -697,6 +697,7 @@
     let rangeCircle = null;  // 搜尋範圍圓圈
     let routeLayer = null;   // 目前顯示的行駛路線（polyline + 該路線站點）
     let currentRouteId = null;
+    let lastSearchResults = []; // 最近一次 /stations/search 的原始結果，供 openStation 找「同地點所有班次時間」
 
     // 目前選取的搜尋半徑（公里）
     function currentRadius() {
@@ -827,6 +828,7 @@
         }).addTo(map);
 
         if (r.status !== 'success') { toast('搜尋失敗：' + (r.message || '')); saveMapState(); return; }
+        lastSearchResults = r.data || [];
         r.data.forEach(s => {
             const mk = L.marker([+s.latitude, +s.longitude]).addTo(map);
             mk.bindTooltip(s.station_name);
@@ -849,11 +851,14 @@
     }
 
     // 把一週班表條列成「有收運的日子」：週X HH:MM + 當天收的種類
+    // arriveTimes：同地點（同站名同位置）所有班次到站時間清單，多個用 ' / ' 串接
     const DOW = ['日', '一', '二', '三', '四', '五', '六'];
-    function renderWeek(schedules, arriveTime) {
+    function renderWeek(schedules, arriveTimes) {
         if (!Array.isArray(schedules) || schedules.length === 0)
             return '<div class="sch-empty">本站無收運班表資料</div>';
-        const time = arriveTime ? arriveTime.slice(0, 5) : '';
+        const timeStr = Array.isArray(arriveTimes) && arriveTimes.length
+            ? arriveTimes.join(' / ')
+            : '';
         const rows = schedules
             .slice()
             .sort((a, b) => a.day_of_week - b.day_of_week)
@@ -863,10 +868,26 @@
                 if (s.collects_garbage) types.push('一般垃圾');
                 if (s.collects_recycling) types.push('資源回收');
                 if (s.collects_foodscraps) types.push('廚餘');
-                return `<div class="sch-row"><span class="sch-day">週${DOW[s.day_of_week]} ${time}</span>`
+                return `<div class="sch-row"><span class="sch-day">週${DOW[s.day_of_week]} ${timeStr}</span>`
                      + `<span class="sch-types">${types.join('、')}</span></div>`;
             });
         return rows.length ? rows.join('') : '<div class="sch-empty">近 7 天無收運</div>';
+    }
+
+    // 從 lastSearchResults 找出「同站名 + 同位置（lat/lng round 5 位 ~1m）」的所有 arrive_times
+    function collectArriveTimes(stationName, lat, lng) {
+        if (!lastSearchResults.length) return [];
+        const targetLat = Number(lat);
+        const targetLng = Number(lng);
+        const same = lastSearchResults.filter(s =>
+            s.station_name === stationName
+            && Math.abs(Number(s.latitude)  - targetLat) < 0.00001
+            && Math.abs(Number(s.longitude) - targetLng) < 0.00001
+        );
+        const times = same
+            .map(s => (s.arrive_time ? String(s.arrive_time).slice(0, 5) : ''))
+            .filter(t => t);
+        return [...new Set(times)].sort();
     }
 
     // 點站 → 取明細（含班表）→ 條列一週收運 → 顯示面板
@@ -875,7 +896,13 @@
         if (r.status !== 'success') { toast('讀取站點失敗：' + (r.message || '')); return; }
         const d = r.data;
         document.getElementById('p-name').innerText = d.station_name || fallbackName || '站點';
-        document.getElementById('p-schedule').innerHTML = renderWeek(d.schedules, d.arrive_time);
+        // 找出「同地點」所有班次到站時間（多條路線同站點時會有多個 arrive_time）；
+        // 若 search 結果裡找不到（例如直接打開站點明細），退回單個 d.arrive_time
+        let arriveTimes = collectArriveTimes(d.station_name, d.latitude, d.longitude);
+        if (arriveTimes.length === 0 && d.arrive_time) {
+            arriveTimes = [String(d.arrive_time).slice(0, 5)];
+        }
+        document.getElementById('p-schedule').innerHTML = renderWeek(d.schedules, arriveTimes);
         document.getElementById('p-fav').onclick = () => addFavorite(d.station_id);
         // 記住此站所屬路線，供「顯示路線」用；按鈕文字依該路線是否正在顯示
         currentRouteId = d.route ? d.route.route_id : null;
