@@ -2,7 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { getBackendUrl, authedFetch } from '../../utils/api';
+import { theme } from '../../utils/theme';
 import BagRegulationsEditor from './BagRegulationsEditor';
+
+const c = theme.colors;
+const r = theme.radius;
 
 // 後台法規即時預覽：Markdown→HTML 並消毒（breaks=true 與 LIFF 顯示一致）
 marked.setOptions({ breaks: true, gfm: true });
@@ -532,89 +536,173 @@ const RulesAnnouncements = () => {
 };
 
 const styles = {
-  card: { backgroundColor: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', padding: '24px' },
-  tabContainer: { display: 'flex', gap: '5px', borderBottom: '2px solid #e2e8f0', marginBottom: '24px', flexWrap: 'wrap' },
-  tabButton: { padding: '12px 20px', border: 'none', background: 'none', fontSize: '15px', fontWeight: 'bold', color: '#64748b', cursor: 'pointer', borderTopLeftRadius: '8px', borderTopRightRadius: '8px', transition: 'all 0.2s' },
-  tabActive: { color: '#1a237e', backgroundColor: '#e8eaf6', borderBottom: '3px solid #1a237e' },
-  loadingText: { textAlign: 'center', padding: '15px', color: '#64748b' },
-  gridContainer: { display: 'flex', gap: '24px', flexWrap: 'wrap' },
-  formPanel: { flex: '1', minWidth: '320px', backgroundColor: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0' },
-  listPanel: { flex: '1.2', minWidth: '350px' },
-  panelTitle: { margin: '0 0 15px 0', color: '#334155', fontSize: '16px', fontWeight: 'bold', borderBottom: '2px solid #cbd5e1', paddingBottom: '8px' },
-  form: { display: 'flex', flexDirection: 'column', gap: '15px' },
-  inputGroup: { display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }, 
-  label: { fontSize: '14px', color: '#475569', fontWeight: 'bold', marginBottom: '4px' }, 
-  input: { padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', width: '100%', boxSizing: 'border-box' },
-  select: { padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', backgroundColor: '#fff', width: '100%', boxSizing: 'border-box' },
-  textarea: { padding: '14px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', resize: 'vertical', width: '100%', boxSizing: 'border-box', fontFamily: 'monospace', lineHeight: '1.6' }, 
-  submitBtn: { padding: '12px', backgroundColor: '#1a237e', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', transition: 'background-color 0.2s' },
-  timeline: { display: 'flex', flexDirection: 'column', gap: '15px', maxHeight: '550px', overflowY: 'auto', paddingRight: '5px' },
-  timelineCard: { backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '15px', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' },
-  timelineHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }, // 修正原檔 typo (justifycontent -> justifyContent)
-  scopeBadge: { backgroundColor: '#f1f5f9', color: '#475569', fontSize: '12px', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' },
-  timeText: { fontSize: '12px', color: '#94a3b8' },
-  annoTitle: { margin: '0 0 6px 0', fontSize: '15px', color: '#1e293b', fontWeight: 'bold' },
-  annoContent: { margin: '0 0 10px 0', fontSize: '14px', color: '#475569', lineHeight: '1.5', whiteSpace: 'pre-wrap' },
-  pushedTag: { fontSize: '12px', color: '#16a34a', fontWeight: 'bold' },
-  unpushedTag: { fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' },
-  secondaryBtn: {
-    padding: '5px 12px',
-    border: '1px solid #cbd5e1',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '12px',
-    fontWeight: 'bold'
+  card: {
+    backgroundColor: c.surface1, borderRadius: r.lg,
+    border: `1px solid ${c.border}`, padding: '24px',
+    fontFamily: theme.fonts.sans,
   },
-  citySelectorRow: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' },
-  cityTabBtn: { padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '20px', backgroundColor: '#fff', color: '#64748b', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' },
-  cityTabActive: { backgroundColor: '#0284c7', color: 'white', borderColor: '#0284c7' },
-  ruleEditorCard: { border: '1px solid #e2e8f0', borderRadius: '8px', padding: '24px', backgroundColor: '#ffffff', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' },
-  saveBtn: { padding: '12px 24px', backgroundColor: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' },
+  // Tab bar：細底線 + indigo active
+  tabContainer: {
+    display: 'flex', gap: '0', borderBottom: `1px solid ${c.border}`,
+    marginBottom: '22px', flexWrap: 'wrap',
+  },
+  tabButton: {
+    padding: '10px 16px', border: 'none', background: 'none',
+    fontSize: '13.5px', fontWeight: '500', color: c.textDim, cursor: 'pointer',
+    borderBottom: '2px solid transparent', marginBottom: '-1px',
+    transition: `color ${theme.transition.fast}, border-color ${theme.transition.fast}`,
+    fontFamily: theme.fonts.sans,
+  },
+  tabActive: { color: c.brand, fontWeight: '600', borderBottomColor: c.brand },
+  loadingText: { textAlign: 'center', padding: '15px', color: c.textMuted, fontSize: '13px' },
+  // 左右雙欄：左為表單、右為時間軸
+  gridContainer: { display: 'flex', gap: '20px', flexWrap: 'wrap' },
+  formPanel: {
+    flex: '1', minWidth: '320px',
+    backgroundColor: c.surface2,
+    padding: '20px', borderRadius: r.md,
+    border: `1px solid ${c.border}`,
+  },
+  listPanel: { flex: '1.2', minWidth: '350px' },
+  panelTitle: {
+    margin: '0 0 14px 0', color: c.text, fontSize: '14px', fontWeight: '600',
+    borderBottom: `1px solid ${c.border}`, paddingBottom: '10px',
+    letterSpacing: '-0.005em',
+  },
+  form: { display: 'flex', flexDirection: 'column', gap: '14px' },
+  inputGroup: { display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' },
+  // 小 micro label（uppercase）
+  label: {
+    fontSize: '11px', color: c.textMuted, fontWeight: '600',
+    letterSpacing: '0.08em', textTransform: 'uppercase',
+    marginBottom: '2px',
+  },
+  input: {
+    padding: '9px 12px', borderRadius: r.md,
+    border: `1px solid ${c.border}`, backgroundColor: c.surface1,
+    color: c.text, fontSize: '13px', outline: 'none',
+    width: '100%', boxSizing: 'border-box',
+    fontFamily: theme.fonts.sans,
+    transition: `border-color ${theme.transition.fast}`,
+  },
+  select: {
+    padding: '9px 12px', borderRadius: r.md,
+    border: `1px solid ${c.border}`, backgroundColor: c.surface1,
+    color: c.text, fontSize: '13px', outline: 'none',
+    width: '100%', boxSizing: 'border-box',
+    fontFamily: theme.fonts.sans, cursor: 'pointer',
+  },
+  textarea: {
+    padding: '12px', borderRadius: r.md,
+    border: `1px solid ${c.border}`, backgroundColor: c.surface1,
+    color: c.text, fontSize: '13px', outline: 'none', resize: 'vertical',
+    width: '100%', boxSizing: 'border-box',
+    fontFamily: theme.fonts.mono, lineHeight: '1.6',
+    transition: `border-color ${theme.transition.fast}`,
+  },
+  submitBtn: {
+    padding: '10px', backgroundColor: c.brand, color: 'white',
+    border: `1px solid ${c.brand}`, borderRadius: r.md,
+    fontWeight: '600', cursor: 'pointer', fontSize: '13px',
+    transition: 'background-color 0.15s ease',
+    fontFamily: theme.fonts.sans,
+    boxShadow: theme.shadow.brand,
+  },
+  timeline: {
+    display: 'flex', flexDirection: 'column', gap: '10px',
+    maxHeight: '550px', overflowY: 'auto', paddingRight: '4px',
+  },
+  timelineCard: {
+    backgroundColor: c.surface1,
+    border: `1px solid ${c.border}`, borderRadius: r.md,
+    padding: '14px',
+  },
+  timelineHeader: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: '8px',
+  },
+  scopeBadge: {
+    backgroundColor: c.surface2, color: c.textDim,
+    fontSize: '11px', padding: '2px 8px', borderRadius: r.sm,
+    fontWeight: '600', letterSpacing: '0.01em',
+    fontFamily: theme.fonts.sans,
+  },
+  timeText: { fontSize: '11.5px', color: c.textMuted, fontFamily: theme.fonts.mono, letterSpacing: '0.01em' },
+  annoTitle: {
+    margin: '0 0 6px 0', fontSize: '14px', color: c.text,
+    fontWeight: '600', letterSpacing: '-0.005em',
+  },
+  annoContent: {
+    margin: '0 0 10px 0', fontSize: '13px', color: c.textDim,
+    lineHeight: '1.55', whiteSpace: 'pre-wrap',
+  },
+  pushedTag: { fontSize: '11.5px', color: c.green, fontWeight: '600' },
+  unpushedTag: { fontSize: '11.5px', color: c.textMuted, fontStyle: 'italic' },
+  secondaryBtn: {
+    padding: '5px 11px',
+    border: `1px solid ${c.border}`,
+    backgroundColor: c.surface1, color: c.textDim,
+    borderRadius: r.sm,
+    cursor: 'pointer', fontSize: '11.5px', fontWeight: '500',
+    fontFamily: theme.fonts.sans,
+    transition: `background ${theme.transition.fast}`,
+  },
+  // 城市切換列：用 segmented control 風（並排藥丸）
+  citySelectorRow: {
+    display: 'flex', alignItems: 'center', gap: '6px',
+    marginBottom: '18px', flexWrap: 'wrap',
+  },
+  cityTabBtn: {
+    padding: '7px 14px',
+    border: `1px solid ${c.border}`, borderRadius: r.pill,
+    backgroundColor: c.surface1, color: c.textDim,
+    fontWeight: '500', cursor: 'pointer', fontSize: '12.5px',
+    transition: `background ${theme.transition.fast}, border-color ${theme.transition.fast}, color ${theme.transition.fast}`,
+    fontFamily: theme.fonts.sans,
+  },
+  // 城市選中用 indigo brand
+  cityTabActive: {
+    backgroundColor: c.brand, color: 'white', borderColor: c.brand,
+    fontWeight: '600',
+  },
+  ruleEditorCard: {
+    border: `1px solid ${c.border}`, borderRadius: r.md,
+    padding: '20px', backgroundColor: c.surface1,
+  },
+  saveBtn: {
+    padding: '10px 20px', backgroundColor: c.brand, color: 'white',
+    border: `1px solid ${c.brand}`, borderRadius: r.md,
+    fontWeight: '600', cursor: 'pointer', fontSize: '13px',
+    fontFamily: theme.fonts.sans, boxShadow: theme.shadow.brand,
+  },
   modalOverlay: {
-    position: 'fixed',
-    inset: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '20px',
-    zIndex: 1000
+    position: 'fixed', inset: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: '20px', zIndex: 1000,
   },
   modalCard: {
-    width: 'min(680px, 100%)',
-    maxHeight: '80vh',
-    overflowY: 'auto',
-    backgroundColor: '#ffffff',
-    borderRadius: '12px',
-    padding: '20px',
-    boxShadow: '0 20px 45px rgba(15, 23, 42, 0.2)'
+    width: 'min(680px, 100%)', maxHeight: '80vh', overflowY: 'auto',
+    backgroundColor: c.surface1, borderRadius: r.lg,
+    border: `1px solid ${c.border}`, padding: '22px',
+    boxShadow: theme.shadow.lg,
+    fontFamily: theme.fonts.sans,
   },
   modalHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '12px',
-    marginBottom: '16px'
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    gap: '12px', marginBottom: '14px',
   },
   modalCloseBtn: {
-    padding: '8px 12px',
-    borderRadius: '6px',
-    border: '1px solid #cbd5e1',
-    backgroundColor: '#fff',
-    color: '#475569',
-    cursor: 'pointer',
-    fontWeight: 'bold'
+    padding: '6px 12px', borderRadius: r.sm,
+    border: `1px solid ${c.border}`, backgroundColor: c.surface1,
+    color: c.textDim, cursor: 'pointer', fontWeight: '500', fontSize: '12.5px',
+    fontFamily: theme.fonts.sans,
   },
   modalContent: {
-    border: '1px solid #e2e8f0',
-    borderRadius: '8px',
-    backgroundColor: '#f8fafc',
-    padding: '14px',
-    color: '#334155',
-    fontSize: '14px',
-    lineHeight: '1.7',
-    whiteSpace: 'pre-wrap'
-  }
+    border: `1px solid ${c.border}`, borderRadius: r.md,
+    backgroundColor: c.surface2, padding: '14px',
+    color: c.text, fontSize: '13px', lineHeight: '1.7', whiteSpace: 'pre-wrap',
+  },
 };
 
 export default RulesAnnouncements;

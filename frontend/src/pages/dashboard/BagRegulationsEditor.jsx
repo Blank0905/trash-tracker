@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { getBackendUrl, authedFetch } from '../../utils/api';
+import { theme } from '../../utils/theme';
+
+const c = theme.colors;
+const r = theme.radius;
 
 // 垃圾袋規範編輯器（規則與公告的第 3 分頁）。
 // 讀取沿用公開 GET /api/info/bag-regulations?city=；寫入走 /api/admin/bag-regulations。
@@ -161,25 +165,89 @@ const BagRegulationsEditor = () => {
 };
 
 const styles = {
-  citySelectorRow: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' },
-  cityTabBtn: { padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '20px', backgroundColor: '#fff', color: '#64748b', fontWeight: 'bold', cursor: 'pointer' },
-  cityTabActive: { backgroundColor: '#0284c7', color: 'white', borderColor: '#0284c7' },
-  hint: { fontSize: '12px', color: '#94a3b8' },
-  statusBox: { textAlign: 'center', padding: '30px', color: '#64748b' },
-  errorBox: { padding: '16px', backgroundColor: '#fff5f5', color: '#e53e3e', borderRadius: '8px', border: '1px solid #fed7d7' },
-  retryBtn: { padding: '4px 12px', backgroundColor: '#e53e3e', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
-  rowCard: { border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', marginBottom: '14px', backgroundColor: '#f8fafc' },
-  fieldGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '12px' },
+  citySelectorRow: {
+    display: 'flex', alignItems: 'center', gap: '6px',
+    marginBottom: '18px', flexWrap: 'wrap',
+    fontFamily: theme.fonts.sans,
+  },
+  cityTabBtn: {
+    padding: '7px 14px', border: `1px solid ${c.border}`, borderRadius: r.pill,
+    backgroundColor: c.surface1, color: c.textDim, fontWeight: '500',
+    cursor: 'pointer', fontSize: '12.5px',
+    fontFamily: theme.fonts.sans,
+    transition: `background ${theme.transition.fast}, border-color ${theme.transition.fast}, color ${theme.transition.fast}`,
+  },
+  cityTabActive: {
+    backgroundColor: c.brand, color: 'white', borderColor: c.brand,
+    fontWeight: '600',
+  },
+  hint: { fontSize: '11.5px', color: c.textMuted, fontFamily: theme.fonts.mono },
+  statusBox: { textAlign: 'center', padding: '40px 24px', color: c.textMuted, fontSize: '13px' },
+  errorBox: {
+    padding: '16px 20px', backgroundColor: c.redSoft, color: c.red,
+    borderRadius: r.md, border: `1px solid rgba(220, 38, 38, 0.25)`,
+  },
+  retryBtn: {
+    padding: '5px 14px', backgroundColor: c.red, color: 'white',
+    border: 'none', borderRadius: r.sm, cursor: 'pointer',
+    fontWeight: '600', fontSize: '12.5px', fontFamily: theme.fonts.sans,
+  },
+  rowCard: {
+    border: `1px solid ${c.border}`, borderRadius: r.md,
+    padding: '16px', marginBottom: '12px', backgroundColor: c.surface1,
+  },
+  fieldGrid: {
+    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+    gap: '12px', marginBottom: '12px',
+  },
   field: { display: 'flex', flexDirection: 'column', gap: '6px' },
-  fieldFull: { display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px', marginTop: '12px' },
-  label: { fontSize: '13px', color: '#475569', fontWeight: '600' },
-  input: { padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', backgroundColor: '#fff' },
-  rowActions: { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' },
-  regTag: { fontSize: '12px', color: '#94a3b8', marginRight: 'auto', fontFamily: 'monospace' },
-  saveBtn: { padding: '8px 18px', backgroundColor: '#1a237e', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' },
-  savingBtn: { backgroundColor: '#9fa8da', cursor: 'not-allowed' },
-  deleteBtn: { padding: '8px 14px', backgroundColor: '#fff', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' },
-  addBtn: { padding: '12px', width: '100%', backgroundColor: '#e8eaf6', color: '#1a237e', border: '1px dashed #9fa8da', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' },
+  fieldFull: {
+    display: 'flex', flexDirection: 'column', gap: '6px',
+    marginBottom: '12px', marginTop: '12px',
+  },
+  label: {
+    fontSize: '11px', color: c.textMuted, fontWeight: '600',
+    letterSpacing: '0.08em', textTransform: 'uppercase',
+  },
+  input: {
+    padding: '8px 12px', borderRadius: r.md,
+    border: `1px solid ${c.border}`, backgroundColor: c.surface1,
+    color: c.text, fontSize: '13px', outline: 'none',
+    width: '100%', boxSizing: 'border-box',
+    fontFamily: theme.fonts.sans,
+    transition: `border-color ${theme.transition.fast}`,
+  },
+  rowActions: {
+    display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap',
+  },
+  regTag: {
+    fontSize: '11px', color: c.textMuted, marginRight: 'auto',
+    fontFamily: theme.fonts.mono, letterSpacing: '0.02em',
+  },
+  saveBtn: {
+    padding: '7px 16px', backgroundColor: c.brand, color: 'white',
+    border: `1px solid ${c.brand}`, borderRadius: r.md,
+    fontWeight: '600', cursor: 'pointer', fontSize: '12.5px',
+    fontFamily: theme.fonts.sans, boxShadow: theme.shadow.brand,
+    transition: 'background 0.15s ease',
+  },
+  savingBtn: {
+    backgroundColor: '#a5b4fc', borderColor: '#a5b4fc',
+    cursor: 'not-allowed', boxShadow: 'none',
+  },
+  deleteBtn: {
+    padding: '7px 12px', backgroundColor: c.surface1, color: c.red,
+    border: `1px solid rgba(220, 38, 38, 0.30)`,
+    borderRadius: r.md, fontWeight: '500', cursor: 'pointer', fontSize: '12.5px',
+    fontFamily: theme.fonts.sans,
+  },
+  addBtn: {
+    padding: '12px', width: '100%',
+    backgroundColor: c.brandSoft, color: c.brand,
+    border: `1px dashed ${c.brandTint}`, borderRadius: r.md,
+    fontWeight: '500', cursor: 'pointer', fontSize: '13px',
+    fontFamily: theme.fonts.sans,
+  },
 };
 
 export default BagRegulationsEditor;

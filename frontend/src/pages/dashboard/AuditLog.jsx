@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { getBackendUrl, authedFetch } from '../../utils/api';
+import { theme } from '../../utils/theme';
+
+const c = theme.colors;
+const r = theme.radius;
 
 // 管理者操作審計檢視頁：唯讀。資料來自 /api/admin/audit-log（DESC 最新在前）。
 // 篩選用後端參數（不在前端做 client-side filter），避免漏看跨頁紀錄。
@@ -184,57 +188,99 @@ const AuditLog = () => {
 };
 
 const styles = {
-  card: { backgroundColor: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', padding: '24px' },
+  card: {
+    backgroundColor: c.surface1,
+    borderRadius: r.lg,
+    border: `1px solid ${c.border}`,
+    padding: '24px',
+    fontFamily: theme.fonts.sans,
+  },
   headerTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' },
-  title: { margin: 0, color: '#1a237e', fontSize: '22px', fontWeight: 'bold' },
-  subtitle: { margin: '8px 0 16px 0', color: '#64748b', fontSize: '14px', lineHeight: '1.6' },
+  title: { margin: 0, color: c.text, fontSize: '18px', fontWeight: '600', letterSpacing: '-0.015em' },
+  subtitle: { margin: '6px 0 18px 0', color: c.textDim, fontSize: '13px', lineHeight: '1.55' },
   refreshBtn: {
-    padding: '8px 16px', backgroundColor: '#1a237e', color: 'white', border: 'none',
-    borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px', whiteSpace: 'nowrap',
+    padding: '7px 14px', backgroundColor: c.surface1, color: c.text,
+    border: `1px solid ${c.border}`, borderRadius: r.sm, fontWeight: '500',
+    cursor: 'pointer', fontSize: '13px', whiteSpace: 'nowrap', fontFamily: theme.fonts.sans,
+    transition: 'background 0.15s ease',
   },
   filterBlock: {
     display: 'flex', flexDirection: 'column', gap: '10px',
-    padding: '14px 16px', backgroundColor: '#f8fafc', borderRadius: '10px',
-    border: '1px solid #e2e8f0', marginBottom: '18px',
+    padding: '12px 14px', backgroundColor: c.surface2, borderRadius: r.md,
+    border: `1px solid ${c.border}`, marginBottom: '16px',
   },
   filterRow: { display: 'flex', alignItems: 'flex-start', gap: '10px' },
-  filterLabel: { fontSize: '13px', fontWeight: '700', color: '#475569', width: '40px', flexShrink: 0, paddingTop: '7px' },
+  filterLabel: {
+    fontSize: '11px', fontWeight: '600', color: c.textMuted,
+    letterSpacing: '0.08em', textTransform: 'uppercase',
+    width: '40px', flexShrink: 0, paddingTop: '7px',
+  },
   chipWrap: { display: 'flex', flexWrap: 'wrap', gap: '6px' },
   chip: {
-    padding: '6px 12px', borderRadius: '999px', border: '1px solid #cbd5e1',
-    backgroundColor: '#fff', color: '#475569', fontSize: '13px', cursor: 'pointer', fontWeight: '600',
+    padding: '5px 11px', borderRadius: r.pill, border: `1px solid ${c.border}`,
+    backgroundColor: c.surface1, color: c.textDim, fontSize: '12.5px',
+    cursor: 'pointer', fontWeight: '500', fontFamily: theme.fonts.sans,
+    transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
   },
-  chipActive: { backgroundColor: '#1a237e', borderColor: '#1a237e', color: '#fff' },
-  resultHint: { fontSize: '13px', color: '#94a3b8', marginBottom: '8px' },
-  list: { display: 'flex', flexDirection: 'column', gap: '10px' },
-  row: { border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px', backgroundColor: '#fff' },
+  chipActive: { backgroundColor: c.brand, borderColor: c.brand, color: '#ffffff', fontWeight: '600' },
+  resultHint: {
+    fontSize: '12px', color: c.textMuted, marginBottom: '8px',
+    fontFamily: theme.fonts.mono, letterSpacing: '0.02em',
+  },
+  list: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  row: {
+    border: `1px solid ${c.border}`, borderRadius: r.md,
+    padding: '12px 14px', backgroundColor: c.surface1,
+    transition: `border-color ${theme.transition.fast}`,
+  },
   rowHead: { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' },
-  badge: { padding: '3px 10px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold' },
-  target: { fontSize: '13px', color: '#475569', backgroundColor: '#f1f5f9', padding: '2px 8px', borderRadius: '6px' },
-  actor: { fontSize: '13px', color: '#334155', fontWeight: '600' },
-  time: { fontSize: '12px', color: '#94a3b8', marginLeft: 'auto', fontFamily: 'monospace' },
+  badge: { padding: '3px 10px', borderRadius: r.sm, fontSize: '12px', fontWeight: '600' },
+  target: {
+    fontSize: '12px', color: c.textDim, backgroundColor: c.surface2,
+    padding: '2px 8px', borderRadius: r.sm,
+    fontFamily: theme.fonts.mono, letterSpacing: '0.01em',
+  },
+  actor: { fontSize: '12.5px', color: c.text, fontWeight: '500' },
+  time: {
+    fontSize: '11.5px', color: c.textMuted, marginLeft: 'auto',
+    fontFamily: theme.fonts.mono, letterSpacing: '0.01em',
+  },
   details: {
-    marginTop: '8px', marginBottom: 0, fontSize: '12px', color: '#475569', lineHeight: '1.5',
-    backgroundColor: '#f8fafc', borderRadius: '6px', padding: '8px 10px',
-    whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace',
+    marginTop: '8px', marginBottom: 0, fontSize: '12px', color: c.textDim, lineHeight: '1.55',
+    backgroundColor: c.surface2, borderRadius: r.sm, padding: '8px 10px',
+    whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+    fontFamily: theme.fonts.mono, border: `1px solid ${c.border}`,
   },
   metaFoot: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    marginTop: '8px', fontSize: '11px', color: '#94a3b8', fontFamily: 'monospace', gap: '8px',
+    marginTop: '8px', fontSize: '10.5px', color: c.textFaint,
+    fontFamily: theme.fonts.mono, gap: '8px', letterSpacing: '0.02em',
   },
-  logId: { color: '#cbd5e1' },
+  logId: { color: c.textFaint },
   pager: {
     display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px',
-    marginTop: '16px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '10px',
+    marginTop: '16px', padding: '12px', backgroundColor: c.surface2,
+    borderRadius: r.md, border: `1px solid ${c.border}`,
   },
   pagerBtn: {
-    padding: '6px 14px', backgroundColor: '#1a237e', color: 'white', border: 'none',
-    borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px',
+    padding: '6px 14px', backgroundColor: c.surface1, color: c.text,
+    border: `1px solid ${c.border}`, borderRadius: r.sm,
+    fontWeight: '500', cursor: 'pointer', fontSize: '12.5px', fontFamily: theme.fonts.sans,
   },
-  pagerInfo: { fontSize: '13px', color: '#475569', fontWeight: '600', minWidth: '60px', textAlign: 'center' },
-  statusBox: { textAlign: 'center', padding: '40px', color: '#64748b' },
-  errorBox: { padding: '20px', backgroundColor: '#fff5f5', color: '#e53e3e', borderRadius: '8px', border: '1px solid #fed7d7', textAlign: 'center' },
-  retryBtn: { marginTop: '10px', padding: '6px 16px', backgroundColor: '#e53e3e', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
+  pagerInfo: {
+    fontSize: '12.5px', color: c.textDim, fontWeight: '500',
+    minWidth: '60px', textAlign: 'center', fontFamily: theme.fonts.mono,
+  },
+  statusBox: { textAlign: 'center', padding: '40px 24px', color: c.textMuted, fontSize: '13px' },
+  errorBox: {
+    padding: '16px 20px', backgroundColor: c.redSoft, color: c.red,
+    borderRadius: r.md, border: `1px solid rgba(220, 38, 38, 0.25)`, textAlign: 'center',
+  },
+  retryBtn: {
+    marginTop: '10px', padding: '6px 16px', backgroundColor: c.red, color: 'white',
+    border: 'none', borderRadius: r.sm, cursor: 'pointer', fontWeight: '600',
+    fontSize: '13px', fontFamily: theme.fonts.sans,
+  },
 };
 
 export default AuditLog;

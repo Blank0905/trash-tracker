@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getBackendUrl, authedFetch } from '../../utils/api';
+import { theme } from '../../utils/theme';
+
+const c = theme.colors;
+const r = theme.radius;
 
 // api_sync_log 人性化檢視頁：彩色狀態徽章 + 點選式篩選（不用手打），最新在上。
 // 資料沿用通用瀏覽端點 /api/db/browse?table=api_sync_log（DESC 取最新一批），前端做篩選。
@@ -146,44 +150,83 @@ const SyncLog = () => {
 };
 
 const styles = {
-  card: { backgroundColor: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', padding: '24px' },
+  card: {
+    backgroundColor: c.surface1, borderRadius: r.lg,
+    border: `1px solid ${c.border}`, padding: '24px',
+    fontFamily: theme.fonts.sans,
+  },
   headerTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' },
-  title: { margin: 0, color: '#1a237e', fontSize: '22px', fontWeight: 'bold' },
-  subtitle: { margin: '8px 0 16px 0', color: '#64748b', fontSize: '14px', lineHeight: '1.6' },
+  title: { margin: 0, color: c.text, fontSize: '18px', fontWeight: '600', letterSpacing: '-0.015em' },
+  subtitle: { margin: '6px 0 18px 0', color: c.textDim, fontSize: '13px', lineHeight: '1.55' },
   refreshBtn: {
-    padding: '8px 16px', backgroundColor: '#1a237e', color: 'white', border: 'none',
-    borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px', whiteSpace: 'nowrap',
+    padding: '7px 14px', backgroundColor: c.surface1, color: c.text,
+    border: `1px solid ${c.border}`, borderRadius: r.sm, fontWeight: '500',
+    cursor: 'pointer', fontSize: '13px', whiteSpace: 'nowrap', fontFamily: theme.fonts.sans,
+    transition: 'background 0.15s ease',
   },
   filterBlock: {
-    display: 'flex', flexDirection: 'column', gap: '10px',
-    padding: '14px 16px', backgroundColor: '#f8fafc', borderRadius: '10px',
-    border: '1px solid #e2e8f0', marginBottom: '18px',
+    display: 'flex', flexDirection: 'column', gap: '8px',
+    padding: '12px 14px', backgroundColor: c.surface2, borderRadius: r.md,
+    border: `1px solid ${c.border}`, marginBottom: '16px',
   },
-  filterRow: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
-  filterLabel: { fontSize: '13px', fontWeight: '700', color: '#475569', width: '40px', flexShrink: 0 },
+  filterRow: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' },
+  filterLabel: {
+    fontSize: '11px', fontWeight: '600', color: c.textMuted,
+    letterSpacing: '0.08em', textTransform: 'uppercase',
+    width: '40px', flexShrink: 0,
+  },
   chip: {
-    padding: '6px 14px', borderRadius: '999px', border: '1px solid #cbd5e1',
-    backgroundColor: '#fff', color: '#475569', fontSize: '13px', cursor: 'pointer', fontWeight: '600',
+    padding: '5px 11px', borderRadius: r.pill, border: `1px solid ${c.border}`,
+    backgroundColor: c.surface1, color: c.textDim, fontSize: '12.5px',
+    cursor: 'pointer', fontWeight: '500', fontFamily: theme.fonts.sans,
+    transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
   },
-  chipActive: { backgroundColor: '#1a237e', borderColor: '#1a237e', color: '#fff' },
-  resultHint: { fontSize: '13px', color: '#94a3b8', marginBottom: '4px' },
-  list: { display: 'flex', flexDirection: 'column', gap: '10px' },
-  row: { border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px', backgroundColor: '#fff' },
+  chipActive: { backgroundColor: c.brand, borderColor: c.brand, color: '#ffffff', fontWeight: '600' },
+  resultHint: {
+    fontSize: '12px', color: c.textMuted, marginBottom: '6px',
+    fontFamily: theme.fonts.mono, letterSpacing: '0.02em',
+  },
+  list: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  row: {
+    border: `1px solid ${c.border}`, borderRadius: r.md,
+    padding: '12px 14px', backgroundColor: c.surface1,
+  },
   rowHead: { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' },
-  badge: { padding: '3px 10px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold' },
-  source: { fontSize: '14px', fontWeight: '700', color: '#334155' },
-  phase: { fontSize: '13px', color: '#475569', backgroundColor: '#f1f5f9', padding: '2px 8px', borderRadius: '6px' },
-  records: { fontSize: '13px', color: '#0369a1', fontWeight: '600' },
-  time: { fontSize: '12px', color: '#94a3b8', marginLeft: 'auto', fontFamily: 'monospace' },
-  message: {
-    marginTop: '8px', fontSize: '13px', color: '#475569', lineHeight: '1.5',
-    backgroundColor: '#f8fafc', borderRadius: '6px', padding: '8px 10px',
-    whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace',
+  badge: { padding: '3px 10px', borderRadius: r.sm, fontSize: '12px', fontWeight: '600' },
+  source: { fontSize: '13px', fontWeight: '600', color: c.text },
+  phase: {
+    fontSize: '12px', color: c.textDim, backgroundColor: c.surface2,
+    padding: '2px 8px', borderRadius: r.sm,
+    fontFamily: theme.fonts.mono, letterSpacing: '0.01em',
   },
-  runId: { marginTop: '6px', fontSize: '11px', color: '#cbd5e1', fontFamily: 'monospace' },
-  statusBox: { textAlign: 'center', padding: '40px', color: '#64748b' },
-  errorBox: { padding: '20px', backgroundColor: '#fff5f5', color: '#e53e3e', borderRadius: '8px', border: '1px solid #fed7d7', textAlign: 'center' },
-  retryBtn: { marginTop: '10px', padding: '6px 16px', backgroundColor: '#e53e3e', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
+  records: {
+    fontSize: '12.5px', color: c.brand, fontWeight: '600',
+    fontFamily: theme.fonts.mono, letterSpacing: '0.01em',
+  },
+  time: {
+    fontSize: '11.5px', color: c.textMuted, marginLeft: 'auto',
+    fontFamily: theme.fonts.mono, letterSpacing: '0.01em',
+  },
+  message: {
+    marginTop: '8px', fontSize: '12.5px', color: c.textDim, lineHeight: '1.55',
+    backgroundColor: c.surface2, borderRadius: r.sm, padding: '8px 10px',
+    whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+    fontFamily: theme.fonts.mono, border: `1px solid ${c.border}`,
+  },
+  runId: {
+    marginTop: '6px', fontSize: '10.5px', color: c.textFaint,
+    fontFamily: theme.fonts.mono, letterSpacing: '0.02em',
+  },
+  statusBox: { textAlign: 'center', padding: '40px 24px', color: c.textMuted, fontSize: '13px' },
+  errorBox: {
+    padding: '16px 20px', backgroundColor: c.redSoft, color: c.red,
+    borderRadius: r.md, border: `1px solid rgba(220, 38, 38, 0.25)`, textAlign: 'center',
+  },
+  retryBtn: {
+    marginTop: '10px', padding: '6px 16px', backgroundColor: c.red, color: 'white',
+    border: 'none', borderRadius: r.sm, cursor: 'pointer', fontWeight: '600',
+    fontSize: '13px', fontFamily: theme.fonts.sans,
+  },
 };
 
 export default SyncLog;

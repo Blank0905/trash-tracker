@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getBackendUrl, authedFetch } from '../../utils/api';
+import { theme } from '../../utils/theme';
+
+const c = theme.colors;
+const r = theme.radius;
 
 const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -1751,105 +1755,207 @@ const handleCreateRoute = async (e) => {
 };
 
 const styles = {
-  card: { backgroundColor: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', padding: '24px' },
-  tabContainer: { display: 'flex', gap: '5px', borderBottom: '2px solid #e2e8f0', marginBottom: '24px', flexWrap: 'wrap' },
+  card: {
+    backgroundColor: c.surface1, borderRadius: r.lg,
+    border: `1px solid ${c.border}`, padding: '24px',
+    fontFamily: theme.fonts.sans,
+  },
+  // Tab bar：細底線 + indigo active
+  tabContainer: {
+    display: 'flex', gap: '0',
+    borderBottom: `1px solid ${c.border}`,
+    marginBottom: '22px', flexWrap: 'wrap',
+  },
   tabButton: {
-    padding: '12px 20px',
+    padding: '10px 16px',
     backgroundColor: 'transparent',
-    fontSize: '15px',
-    fontWeight: 'bold',
-    color: '#64748b',
-    cursor: 'pointer',
-    borderTopLeftRadius: '8px',
-    borderTopRightRadius: '8px',
-    transition: 'all 0.2s',
-    borderTop: '3px solid transparent',
-    borderBottom: '3px solid transparent',
-    borderLeft: '3px solid transparent',
-    borderRight: '3px solid transparent'
+    fontSize: '13.5px', fontWeight: '500',
+    color: c.textDim, cursor: 'pointer',
+    borderTop: 'none', borderLeft: 'none', borderRight: 'none',
+    borderBottom: '2px solid transparent',
+    marginBottom: '-1px',
+    transition: `color ${theme.transition.fast}, border-color ${theme.transition.fast}`,
+    fontFamily: theme.fonts.sans,
   },
   tabActive: {
-    padding: '12px 20px',
-    backgroundColor: '#e8eaf6',
-    fontSize: '15px',
-    fontWeight: 'bold',
-    color: '#1a237e',
-    cursor: 'pointer',
-    borderTopLeftRadius: '8px',
-    borderTopRightRadius: '8px',
-    transition: 'all 0.2s',
-    borderTop: '3px solid transparent',
-    borderBottom: '3px solid #1a237e',
-    borderLeft: '3px solid transparent',
-    borderRight: '3px solid transparent'
+    padding: '10px 16px',
+    backgroundColor: 'transparent',
+    fontSize: '13.5px', fontWeight: '600',
+    color: c.brand, cursor: 'pointer',
+    borderTop: 'none', borderLeft: 'none', borderRight: 'none',
+    borderBottom: `2px solid ${c.brand}`,
+    marginBottom: '-1px',
+    fontFamily: theme.fonts.sans,
   },
-  loadingText: { textAlign: 'center', padding: '15px', color: '#64748b' },
-  gridContainer: { display: 'flex', gap: '24px', flexWrap: 'wrap' },
-  formPanel: { flex: '1.2', minWidth: '320px', backgroundColor: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0', position: 'relative' },
+  loadingText: { textAlign: 'center', padding: '15px', color: c.textMuted, fontSize: '13px' },
+  gridContainer: { display: 'flex', gap: '20px', flexWrap: 'wrap' },
+  formPanel: {
+    flex: '1.2', minWidth: '320px',
+    backgroundColor: c.surface2,
+    padding: '20px', borderRadius: r.md,
+    border: `1px solid ${c.border}`, position: 'relative',
+  },
   listPanel: { flex: '1', minWidth: '320px' },
-  panelTitle: { margin: '0 0 15px 0', color: '#334155', fontSize: '16px', fontWeight: 'bold', borderBottom: '2px solid #cbd5e1', paddingBottom: '8px' },
-  form: { display: 'flex', flexDirection: 'column', gap: '15px' },
-  rowFields: { display: 'flex', gap: '12px', width: '100%' },
-  inputGroup: { display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', position: 'relative' },
-  label: { fontSize: '14px', color: '#475569', fontWeight: 'bold' },
-  input: { padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', width: '100%', boxSizing: 'border-box' },
-  select: { padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', backgroundColor: '#fff', width: '100%', boxSizing: 'border-box' },
-  submitBtn: { padding: '12px', backgroundColor: '#1a237e', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', transition: 'background-color 0.2s', fontSize: '14px', marginTop: '10px' },
-  listWrapper: { display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '650px', overflowY: 'auto' },
-  dataItemCard: { backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '14px', boxShadow: '0 2px 6px rgba(0,0,0,0.01)' },
-  routeBadge: { backgroundColor: '#e0e7ff', color: '#4338ca', fontSize: '11px', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', marginRight: '8px', display: 'inline-block' },
-  itemMainTitle: { fontSize: '15px', color: '#1e293b' },
-  itemSubText: { fontSize: '12px', color: '#64748b', marginTop: '#4px' },
-  deleteBtn: { padding: '6px 12px', backgroundColor: '#fee2e2', color: '#ef4444', border: '1px solid #fca5a5', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', transition: 'all 0.2s' },
-  scheduleBox: { border: '1px solid #e2e8f0', backgroundColor: '#fff', padding: '15px', borderRadius: '8px', marginTop: '5px' },
-  scheduleTable: { width: '100%', borderCollapse: 'collapse', marginTop: '10px', textAlign: 'center', fontSize: '13px' },
-  th: { backgroundColor: '#f1f5f9', padding: '8px', borderBottom: '1px solid #cbd5e1', color: '#475569', fontWeight: 'bold' },
-  td: { padding: '8px', borderBottom: '1px solid #f1f5f9' },
-  searchBarContainer: { backgroundColor: '#f1f5f9', padding: '12px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #e2e8f0' },
-  searchFieldsRow: { display: 'flex', gap: '8px', width: '100%' },
-  filterSelect: { flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#fff', outline: 'none' },
-  filterInput: { flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none' },
-  searchBtn: { padding: '8px 16px', backgroundColor: '#334155', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', transition: 'background-color 0.2s' },
-  editItemCard: {
-    backgroundColor: '#f8fafc',
-    padding: '16px',
-    borderRadius: '8px',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: '#cbd5e1',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px',
-    boxShadow: '0 2px 6px rgba(0,0,0,0.01)'
+  panelTitle: {
+    margin: '0 0 14px 0', color: c.text, fontSize: '14px', fontWeight: '600',
+    borderBottom: `1px solid ${c.border}`, paddingBottom: '10px',
+    letterSpacing: '-0.005em',
   },
-  dropdownSuggestion: { position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 999, maxHeight: '200px', overflowY: 'auto', marginTop: '2px' },
-  suggestionItem: { padding: '10px', fontSize: '13px', color: '#334155', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }
+  form: { display: 'flex', flexDirection: 'column', gap: '14px' },
+  rowFields: { display: 'flex', gap: '10px', width: '100%' },
+  inputGroup: {
+    display: 'flex', flexDirection: 'column', gap: '6px',
+    width: '100%', position: 'relative',
+  },
+  label: {
+    fontSize: '11px', color: c.textMuted, fontWeight: '600',
+    letterSpacing: '0.08em', textTransform: 'uppercase',
+  },
+  input: {
+    padding: '8px 12px', borderRadius: r.md,
+    border: `1px solid ${c.border}`, backgroundColor: c.surface1,
+    color: c.text, fontSize: '13px', outline: 'none',
+    width: '100%', boxSizing: 'border-box',
+    fontFamily: theme.fonts.sans,
+    transition: `border-color ${theme.transition.fast}`,
+  },
+  select: {
+    padding: '8px 12px', borderRadius: r.md,
+    border: `1px solid ${c.border}`, backgroundColor: c.surface1,
+    color: c.text, fontSize: '13px', outline: 'none',
+    width: '100%', boxSizing: 'border-box',
+    fontFamily: theme.fonts.sans, cursor: 'pointer',
+  },
+  submitBtn: {
+    padding: '10px', backgroundColor: c.brand, color: 'white',
+    border: `1px solid ${c.brand}`, borderRadius: r.md,
+    fontWeight: '600', cursor: 'pointer', fontSize: '13px',
+    marginTop: '6px', fontFamily: theme.fonts.sans,
+    boxShadow: theme.shadow.brand,
+    transition: 'background-color 0.15s ease',
+  },
+  listWrapper: {
+    display: 'flex', flexDirection: 'column', gap: '10px',
+    maxHeight: '650px', overflowY: 'auto', paddingRight: '4px',
+  },
+  dataItemCard: {
+    backgroundColor: c.surface1, border: `1px solid ${c.border}`,
+    borderRadius: r.md, padding: '14px',
+    transition: `border-color ${theme.transition.fast}`,
+  },
+  // 路線/類別 badge：indigo soft
+  routeBadge: {
+    backgroundColor: c.brandSoft, color: c.brand,
+    fontSize: '11px', padding: '2px 8px', borderRadius: r.sm,
+    fontWeight: '600', marginRight: '8px',
+    display: 'inline-block', letterSpacing: '0.01em',
+    border: `1px solid ${c.brandTint}`,
+  },
+  itemMainTitle: { fontSize: '14px', color: c.text, fontWeight: '500' },
+  itemSubText: {
+    fontSize: '11.5px', color: c.textDim, marginTop: '4px',
+    fontFamily: theme.fonts.mono, letterSpacing: '0.01em',
+  },
+  // 刪除按鈕：紅 soft（破壞性動作但不過於搶眼）
+  deleteBtn: {
+    padding: '6px 12px', backgroundColor: c.redSoft, color: c.red,
+    border: `1px solid rgba(220, 38, 38, 0.25)`, borderRadius: r.sm,
+    cursor: 'pointer', fontSize: '12px', fontWeight: '600',
+    fontFamily: theme.fonts.sans,
+    transition: 'background 0.15s ease',
+  },
+  scheduleBox: {
+    border: `1px solid ${c.border}`, backgroundColor: c.surface1,
+    padding: '14px', borderRadius: r.md, marginTop: '4px',
+  },
+  scheduleTable: {
+    width: '100%', borderCollapse: 'collapse',
+    marginTop: '8px', textAlign: 'center', fontSize: '12.5px',
+  },
+  th: {
+    backgroundColor: c.surface2, padding: '7px',
+    borderBottom: `1px solid ${c.border}`,
+    color: c.textMuted, fontWeight: '600',
+    fontSize: '11px', letterSpacing: '0.04em', textTransform: 'uppercase',
+  },
+  td: {
+    padding: '7px', borderBottom: `1px solid ${c.border}`,
+    color: c.text, fontFamily: theme.fonts.mono,
+  },
+  searchBarContainer: {
+    backgroundColor: c.surface2, padding: '12px', borderRadius: r.md,
+    marginBottom: '14px', border: `1px solid ${c.border}`,
+  },
+  searchFieldsRow: { display: 'flex', gap: '6px', width: '100%' },
+  filterSelect: {
+    flex: 1, padding: '7px 10px', borderRadius: r.sm,
+    border: `1px solid ${c.border}`, backgroundColor: c.surface1,
+    color: c.text, fontSize: '12.5px', outline: 'none',
+    fontFamily: theme.fonts.sans, cursor: 'pointer',
+  },
+  filterInput: {
+    flex: 1, padding: '7px 10px', borderRadius: r.sm,
+    border: `1px solid ${c.border}`, backgroundColor: c.surface1,
+    color: c.text, fontSize: '12.5px', outline: 'none',
+    fontFamily: theme.fonts.sans,
+  },
+  // 搜尋按鈕：中性 ghost
+  searchBtn: {
+    padding: '7px 14px', backgroundColor: c.text, color: c.surface1,
+    border: `1px solid ${c.text}`, borderRadius: r.sm,
+    fontSize: '12.5px', fontWeight: '600', cursor: 'pointer',
+    fontFamily: theme.fonts.sans,
+    transition: 'background 0.15s ease',
+  },
+  editItemCard: {
+    backgroundColor: c.surface2, padding: '16px',
+    borderRadius: r.md, borderWidth: '1px', borderStyle: 'solid',
+    borderColor: c.border,
+    display: 'flex', flexDirection: 'column', gap: '12px',
+  },
+  // 自動完成下拉
+  dropdownSuggestion: {
+    position: 'absolute', top: '100%', left: 0, right: 0,
+    backgroundColor: c.surface1,
+    border: `1px solid ${c.border}`, borderRadius: r.md,
+    boxShadow: theme.shadow.md, zIndex: 999,
+    maxHeight: '200px', overflowY: 'auto', marginTop: '2px',
+  },
+  suggestionItem: {
+    padding: '8px 12px', fontSize: '12.5px', color: c.text,
+    cursor: 'pointer', borderBottom: `1px solid ${c.border}`,
+    transition: `background ${theme.transition.fast}`,
+    fontFamily: theme.fonts.sans,
+  },
 };
 
 styles.mapPanel = {
-  border: '1px solid #cbd5e1',
-  borderRadius: '10px',
-  backgroundColor: '#fff',
+  border: `1px solid ${c.border}`,
+  borderRadius: r.md,
+  backgroundColor: c.surface1,
   padding: '12px',
-  boxShadow: '0 2px 10px rgba(0,0,0,0.04)'
 };
 styles.mapCanvas = {
   width: '100%',
   height: '320px',
-  borderRadius: '8px',
-  overflow: 'hidden'
+  borderRadius: r.md,
+  overflow: 'hidden',
+  border: `1px solid ${c.border}`,
 };
 styles.coordSummary = {
   display: 'flex',
   justifyContent: 'space-between',
   gap: '12px',
   marginTop: '10px',
-  padding: '10px 12px',
-  borderRadius: '8px',
-  backgroundColor: '#f8fafc',
-  color: '#334155',
-  fontSize: '13px',
-  flexWrap: 'wrap'
+  padding: '8px 12px',
+  borderRadius: r.sm,
+  backgroundColor: c.surface2,
+  color: c.text,
+  fontSize: '12.5px',
+  flexWrap: 'wrap',
+  fontFamily: theme.fonts.mono,
+  letterSpacing: '0.01em',
+  border: `1px solid ${c.border}`,
 };
 
 export default ActionAddDelete;

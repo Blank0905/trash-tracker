@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { getBackendUrl, authedFetch } from '../../utils/api';
+import { theme } from '../../utils/theme';
+
+const c = theme.colors;
+const r = theme.radius;
 
 // 後台首頁：統計總覽。筆數卡可點 → 跳該資料表；最近同步卡可點 → 跳同步紀錄。
 // 資料皆用通用瀏覽端點 /api/db/browse（limit=1 只為取 total），零後端改動。
@@ -127,30 +131,66 @@ const HomeOverview = ({ dbConnected, onNavigate }) => {
 };
 
 const styles = {
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap', marginBottom: '20px' },
-  title: { margin: 0, color: '#1a237e', fontSize: '22px', fontWeight: 'bold' },
-  subtitle: { margin: '6px 0 0 0', color: '#64748b', fontSize: '14px' },
-  dbPill: { padding: '6px 14px', borderRadius: '999px', fontSize: '13px', fontWeight: 'bold', whiteSpace: 'nowrap' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '14px', marginBottom: '22px' },
+  header: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+    gap: '12px', flexWrap: 'wrap', marginBottom: '20px',
+    fontFamily: theme.fonts.sans,
+  },
+  title: { margin: 0, color: c.text, fontSize: '20px', fontWeight: '600', letterSpacing: '-0.015em' },
+  subtitle: { margin: '6px 0 0 0', color: c.textDim, fontSize: '13px' },
+  // DB 連線徽章：用 green / red soft 而非實心強烈色
+  dbPill: {
+    padding: '5px 11px', borderRadius: r.pill,
+    fontSize: '12px', fontWeight: '600', whiteSpace: 'nowrap',
+    fontFamily: theme.fonts.sans, letterSpacing: '0.01em',
+    border: `1px solid transparent`,
+  },
+  // 筆數卡片網格
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+    gap: '12px', marginBottom: '20px',
+  },
+  // 單張統計卡：白底細邊框、hover 微亮（CSS hover 透過 onMouseEnter 才生效；此處只設靜態）
   statCard: {
     display: 'flex', flexDirection: 'column', gap: '6px',
-    backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px',
-    padding: '18px', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', transition: 'transform 0.1s',
+    backgroundColor: c.surface1,
+    border: `1px solid ${c.border}`,
+    borderRadius: r.lg,
+    padding: '16px 18px', cursor: 'pointer',
+    transition: `border-color ${theme.transition.fast}, transform ${theme.transition.fast}`,
+    fontFamily: theme.fonts.sans,
   },
-  statIcon: { fontSize: '20px' },
-  statNum: { fontSize: '28px', fontWeight: 'bold', color: '#1e293b', lineHeight: 1.1 },
-  statLabel: { fontSize: '14px', color: '#64748b' },
+  statIcon: { fontSize: '18px' },
+  // 主數字大字 + tabular nums 對齊（看起來像儀表板）
+  statNum: {
+    fontSize: '26px', fontWeight: '700', color: c.text,
+    lineHeight: 1.1, letterSpacing: '-0.02em',
+    fontFeatureSettings: '"tnum" 1',
+  },
+  statLabel: {
+    fontSize: '12.5px', color: c.textDim,
+    letterSpacing: '0.005em',
+  },
+  // 同步狀態卡
   syncCard: {
-    backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px',
-    padding: '18px 20px', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+    backgroundColor: c.surface1,
+    border: `1px solid ${c.border}`,
+    borderRadius: r.lg,
+    padding: '16px 20px', cursor: 'pointer',
+    transition: `border-color ${theme.transition.fast}`,
+    fontFamily: theme.fonts.sans,
   },
   syncHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' },
-  syncTitle: { fontSize: '15px', fontWeight: 'bold', color: '#334155' },
-  syncLink: { fontSize: '13px', color: '#1a237e', fontWeight: '600' },
-  syncBody: { display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', color: '#64748b', fontSize: '14px' },
-  syncBadge: { fontSize: '15px', fontWeight: 'bold' },
-  syncTime: { fontFamily: 'monospace', color: '#94a3b8', fontSize: '13px' },
-  syncCounts: { fontSize: '14px', color: '#475569' },
+  syncTitle: { fontSize: '14px', fontWeight: '600', color: c.text, letterSpacing: '-0.005em' },
+  syncLink: { fontSize: '12px', color: c.brand, fontWeight: '500' },
+  syncBody: {
+    display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap',
+    color: c.textDim, fontSize: '13px',
+  },
+  syncBadge: { fontSize: '13px', fontWeight: '600' },
+  syncTime: { fontFamily: theme.fonts.mono, color: c.textMuted, fontSize: '12px', letterSpacing: '0.01em' },
+  syncCounts: { fontSize: '13px', color: c.textDim, fontFamily: theme.fonts.mono, letterSpacing: '0.02em' },
 };
 
 export default HomeOverview;
