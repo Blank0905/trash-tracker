@@ -410,27 +410,28 @@ class GarbageTruckImporter:
         sequence_order: Optional[int],
     ) -> Optional[int]:
         """依業務 key 查現有 station_id；找不到回 None。
-        - 用獨立 cursor（with self.conn.cursor()）避免與 INSERT 用的 self.cursor 共用狀態
-        - lat/lng 直接 <=>（不 ROUND）：DB 內是 DECIMAL(10,7)，Python float 經 PyMySQL
-          substitution 後 MySQL parse 成 DECIMAL；同來源同字串 → 同 float → 精確相等。
-          先前用 ROUND() 雙邊比較可能因 DECIMAL/FLOAT type cast 精度差導致 false negative。
+
+        biz_key = (route_id, station_name)。
+        - 為何只用兩個欄位：lat/lng/arrive_time/leave_time/sequence_order 在實測中
+          會有少量 row 無法穩定對齊（Python float IEEE754 漂移、time parse 些微差異
+          等），實測獨立呼叫此函式能找到對的 row，但在 ETL 真實跑時某些 row 失敗。
+          放寬到「同 route 同站名 = 同站」最穩定，與 CSV 結構的常識也吻合。
+        - 副作用：若 CSV 內同路線同站名出現多筆班次資料（不同 arrive_time），會合併
+          為同一個 station_id；schedule 透過 _insert_schedule 的 ON DUPLICATE KEY
+          UPDATE 機制處理逐日狀態，最終資訊不失。
+        - ORDER BY station_id ASC LIMIT 1 確保多次跑都回相同（最早的）id，favorites
+          收藏的 station_id 穩定。
+        - 用獨立 cursor 避免與 self.cursor 共用狀態。
         """
         sql = """
             SELECT station_id FROM stations
             WHERE route_id = %s
               AND station_name <=> %s
-              AND latitude  <=> %s
-              AND longitude <=> %s
-              AND arrive_time    <=> %s
-              AND leave_time     <=> %s
-              AND sequence_order <=> %s
+            ORDER BY station_id ASC
             LIMIT 1
         """
         with self.conn.cursor() as cursor:
-            cursor.execute(
-                sql,
-                (route_id, station_name, latitude, longitude, arrive_time, leave_time, sequence_order),
-            )
+            cursor.execute(sql, (route_id, station_name))
             row = cursor.fetchone()
         return row[0] if row else None
 
