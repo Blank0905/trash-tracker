@@ -350,6 +350,7 @@ class GarbageTruckImporter:
     ) -> Optional[int]:
         """依業務 key 查現有 route_id；找不到回 None。
         <=> 是 NULL-safe 等於：NULL 與 NULL 視為相等，避免 NULL 欄位失效。
+        用獨立 cursor 避免與 INSERT cursor 共用造成的狀態 quirk。
         """
         sql = """
             SELECT route_id FROM routes
@@ -361,8 +362,9 @@ class GarbageTruckImporter:
               AND trip_number <=> %s
             LIMIT 1
         """
-        self.cursor.execute(sql, (areas_id, route_code, route_name, car_number, team, trip_number))
-        row = self.cursor.fetchone()
+        with self.conn.cursor() as cursor:
+            cursor.execute(sql, (areas_id, route_code, route_name, car_number, team, trip_number))
+            row = cursor.fetchone()
         return row[0] if row else None
 
     def _insert_route(
@@ -406,24 +408,28 @@ class GarbageTruckImporter:
         sequence_order: Optional[int],
     ) -> Optional[int]:
         """依業務 key 查現有 station_id；找不到回 None。
-        lat/lng 用 ROUND(., 5) 容忍同來源浮點微差（~1m）；其餘用 <=> NULL-safe 比較。
+        - 用獨立 cursor（with self.conn.cursor()）避免與 INSERT 用的 self.cursor 共用狀態
+        - lat/lng 直接 <=>（不 ROUND）：DB 內是 DECIMAL(10,7)，Python float 經 PyMySQL
+          substitution 後 MySQL parse 成 DECIMAL；同來源同字串 → 同 float → 精確相等。
+          先前用 ROUND() 雙邊比較可能因 DECIMAL/FLOAT type cast 精度差導致 false negative。
         """
         sql = """
             SELECT station_id FROM stations
             WHERE route_id = %s
               AND station_name <=> %s
-              AND (ROUND(latitude,  5) <=> ROUND(%s, 5))
-              AND (ROUND(longitude, 5) <=> ROUND(%s, 5))
+              AND latitude  <=> %s
+              AND longitude <=> %s
               AND arrive_time    <=> %s
               AND leave_time     <=> %s
               AND sequence_order <=> %s
             LIMIT 1
         """
-        self.cursor.execute(
-            sql,
-            (route_id, station_name, latitude, longitude, arrive_time, leave_time, sequence_order),
-        )
-        row = self.cursor.fetchone()
+        with self.conn.cursor() as cursor:
+            cursor.execute(
+                sql,
+                (route_id, station_name, latitude, longitude, arrive_time, leave_time, sequence_order),
+            )
+            row = cursor.fetchone()
         return row[0] if row else None
 
     def _insert_station(
