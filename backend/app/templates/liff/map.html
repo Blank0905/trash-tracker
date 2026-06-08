@@ -258,7 +258,7 @@
             box-shadow: 0 0 8px rgba(255,181,71,0.5);
         }
         /* dragPin 內紅色 SVG：尺寸對齊地圖上會放的搜尋大頭針 */
-        #dragPin .pin-svg { width: 30px; height: 38px; pointer-events: none; }
+        #dragPin .pin-svg { width: 30px; height: 41px; pointer-events: none; }
 
         /* 主題切換鍵：依當前主題只顯示其中一顆圖示（按了會切到另一個） */
         #themeToggle .icon-sun, #themeToggle .icon-moon { display: none; }
@@ -269,14 +269,19 @@
            SEARCH PIN / GHOST — 地圖上紅針 & 拖曳分身
            （class 名 .search-pin / .pin-ghost 與 JS 綁定，必須保留）
            ==================================================== */
-        .search-pin { background: none; border: none; }
+        .search-pin {
+            background: none;
+            border: none;
+            /* 地圖上的搜尋大頭針：drop-shadow 製造立體浮起感 */
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.45));
+        }
 
         .pin-ghost {
             position: fixed; z-index: 2000; pointer-events: none;
             transform: translate(-50%, -100%);
-            filter: drop-shadow(0 6px 14px rgba(0,0,0,0.55));
+            filter: drop-shadow(0 8px 16px rgba(0,0,0,0.6));
         }
-        .pin-ghost .pin-svg { width: 36px; height: 46px; display: block; }
+        .pin-ghost .pin-svg { width: 40px; height: 55px; display: block; }
 
         /* ====================================================
            BOTTOM PANEL — 站點資訊抽屜
@@ -292,8 +297,10 @@
             box-shadow: var(--shadow-panel);
             transform: translateY(110%);
             transition: transform 0.34s cubic-bezier(0.32, 0.72, 0.2, 1);
-            max-height: 78vh;
-            overflow: hidden;   /* 不捲動 → 避免瀏覽器把下滑攔截為內容捲動，下滑關閉手勢更靈敏 */
+            max-height: 82vh;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
         }
         #panel.open { transform: translateY(0); }
         /* 上緣 handle bar：示意可上下拉動 */
@@ -351,13 +358,14 @@
         #p-schedule { margin-bottom: 4px; }
 
         /* renderWeek() 產出的 HTML 結構不能改，但這裡用 CSS 全面美化 */
+        /* 縮緊 padding 與字體：當時間變成「19:30 / 21:00」這種長字串時，6~7 row 才不會把面板撐到底部按鈕被遮住 */
         .sch-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            gap: 16px;
-            padding: 11px 0;
-            font-size: 14px;
+            gap: 12px;
+            padding: 6px 0;
+            font-size: 13px;
             border-bottom: 1px dashed var(--border);
         }
         .sch-row:last-child { border-bottom: 0; }
@@ -365,7 +373,7 @@
         .sch-day {
             color: var(--text);
             font-family: var(--font-mono);
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 500;
             letter-spacing: 0.02em;
             white-space: nowrap;
@@ -373,12 +381,12 @@
         /* 收運類別：做成 LINE 綠藥丸 tag */
         .sch-types {
             display: inline-block;
-            padding: 5px 11px;
+            padding: 4px 10px;
             background: var(--brand-soft);
             color: var(--brand-light);
             border: 1px solid var(--brand-tint);
             border-radius: 999px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             letter-spacing: 0.04em;
             text-align: center;
@@ -554,8 +562,8 @@
     <div id="p-schedule"></div>
 
     <div class="p-actions">
-        <button id="p-route">顯示路線</button>
-        <button id="p-fav">加入最愛</button>
+        <button id="p-route">加入最愛</button>
+        <button id="p-fav">顯示路線</button>
         <button id="p-close">關閉</button>
     </div>
 </div>
@@ -592,11 +600,13 @@
         </svg>
     </button>
     <button id="dragPin" class="fab" title="拖我到地圖上選搜尋點" aria-label="拖曳設定搜尋點">
-        <!-- 紅色搜尋大頭針（與地圖上會放的針視覺一致；class .pin-svg 是 CSS hook） -->
-        <svg class="pin-svg" viewBox="0 0 24 32" aria-hidden="true">
-            <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 20 12 20s12-11 12-20C24 5.4 18.6 0 12 0z"
-                  fill="#e53935" stroke="#fff" stroke-width="2"/>
-            <circle cx="12" cy="12" r="5" fill="#fff"/>
+        <!-- 紅色搜尋大頭針（與地圖上會放的針視覺一致；class .pin-svg 是 CSS hook）
+             精緻版：紅色實心 + 白邊 + 中央雙層白圓紅芯 + drop-shadow 立體感 -->
+        <svg class="pin-svg" viewBox="0 0 32 44" aria-hidden="true">
+            <path d="M16 1.5C7.7 1.5 1 8.2 1 16.5c0 11.3 15 26 15 26s15-14.7 15-26c0-8.3-6.7-15-15-15z"
+                  fill="#E53935" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/>
+            <circle cx="16" cy="16" r="6" fill="#fff"/>
+            <circle cx="16" cy="16" r="3" fill="#C62828"/>
         </svg>
     </button>
     <button id="locateBtn" class="fab fab-primary" title="定位我的位置" aria-label="定位我的位置">
@@ -624,6 +634,31 @@
     // 後端注入（見 app/api/pages.py）。改用 Leaflet/OSM 後不再需要 Google Maps 金鑰。
     const LIFF_ID = "{{ liff_id }}";
     const DEFAULT_CENTER = { lat: 25.0478, lng: 121.5170 }; // 台北車站，最終後備
+
+    // === Map state 持久化（sessionStorage）===
+    // 使用者離開此頁（如進 search.html）再回來時，恢復先前的中心點、zoom、半徑、大頭針位置
+    const MAP_STATE_KEY = 'liffMapState';
+    function saveMapState() {
+        if (!map || !searchCenter) return;
+        try {
+            const state = {
+                center: { lat: searchCenter.lat, lng: searchCenter.lng },
+                zoom: map.getZoom(),
+                radius: currentRadius(),
+                searchPin: searchMarker ? {
+                    lat: searchMarker.getLatLng().lat,
+                    lng: searchMarker.getLatLng().lng,
+                } : null,
+            };
+            sessionStorage.setItem(MAP_STATE_KEY, JSON.stringify(state));
+        } catch (e) { /* sessionStorage 滿/失效都不致命 */ }
+    }
+    function loadMapState() {
+        try {
+            const raw = sessionStorage.getItem(MAP_STATE_KEY);
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) { return null; }
+    }
 
     // 地圖主題：dark（預設）/ light，存於 localStorage；同步加到 body class 控制 tile filter
     const MAP_THEME_KEY = 'mapTheme';
@@ -665,6 +700,9 @@
     let rangeCircle = null;  // 搜尋範圍圓圈
     let routeLayer = null;   // 目前顯示的行駛路線（polyline + 該路線站點）
     let currentRouteId = null;
+    let lastSearchResults = []; // 最近一次 /stations/search 的原始結果，供 openStation 找「同地點所有班次時間」
+    let favoriteStationIds = new Set(); // 目前使用者收藏的 station_id 集合（控制 p-fav 按鈕顯示加入/移除）
+    let currentStationId = null;        // 目前 panel 開啟的 station_id（給 p-fav onclick 用）
 
     // 目前選取的搜尋半徑（公里）
     function currentRadius() {
@@ -742,12 +780,14 @@
     }
 
     // 紅色搜尋大頭針圖示（與站點藍針、自己藍點區隔）
+    // 精緻版：紅色實心 + 白邊 + 中央雙層白圓紅芯，配合 .search-pin CSS 的 drop-shadow
     const searchPinIcon = L.divIcon({
         className: 'search-pin',
-        html: '<svg width="32" height="42" viewBox="0 0 24 32">'
-            + '<path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 20 12 20s12-11 12-20C24 5.4 18.6 0 12 0z" fill="#e53935" stroke="#fff" stroke-width="2"/>'
-            + '<circle cx="12" cy="12" r="5" fill="#fff"/></svg>',
-        iconSize: [32, 42], iconAnchor: [16, 42]
+        html: '<svg width="40" height="55" viewBox="0 0 32 44">'
+            + '<path d="M16 1.5C7.7 1.5 1 8.2 1 16.5c0 11.3 15 26 15 26s15-14.7 15-26c0-8.3-6.7-15-15-15z" fill="#E53935" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/>'
+            + '<circle cx="16" cy="16" r="6" fill="#fff"/>'
+            + '<circle cx="16" cy="16" r="3" fill="#C62828"/></svg>',
+        iconSize: [40, 55], iconAnchor: [20, 55]
     });
 
     // 放置／移動搜尋大頭針：拖放後以新位置重新搜尋
@@ -758,7 +798,7 @@
         }).addTo(map).bindTooltip('搜尋點（可拖動微調）');
         searchMarker.on('dragend', () => {
             const p = searchMarker.getLatLng();
-            searchStations(p.lat, p.lng);
+            searchStations(p.lat, p.lng, { fit: true });
         });
     }
 
@@ -773,8 +813,9 @@
 
     // 鄰近搜尋：畫搜尋範圍圓圈 + 站點 marker
     // limit=200 為後端硬上限；達上限會提示縮小範圍（避免 marker 太多卡住地圖）
+    // options.fit=true 時，搜尋完成後自動縮放到剛好框住搜尋圓圈（拖大頭針/locate/改半徑 時用）
     const MAX_STATIONS = 200;
-    async function searchStations(lat, lng) {
+    async function searchStations(lat, lng, options = {}) {
         searchCenter = { lat, lng };       // 記住查詢中心，改半徑時沿用
         const radiusKm = currentRadius();
         const r = await api(`/stations/search?lat=${lat}&lng=${lng}&radius=${radiusKm}&limit=${MAX_STATIONS}`);
@@ -791,7 +832,8 @@
             fillColor: '#00B900', fillOpacity: 0.08
         }).addTo(map);
 
-        if (r.status !== 'success') { toast('搜尋失敗：' + (r.message || '')); return; }
+        if (r.status !== 'success') { toast('搜尋失敗：' + (r.message || '')); saveMapState(); return; }
+        lastSearchResults = r.data || [];
         r.data.forEach(s => {
             const mk = L.marker([+s.latitude, +s.longitude]).addTo(map);
             mk.bindTooltip(s.station_name);
@@ -803,14 +845,25 @@
         } else if (r.data.length >= MAX_STATIONS) {
             toast(`此範圍站點超過 ${MAX_STATIONS} 個，建議縮小搜尋半徑`);
         }
+
+        // 自動 fit 範圍：以搜尋圓圈為基準，加上一點 padding 讓邊緣不要貼太近
+        if (options.fit && rangeCircle) {
+            map.fitBounds(rangeCircle.getBounds(), { padding: [40, 40], maxZoom: 18 });
+        }
+
+        // 存目前 state（離開頁面再回來時恢復）
+        saveMapState();
     }
 
     // 把一週班表條列成「有收運的日子」：週X HH:MM + 當天收的種類
+    // arriveTimes：同地點（同站名同位置）所有班次到站時間清單，多個用 ' / ' 串接
     const DOW = ['日', '一', '二', '三', '四', '五', '六'];
-    function renderWeek(schedules, arriveTime) {
+    function renderWeek(schedules, arriveTimes) {
         if (!Array.isArray(schedules) || schedules.length === 0)
             return '<div class="sch-empty">本站無收運班表資料</div>';
-        const time = arriveTime ? arriveTime.slice(0, 5) : '';
+        const timeStr = Array.isArray(arriveTimes) && arriveTimes.length
+            ? arriveTimes.join(' / ')
+            : '';
         const rows = schedules
             .slice()
             .sort((a, b) => a.day_of_week - b.day_of_week)
@@ -820,10 +873,26 @@
                 if (s.collects_garbage) types.push('一般垃圾');
                 if (s.collects_recycling) types.push('資源回收');
                 if (s.collects_foodscraps) types.push('廚餘');
-                return `<div class="sch-row"><span class="sch-day">週${DOW[s.day_of_week]} ${time}</span>`
+                return `<div class="sch-row"><span class="sch-day">週${DOW[s.day_of_week]} ${timeStr}</span>`
                      + `<span class="sch-types">${types.join('、')}</span></div>`;
             });
         return rows.length ? rows.join('') : '<div class="sch-empty">近 7 天無收運</div>';
+    }
+
+    // 從 lastSearchResults 找出「同站名 + 同位置（lat/lng round 5 位 ~1m）」的所有 arrive_times
+    function collectArriveTimes(stationName, lat, lng) {
+        if (!lastSearchResults.length) return [];
+        const targetLat = Number(lat);
+        const targetLng = Number(lng);
+        const same = lastSearchResults.filter(s =>
+            s.station_name === stationName
+            && Math.abs(Number(s.latitude)  - targetLat) < 0.00001
+            && Math.abs(Number(s.longitude) - targetLng) < 0.00001
+        );
+        const times = same
+            .map(s => (s.arrive_time ? String(s.arrive_time).slice(0, 5) : ''))
+            .filter(t => t);
+        return [...new Set(times)].sort();
     }
 
     // 點站 → 取明細（含班表）→ 條列一週收運 → 顯示面板
@@ -832,8 +901,16 @@
         if (r.status !== 'success') { toast('讀取站點失敗：' + (r.message || '')); return; }
         const d = r.data;
         document.getElementById('p-name').innerText = d.station_name || fallbackName || '站點';
-        document.getElementById('p-schedule').innerHTML = renderWeek(d.schedules, d.arrive_time);
-        document.getElementById('p-fav').onclick = () => addFavorite(d.station_id);
+        // 找出「同地點」所有班次到站時間（多條路線同站點時會有多個 arrive_time）；
+        // 若 search 結果裡找不到（例如直接打開站點明細），退回單個 d.arrive_time
+        let arriveTimes = collectArriveTimes(d.station_name, d.latitude, d.longitude);
+        if (arriveTimes.length === 0 && d.arrive_time) {
+            arriveTimes = [String(d.arrive_time).slice(0, 5)];
+        }
+        document.getElementById('p-schedule').innerHTML = renderWeek(d.schedules, arriveTimes);
+        // 記住目前 panel 對應的 station_id，並依收藏狀態切換 p-fav 為「加入最愛」或「移除收藏」
+        currentStationId = d.station_id;
+        updateFavButton(d.station_id);
         // 記住此站所屬路線，供「顯示路線」用；按鈕文字依該路線是否正在顯示
         currentRouteId = d.route ? d.route.route_id : null;
         const routeBtn = document.getElementById('p-route');
@@ -842,10 +919,49 @@
         document.getElementById('panel').classList.add('open');
     }
 
+    // 載入目前使用者的收藏 station_id 集合（給 p-fav 顯示「加入最愛」或「移除收藏」用）
+    async function loadFavorites() {
+        try {
+            const r = await api('/me/stations');
+            if (r.status === 'success' && Array.isArray(r.data)) {
+                favoriteStationIds = new Set(r.data.map(f => f.station_id));
+            }
+        } catch (e) { /* 未綁定或網路問題都不致命，跳過 */ }
+    }
+
+    // 更新 p-fav 按鈕文字與點擊行為（依目前是否已收藏切換 加入最愛 / 移除收藏）
+    function updateFavButton(stationId) {
+        const btn = document.getElementById('p-fav');
+        const isFav = favoriteStationIds.has(stationId);
+        btn.innerText = isFav ? '移除收藏' : '加入最愛';
+        btn.onclick = () => isFav ? removeFavorite(stationId) : addFavorite(stationId);
+    }
+
     async function addFavorite(stationId) {
         const r = await api('/me/stations', { method: 'POST', body: JSON.stringify({ station_id: stationId }) });
-        if (r.status === 'success') toast('已加入最愛！');
-        else toast('加入失敗：' + (r.message || '')); // 409＝已收藏過此站點
+        if (r.status === 'success') {
+            favoriteStationIds.add(stationId);
+            toast('已加入最愛！');
+            if (stationId === currentStationId) updateFavButton(stationId);
+        } else {
+            // 409＝已收藏過此站點（後端說已有 → 同步更新本地 cache 並切換成「移除收藏」）
+            if (r.status === 'error' && /已收藏|409/.test(r.message || '')) {
+                favoriteStationIds.add(stationId);
+                if (stationId === currentStationId) updateFavButton(stationId);
+            }
+            toast('加入失敗：' + (r.message || ''));
+        }
+    }
+
+    async function removeFavorite(stationId) {
+        const r = await api(`/me/stations/${stationId}`, { method: 'DELETE' });
+        if (r.status === 'success') {
+            favoriteStationIds.delete(stationId);
+            toast('已移除收藏');
+            if (stationId === currentStationId) updateFavButton(stationId);
+        } else {
+            toast('移除失敗：' + (r.message || ''));
+        }
     }
 
     // 清掉目前顯示的行駛路線
@@ -904,14 +1020,17 @@
     }
     document.getElementById('p-close').onclick = closePanel;   // 保留綁定避免破壞 JS 結構
 
-    // 向下滑關閉 panel：詳細資訊不需要捲動，任何下滑都直接觸發關閉
+    // 向下滑關閉 panel：
+    // - 內容若不夠長（多數情境）panel.scrollTop 永遠是 0 → 任何下滑都直接關閉
+    // - 內容若超過 panel max-height（一週每天都有車且時間多）會 scroll → 只在捲到頂時才視為「想關閉」，否則照常捲內容
     (function () {
         const panel = document.getElementById('panel');
         let startY = null;
-        const THRESHOLD = 30;   // 下滑超過 30px 就關閉（小門檻 = 容易觸發）
+        const THRESHOLD = 30;
 
         panel.addEventListener('pointerdown', (e) => {
-            startY = e.clientY;
+            // 只在已捲到最頂時才開始監測下滑關閉手勢，否則讓 panel 自己 scroll
+            if (panel.scrollTop <= 0) startY = e.clientY;
         });
         panel.addEventListener('pointermove', (e) => {
             if (startY === null) return;
@@ -927,10 +1046,10 @@
         panel.addEventListener('pointerleave', reset);
     })();
 
-    // 改搜尋半徑 → 立即以目前查詢中心重查
+    // 改搜尋半徑 → 立即以目前查詢中心重查（含 fit）
     document.getElementById('radius').addEventListener('change', () => {
         if (!searchCenter) return;
-        searchStations(searchCenter.lat, searchCenter.lng);
+        searchStations(searchCenter.lat, searchCenter.lng, { fit: true });
     });
 
     // 右下角 📍：手動重新定位（手勢觸發，成功率高於頁面載入時的自動定位）
@@ -939,11 +1058,10 @@
         toast('定位中…');
         const geo = await getGeo();   // 失敗時 getGeo 內已 toast 原因
         if (!geo) return;
-        map.setView([geo.lat, geo.lng], 16);
         setUserMarker(geo);
         // 定位＝以「我」為中心，移除先前手動拖放的搜尋針（避免兩個搜尋點指示）
         if (searchMarker) { map.removeLayer(searchMarker); searchMarker = null; }
-        searchStations(geo.lat, geo.lng);
+        searchStations(geo.lat, geo.lng, { fit: true });
     };
 
     // 「搜尋點」圖釘按鈕：壓住往地圖拖、放開處放紅針並搜尋（滑鼠＋觸控皆支援）
@@ -979,7 +1097,7 @@
             const ll = map.containerPointToLatLng(
                 L.point(e.clientX - rect.left, e.clientY - rect.top));
             placeSearchMarker({ lat: ll.lat, lng: ll.lng });
-            searchStations(ll.lat, ll.lng);
+            searchStations(ll.lat, ll.lng, { fit: true });
         };
         btn.addEventListener('pointerdown', startGhost);
         btn.addEventListener('pointermove', moveGhost);
@@ -990,6 +1108,7 @@
     // 主流程
     // 流程改寫：先把地圖畫出來（解除黑畫面），再背景跑定位 + 搜尋；
     // 全程用 #loader 顯示「現在在做什麼」，避免使用者看著黑屏不知所措。
+    // 若 sessionStorage 有上次的 state（如剛從 search.html 回來）就優先恢復。
     async function main() {
         showLoader('連線 LINE…');
         await liff.init({ liffId: LIFF_ID });
@@ -997,9 +1116,18 @@
         const profile = await liff.getProfile();
         lineUserId = profile.userId;
 
-        // 立刻初始化 Leaflet（先用 DEFAULT_CENTER + 較大範圍 zoom，使用者馬上看到地圖）
+        // 背景載入收藏清單（給 p-fav 按鈕判斷顯示「加入最愛」或「移除收藏」）；
+        // 不 await，與後續地圖初始化並行，加快進場
+        loadFavorites();
+
+        // 檢查是否有上次離開時的狀態（如剛從 search.html 返回）
+        const saved = loadMapState();
+
+        // 立刻初始化 Leaflet（地圖中心優先用 saved.center，否則 DEFAULT_CENTER）
         showLoader('載入地圖…');
-        map = L.map('map', { zoomControl: true }).setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], 13);
+        const initCenter = saved && saved.center ? saved.center : DEFAULT_CENTER;
+        const initZoom   = saved && saved.zoom   ? saved.zoom   : 13;
+        map = L.map('map', { zoomControl: true }).setView([initCenter.lat, initCenter.lng], initZoom);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 貢獻者'
@@ -1008,7 +1136,27 @@
         // 點地圖空白處（不是 marker；Leaflet 會自動避開 marker click）→ 關 panel
         map.on('click', closePanel);
 
-        // 嘗試 GPS（最久等 10 秒；失敗 getGeo 內已 toast 原因）
+        // === 路徑 A：有 saved state（從 search.html 回來）→ 直接恢復，不做定位流程 ===
+        if (saved && saved.center) {
+            // 恢復半徑下拉值
+            if (saved.radius) {
+                const radiusEl = document.getElementById('radius');
+                // 確保該 value 存在於 options 內，否則保留預設
+                if (Array.from(radiusEl.options).some(o => parseFloat(o.value) === saved.radius)) {
+                    radiusEl.value = String(saved.radius);
+                }
+            }
+            // 若上次有放搜尋大頭針，恢復它
+            if (saved.searchPin) {
+                placeSearchMarker(saved.searchPin);
+            }
+            hideLoader();
+            // 用恢復的中心 + 恢復的半徑重查（不 fit，保留使用者上次的 zoom）
+            searchStations(saved.center.lat, saved.center.lng);
+            return;
+        }
+
+        // === 路徑 B：首次進入 → 走原本定位流程 ===
         showLoader('定位中…');
         const geo = await getGeo();
         if (geo) {

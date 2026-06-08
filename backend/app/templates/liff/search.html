@@ -219,18 +219,6 @@
             flex-wrap: wrap;
         }
         .item-sub .time-dot { color: var(--brand-light); }
-        /* 多條路線經過同站時顯示的小徽章（如 ×3） */
-        .item-sub .route-count {
-            font-family: var(--font-mono);
-            font-size: 10px;
-            font-weight: 600;
-            letter-spacing: 0.04em;
-            color: var(--text-dim);
-            background: var(--surface-2);
-            border: 1px solid var(--border-strong);
-            padding: 1px 6px;
-            border-radius: 999px;
-        }
 
         /* 距離藥丸：mono 字體、LINE 綠 soft 背景 */
         .item-dist {
@@ -373,58 +361,18 @@
         statusEl.classList.remove('error');
     }
 
-    // 後端 /stations/search 對「同物理站點但不同路線」會回多筆（甚至同名同位置但 station_id 不同
-    // 的重複資料，常見於三市資料來源各自匯入）。視覺上重複，所以前端做去重：
-    // 直接用 trim 後的 station_name 當 key（同一個搜尋半徑內，同名 = 同一物理站點，
-    // 不會有兩個不同地點剛好同名）。多條路線/重複資料的到站時間用 Set 合併、自動去除重複時間。
-    function deduplicateStations(items) {
-        const map = new Map();
-        for (const s of items) {
-            // trim + 合併內部空白，避免「館前路42號」與「館前路42號 」隱形差異
-            const key = String(s.station_name || '').trim().replace(/\s+/g, ' ');
-            if (!key) continue;
-            if (!map.has(key)) {
-                map.set(key, {
-                    station_name: key,
-                    latitude: Number(s.latitude),
-                    longitude: Number(s.longitude),
-                    distance_km: Number(s.distance_km),
-                    arrive_times: new Set(),
-                    route_count: 0,
-                });
-            }
-            const m = map.get(key);
-            m.route_count += 1;
-            const t = fmtTime(s.arrive_time);
-            if (t) m.arrive_times.add(t);
-            if (Number(s.distance_km) < m.distance_km) m.distance_km = Number(s.distance_km);
-        }
-        // 整理：Set → 排序後 Array；依距離排序輸出
-        return Array.from(map.values())
-            .map(m => ({ ...m, arrive_times: Array.from(m.arrive_times).sort() }))
-            .sort((a, b) => a.distance_km - b.distance_km);
-    }
-
+    // 直接 render 每一筆原始資料：同站名不同到站時間 / 不同路線 → 各自獨立一行
     function renderItems(items) {
         listEl.innerHTML = items.map((s, i) => {
             // 依排名計算左側細條的透明度（第一筆 1.0、最後一筆 0.3）
             const rankOpacity = items.length === 1 ? 1 : (1 - (i / items.length) * 0.7).toFixed(2);
-
-            // 時間清單：1 個就單獨顯示、多個用「 · 」串
-            const timesHtml = s.arrive_times.length
-                ? s.arrive_times.map(t => `<span class="time-dot">${esc(t)}</span>`).join(' · ')
-                : '—';
-            // 多條路線時加 ×N 小徽章，讓使用者理解為何有多個時間
-            const routeBadge = s.route_count > 1
-                ? `<span class="route-count">×${s.route_count}</span>`
-                : '';
-
+            const time = fmtTime(s.arrive_time);
             return `
             <div class="item" style="--rank-opacity:${rankOpacity}">
                 <div class="item-rank">${String(i + 1).padStart(2, '0')}</div>
                 <div class="item-main">
                     <div class="item-title">${esc(s.station_name)}</div>
-                    <div class="item-sub">表定到站 ${timesHtml}${routeBadge}</div>
+                    <div class="item-sub">${time ? `表定到站 <span class="time-dot">${esc(time)}</span>` : '表定到站 —'}</div>
                 </div>
                 <div class="item-dist">${esc(fmtDist(s.distance_km))}</div>
             </div>`;
@@ -450,13 +398,8 @@
                 qCountEl.innerText = '—';
                 return;
             }
-            const rawItems = res.data || [];
-            // 去重：同站名+同地點視為一站，多條路線的到站時間合併
-            const items = deduplicateStations(rawItems);
-            // 共計：顯示去重後站點數；若有合併則括號附原始筆數
-            qCountEl.innerText = items.length === rawItems.length
-                ? String(items.length)
-                : `${items.length} / ${rawItems.length}`;
+            const items = res.data || [];
+            qCountEl.innerText = String(items.length);
 
             if (items.length === 0) {
                 setStatus(`半徑 ${fmtRadius(radius)} 內沒有任何站點。試著回地圖把搜尋圖釘拖到別處或調大範圍。`);
@@ -466,7 +409,7 @@
             clearStatus();
             renderItems(items);
 
-            if (rawItems.length >= MAX_STATIONS) {
+            if (items.length >= MAX_STATIONS) {
                 // 達上限提醒
                 const note = document.createElement('div');
                 note.style.cssText = 'margin-top:12px;padding:10px 14px;background:rgba(255,181,71,0.08);border:1px dashed rgba(255,181,71,0.3);border-radius:10px;color:#ffc97a;font-size:12px;line-height:1.5;letter-spacing:0.02em;';
