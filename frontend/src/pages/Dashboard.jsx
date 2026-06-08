@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 // 💡 核心變更：引入改裝後的 getStyles 函式
 import { getStyles } from './Dashboard.styles';
+import { getThemeMode, toggleThemeMode } from '../utils/theme';
 
 // 引入子資料表檔案
 import TableAreas from './dashboard/TableAreas';
@@ -32,6 +33,9 @@ const Dashboard = ({ onLogout }) => {
 
   // 🟢 1. 即時監聽螢幕寬度 (RWD 核心)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  // 亮 / 暗主題切換（實際 CSS 變數在 utils/theme.js 內處理，這裡只負責 re-render icon）
+  const [themeMode, setThemeMode] = useState(getThemeMode());
+  const onToggleTheme = () => { toggleThemeMode(); setThemeMode(getThemeMode()); };
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -150,6 +154,14 @@ const Dashboard = ({ onLogout }) => {
           <div style={styles.pageTitleText}>資料庫即時同步面板</div>
           <div style={styles.userInfoBox}>
             <span style={styles.userLabel}>管理員: {adminEmail}</span>
+            <button
+              onClick={onToggleTheme}
+              style={styles.themeToggle}
+              title={themeMode === 'dark' ? '切換為亮色' : '切換為暗色'}
+              aria-label="切換亮暗主題"
+            >
+              {themeMode === 'dark' ? '☀️ 亮' : '🌙 暗'}
+            </button>
             <button onClick={() => { localStorage.clear(); onLogout(); }} style={styles.logoutButton}>安全登出</button>
           </div>
         </div>

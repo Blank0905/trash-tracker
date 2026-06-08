@@ -178,6 +178,21 @@ export const getStyles = (isMobile) => ({
     letterSpacing: '0.01em',
   },
 
+  // 亮 / 暗主題切換鈕：白底細邊 + 中性灰字，跟 logout 並排但不搶戲
+  themeToggle: {
+    padding: '6px 10px',
+    backgroundColor: c.surface1,
+    border: `1px solid ${c.border}`,
+    color: c.textDim,
+    borderRadius: r.sm,
+    cursor: 'pointer',
+    fontWeight: '500',
+    fontSize: '12.5px',
+    transition: `background ${t.fast}, color ${t.fast}, border-color ${t.fast}`,
+    fontFamily: theme.fonts.sans,
+    lineHeight: '1',
+  },
+
   // 登出按鈕：白底 + 細邊，文字微紅暗示「破壞性動作」但不過於搶眼
   logoutButton: {
     padding: '6px 12px',
