@@ -45,80 +45,86 @@ export const theme = {
 };
 
 // ---- CSS 變數定義（亮 / 暗）-------------------------------------
+// 主色系：#94785A 暖棕（brand）/ #E0D9D3 米色（surface3 + border）/ #F6F5F3 奶白（bg）
+// 整體走「公文 / 公報 / 自然」氣質：低彩度、暖灰調、紙感
 const CSS = `
 :root {
-  --c-bg: #fafafa;
+  /* 背景層次：F6F5F3 奶白底 → 白卡片 → 暖灰 hover → E0D9D3 active */
+  --c-bg: #f6f5f3;
   --c-surface1: #ffffff;
-  --c-surface2: #f3f4f6;
-  --c-surface3: #e5e7eb;
+  --c-surface2: #efeae4;
+  --c-surface3: #e0d9d3;
 
-  --c-border: #e5e7eb;
-  --c-borderStrong: #d1d5db;
+  --c-border: #e0d9d3;
+  --c-borderStrong: #c9bfb5;
 
-  --c-text: #111827;
-  --c-textDim: #4b5563;
-  --c-textMuted: #6b7280;
-  --c-textFaint: #9ca3af;
+  /* 文字也是暖色系，避免冷灰跟暖棕打架 */
+  --c-text: #2a2520;
+  --c-textDim: #5c4f44;
+  --c-textMuted: #837567;
+  --c-textFaint: #b5a99b;
 
-  --c-brand: #4f46e5;
-  --c-brandHover: #4338ca;
-  --c-brandActive: #3730a3;
-  --c-brandSoft: rgba(79, 70, 229, 0.08);
-  --c-brandTint: rgba(79, 70, 229, 0.22);
+  /* 品牌：#94785A 暖棕（土黃 / khaki / 黏土色） */
+  --c-brand: #94785a;
+  --c-brandHover: #7e6549;
+  --c-brandActive: #685237;
+  --c-brandSoft: rgba(148, 120, 90, 0.10);
+  --c-brandTint: rgba(148, 120, 90, 0.28);
 
-  --c-blue: #0969da;
-  --c-blueSoft: rgba(9, 105, 218, 0.10);
-  --c-amber: #d97706;
-  --c-amberSoft: rgba(217, 119, 6, 0.10);
-  --c-red: #dc2626;
-  --c-redSoft: rgba(220, 38, 38, 0.08);
-  --c-green: #16a34a;
-  --c-greenSoft: rgba(22, 163, 74, 0.10);
+  /* Accent 也降彩度走暖調：避免螢光感破壞整體氛圍 */
+  --c-blue: #3e6f8f;            /* 公文藍 */
+  --c-blueSoft: rgba(62, 111, 143, 0.10);
+  --c-amber: #b07a2a;           /* 焦糖琥珀 */
+  --c-amberSoft: rgba(176, 122, 42, 0.10);
+  --c-red: #b04848;             /* 磚紅 */
+  --c-redSoft: rgba(176, 72, 72, 0.10);
+  --c-green: #6f8554;           /* 苔綠 / 鼠尾草綠 */
+  --c-greenSoft: rgba(111, 133, 84, 0.10);
 
-  --sh-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
-  --sh-md: 0 4px 12px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
-  --sh-lg: 0 12px 32px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04);
-  --sh-brand: 0 1px 2px rgba(79, 70, 229, 0.10), 0 2px 6px rgba(79, 70, 229, 0.18);
+  /* 陰影：用棕色而非藍色，跟暖底融合不會「藍藍髒髒」 */
+  --sh-sm: 0 1px 2px rgba(74, 56, 36, 0.05), 0 1px 3px rgba(74, 56, 36, 0.06);
+  --sh-md: 0 4px 12px rgba(74, 56, 36, 0.07), 0 1px 3px rgba(74, 56, 36, 0.05);
+  --sh-lg: 0 12px 32px rgba(74, 56, 36, 0.10), 0 2px 6px rgba(74, 56, 36, 0.05);
+  --sh-brand: 0 1px 2px rgba(148, 120, 90, 0.12), 0 2px 6px rgba(148, 120, 90, 0.22);
 
   color-scheme: light;
 }
 
 :root[data-theme="dark"] {
-  /* 背景：類 GitHub Dark / Vercel */
-  --c-bg: #0d1117;
-  --c-surface1: #161b22;
-  --c-surface2: #21262d;
-  --c-surface3: #30363d;
+  /* 暗色版也維持暖系：木紋 / 咖啡漬 / 老紙的氛圍 */
+  --c-bg: #1a1714;
+  --c-surface1: #25201c;
+  --c-surface2: #2f2925;
+  --c-surface3: #3a332d;
 
-  --c-border: #30363d;
-  --c-borderStrong: #484f58;
+  --c-border: #3a332d;
+  --c-borderStrong: #4e453e;
 
-  --c-text: #e6edf3;
-  --c-textDim: #c9d1d9;
-  --c-textMuted: #8b949e;
-  --c-textFaint: #6e7681;
+  --c-text: #f0e9df;
+  --c-textDim: #c7bdb1;
+  --c-textMuted: #9d9388;
+  --c-textFaint: #6e665c;
 
-  /* indigo 在暗底要亮一階才看得清 */
-  --c-brand: #818cf8;
-  --c-brandHover: #a5b4fc;
-  --c-brandActive: #c7d2fe;
-  --c-brandSoft: rgba(129, 140, 248, 0.14);
-  --c-brandTint: rgba(129, 140, 248, 0.32);
+  /* 暖棕在暗底要亮 2 階（往沙色 / 杏仁色推）才看得清 */
+  --c-brand: #c9a580;
+  --c-brandHover: #d9b797;
+  --c-brandActive: #e5c9ad;
+  --c-brandSoft: rgba(201, 165, 128, 0.16);
+  --c-brandTint: rgba(201, 165, 128, 0.36);
 
-  --c-blue: #58a6ff;
-  --c-blueSoft: rgba(88, 166, 255, 0.14);
-  --c-amber: #f59e0b;
-  --c-amberSoft: rgba(245, 158, 11, 0.14);
-  --c-red: #f87171;
-  --c-redSoft: rgba(248, 113, 113, 0.14);
-  --c-green: #4ade80;
-  --c-greenSoft: rgba(74, 222, 128, 0.14);
+  --c-blue: #7ba8c9;
+  --c-blueSoft: rgba(123, 168, 201, 0.14);
+  --c-amber: #d4a65a;
+  --c-amberSoft: rgba(212, 166, 90, 0.14);
+  --c-red: #d88080;
+  --c-redSoft: rgba(216, 128, 128, 0.14);
+  --c-green: #98ac7b;
+  --c-greenSoft: rgba(152, 172, 123, 0.14);
 
-  /* 暗底下原本的鐵青陰影幾乎看不見，改成更深 + 一點點亮邊取代立體感 */
-  --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.30);
-  --sh-md: 0 4px 14px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.30);
-  --sh-lg: 0 16px 40px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.35);
-  --sh-brand: 0 0 0 1px rgba(129, 140, 248, 0.35), 0 2px 12px rgba(129, 140, 248, 0.35);
+  --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.32);
+  --sh-md: 0 4px 14px rgba(0, 0, 0, 0.48), 0 1px 3px rgba(0, 0, 0, 0.32);
+  --sh-lg: 0 16px 40px rgba(0, 0, 0, 0.58), 0 2px 6px rgba(0, 0, 0, 0.36);
+  --sh-brand: 0 0 0 1px rgba(201, 165, 128, 0.38), 0 2px 12px rgba(201, 165, 128, 0.34);
 
   color-scheme: dark;
 }
