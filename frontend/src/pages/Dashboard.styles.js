@@ -1,178 +1,214 @@
-// 📦 升級版：動態樣式大倉庫，完美支援 RWD 手機版自適應
+// 深色現代 SaaS 風（GitHub Dark / Vercel-ish）。RWD 自適應手機/桌面。
+import { theme } from '../utils/theme';
+
+const c = theme.colors;
+const r = theme.radius;
+const t = theme.transition;
+
 export const getStyles = (isMobile) => ({
   container: {
     display: 'flex',
-    flexDirection: isMobile ? 'column' : 'row', // 🟢 手機直排，電腦橫排
-    height: isMobile ? 'auto' : '100vh',        // 🟢 手機隨內容伸展，電腦鎖定單一視窗
+    flexDirection: isMobile ? 'column' : 'row',
+    height: isMobile ? 'auto' : '100vh',
+    minHeight: '100vh',
     width: '100vw',
-    backgroundColor: '#f8f9fa',
-    overflowX: 'hidden',                        // 🟢 徹底鎖死橫向捲軸，防止手機左右搖晃跑偏
-    fontFamily: '"PingFang TC", "Helvetica Neue", Arial, sans-serif',
+    backgroundColor: c.bg,
+    overflowX: 'hidden',
+    fontFamily: theme.fonts.sans,
+    color: c.text,
+    fontFeatureSettings: '"cv11", "ss01"', // SF Pro 的數字微優化
+    WebkitFontSmoothing: 'antialiased',
   },
 
-  // 側邊欄整體樣式
+  // ============ 側邊欄（左邊 sidebar） ============
   sidebar: {
-    width: isMobile ? '100%' : '260px',         // 🟢 手機版撐滿全螢幕寬度，電腦版固定 260px
-    backgroundColor: '#1a237e',
-    color: '#ffffff',
+    width: isMobile ? '100%' : '252px',
+    backgroundColor: c.surface1,
+    borderRight: isMobile ? 'none' : `1px solid ${c.border}`,
+    borderBottom: isMobile ? `1px solid ${c.border}` : 'none',
     display: 'flex',
     flexDirection: 'column',
-    boxShadow: isMobile ? '0 4px 10px rgba(0,0,0,0.1)' : '4px 0 10px rgba(0,0,0,0.1)',
+    flexShrink: 0,
   },
 
   sidebarHeader: {
-    padding: '25px 20px',
-    borderBottom: '1px solid rgba(255,255,255,0.1)',
+    padding: '20px 18px 18px',
+    borderBottom: `1px solid ${c.border}`,
   },
 
   sidebarLogo: {
-    fontSize: '20px',
-    fontWeight: 'bold',
-    letterSpacing: '1px',
+    fontSize: '15px',
+    fontWeight: '600',
+    letterSpacing: '-0.01em',
+    color: c.text,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
   },
 
   menuList: {
-    padding: '20px 10px',
+    padding: '14px 10px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
+    gap: '2px',
     flex: 1,
     overflowY: 'auto',
   },
 
+  // 一般選單項目（單層、可點）
   menuItem: {
-    padding: '12px 15px',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-    fontSize: '15px',
-    color: '#c5cae9',
-    fontWeight: '500',
-  },
-
-  menuItemHeader: {
-    padding: '12px 15px',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '15px',
-    color: '#ffffff',
-    fontWeight: 'bold',
-  },
-
-  menuActive: {
-    backgroundColor: '#303f9f',
-    color: '#ffffff',
-    fontWeight: 'bold',
-  },
-
-  submenuBox: {
-    paddingLeft: '20px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-    marginTop: '4px',
-    borderLeft: '2px solid rgba(255,255,255,0.2)',
-    marginLeft: '20px',
-  },
-
-  submenuItem: {
     padding: '8px 12px',
-    borderRadius: '6px',
+    borderRadius: r.sm,
     cursor: 'pointer',
+    transition: `background ${t.fast}, color ${t.fast}`,
     fontSize: '14px',
-    color: '#b0bec5',
-    transition: 'all 0.1s',
+    color: c.textDim,
+    fontWeight: '500',
+    letterSpacing: '-0.005em',
+    userSelect: 'none',
   },
 
-  submenuActive: {
-    color: '#00e676',
-    fontWeight: 'bold',
-  },
-
-  sidebarFooter: {
-    padding: '20px',
-    borderTop: '1px solid rgba(255,255,255,0.1)',
-    backgroundColor: '#121858',
-  },
-
-  connectionBox: {
-    fontSize: '13px',
-    fontWeight: 'bold',
+  // 「展開區」標題（顯示資料表 collapsible header）
+  menuItemHeader: {
+    padding: '8px 12px',
+    borderRadius: r.sm,
+    cursor: 'pointer',
+    fontSize: '11.5px',
+    color: c.textMuted,
+    fontWeight: '600',
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    userSelect: 'none',
     display: 'flex',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
 
-  // 右半邊主內容區包裝層
+  menuActive: {
+    backgroundColor: c.surface2,
+    color: c.text,
+    fontWeight: '600',
+  },
+
+  submenuBox: {
+    paddingLeft: '4px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1px',
+    marginTop: '2px',
+    marginLeft: '12px',
+    borderLeft: `1px solid ${c.border}`,
+  },
+
+  submenuItem: {
+    padding: '6px 10px 6px 14px',
+    borderRadius: r.sm,
+    cursor: 'pointer',
+    fontSize: '13px',
+    color: c.textMuted,
+    transition: `background ${t.fast}, color ${t.fast}`,
+    fontFamily: theme.fonts.mono,
+    letterSpacing: '0.01em',
+    userSelect: 'none',
+  },
+
+  submenuActive: {
+    color: c.text,
+    backgroundColor: c.surface2,
+  },
+
+  sidebarFooter: {
+    padding: '12px 16px',
+    borderTop: `1px solid ${c.border}`,
+  },
+
+  connectionBox: {
+    fontSize: '12px',
+    color: c.textDim,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    fontFamily: theme.fonts.mono,
+    letterSpacing: '0.02em',
+  },
+
+  // ============ 右側主內容 ============
   mainWrapper: {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
-    width: '100%',
-    maxWidth: '100%',
+    backgroundColor: c.bg,
   },
 
   topBar: {
-    height: isMobile ? 'auto' : '70px',          // 🟢 手機版自動伸展，電腦版固定 70px
-    backgroundColor: '#ffffff',
-    borderBottom: '1px solid #e0e0e0',
+    height: isMobile ? 'auto' : '56px',
+    backgroundColor: c.surface1,
+    borderBottom: `1px solid ${c.border}`,
     display: 'flex',
-    flexDirection: isMobile ? 'column' : 'row', // 🟢 手機版標題與管理員資訊改為上下排，電腦橫排
+    flexDirection: isMobile ? 'column' : 'row',
     justifyContent: 'space-between',
     alignItems: isMobile ? 'flex-start' : 'center',
-    padding: isMobile ? '15px 20px' : '0 30px',
-    gap: isMobile ? '10px' : '0',
+    padding: isMobile ? '12px 18px' : '0 24px',
+    gap: isMobile ? '8px' : '0',
+    flexShrink: 0,
   },
 
   pageTitleText: {
-    fontSize: '18px',
-    fontWeight: 'bold',
-    color: '#333333',
+    fontSize: '14px',
+    fontWeight: '600',
+    color: c.text,
+    letterSpacing: '-0.005em',
   },
 
   userInfoBox: {
     display: 'flex',
     alignItems: 'center',
-    gap: '15px',
+    gap: '12px',
     width: isMobile ? '100%' : 'auto',
-    justifyContent: isMobile ? 'space-between' : 'flex-end', // 🟢 手機版登出按鈕自動推至最右邊
+    justifyContent: isMobile ? 'space-between' : 'flex-end',
   },
 
   userLabel: {
-    fontSize: '14px',
-    color: '#666666',
+    fontSize: '12.5px',
+    color: c.textDim,
+    fontFamily: theme.fonts.mono,
+    letterSpacing: '0.01em',
   },
 
+  // 登出按鈕：透明 + ghost 邊框，hover 時微微泛紅
   logoutButton: {
-    padding: '8px 14px',
-    backgroundColor: '#fff',
-    border: '1px solid #d32f2f',
-    color: '#d32f2f',
-    borderRadius: '6px',
+    padding: '6px 12px',
+    backgroundColor: 'transparent',
+    border: `1px solid ${c.border}`,
+    color: c.textDim,
+    borderRadius: r.sm,
     cursor: 'pointer',
-    fontWeight: 'bold',
-    transition: 'all 0.2s',
+    fontWeight: '500',
+    fontSize: '12.5px',
+    transition: `background ${t.fast}, color ${t.fast}, border-color ${t.fast}`,
+    fontFamily: theme.fonts.sans,
   },
 
   contentBody: {
-    padding: isMobile ? '15px' : '30px',        // 🟢 手機版間距縮小，把大空間留給 MySQL 數據表
+    padding: isMobile ? '16px' : '24px',
     flex: 1,
     overflowY: 'auto',
   },
 
+  // 空頁面 placeholder
   dummyPage: {
-    backgroundColor: '#ffffff',
-    padding: isMobile ? '30px 15px' : '50px',
-    borderRadius: '12px',
-    boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
-    fontSize: '16px',
+    backgroundColor: c.surface1,
+    padding: isMobile ? '32px 20px' : '48px',
+    borderRadius: r.lg,
+    border: `1px solid ${c.border}`,
+    fontSize: '14px',
     fontWeight: '500',
-    color: '#1a237e',
-    minHeight: '200px',
+    color: c.textDim,
+    minHeight: '180px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    border: '2px dashed #1a237e',
     textAlign: 'center',
   },
 });
