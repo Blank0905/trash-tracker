@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getBackendUrl, authedFetch } from '../../utils/api';
 import { theme } from '../../utils/theme';
+import ActionHistoryLog from './ActionHistoryLog';
 
 const c = theme.colors;
 const r = theme.radius;
@@ -216,7 +217,7 @@ const buildAddressSearchCandidates = ({ city = '', district = '', village = '', 
   return orderedCandidates.slice(0, 6);
 };
 
-const TimePickerField = ({ value, minTime = '', onChange, label, helperText }) => {
+const TimePickerField = ({ value, minTime = '', onChange, label, helperText, disabled }) => {
   const { hour, minute } = parseTimeToParts(value);
   const minParts = parseTimeToParts(minTime);
   const hasMin = Boolean(minTime);
@@ -243,6 +244,7 @@ const TimePickerField = ({ value, minTime = '', onChange, label, helperText }) =
       <label style={styles.label}>{label}</label>
       <div style={{ display: 'flex', gap: '8px' }}>
         <select
+        disabled={disabled}
           value={String(safeHour).padStart(2, '0')}
           onChange={(e) => {
             const nextHour = Number(e.target.value);
@@ -627,8 +629,16 @@ const ActionAddDelete = () => {
         : `${baseUrl}/api/admin/stations/list?latest=1&limit=50`;
 
       const [resRoutes, resStations] = await Promise.all([
-        fetch(routeUrl),
-        fetch(stationUrl)
+        authedFetch(routeUrl, {
+          headers: {
+            Accept: 'application/json'
+          }
+        }),
+        authedFetch(stationUrl, {
+          headers: {
+            Accept: 'application/json'
+          }
+        })
       ]);
 
       if (!resRoutes.ok || !resStations.ok) throw new Error('地基載入失敗');
@@ -1177,9 +1187,13 @@ const handleCreateRoute = async (e) => {
         <button onClick={() => setActiveTab('stations')} style={activeTab === 'stations' ? styles.tabActive : styles.tabButton}>
           📍 清運站點與每週班次 (Stations & Schedules)
         </button>
+        <button onClick={() => setActiveTab('history')} style={activeTab === 'history' ? styles.tabActive : styles.tabButton}>
+          🧾 操作歷史紀錄 (History)
+        </button>
       </div>
 
       {loading && <div style={styles.loadingText}>⏳ 正在安全調度垃圾清運核心資料結構...</div>}
+
 
       {!loading && activeTab === 'routes' && (
         <div style={styles.gridContainer}>
@@ -1462,6 +1476,7 @@ const handleCreateRoute = async (e) => {
                   minTime={stationTimeBounds.minArriveTime}
                   onChange={(nextTime) => setStationForm({ ...stationForm, arrive_time: nextTime })}
                   helperText={stationTimeBounds.minArriveTime ? `可選時間需晚於 ${stationTimeBounds.minArriveTime}` : ''}
+                  disabled={loading}
                 />
                 <TimePickerField
                   label="駛離時間 (24H)"
@@ -1469,6 +1484,7 @@ const handleCreateRoute = async (e) => {
                   minTime={stationTimeBounds.minLeaveTime}
                   onChange={(nextTime) => setStationForm({ ...stationForm, leave_time: nextTime })}
                   helperText={stationTimeBounds.minLeaveTime ? `駛離時間需晚於 ${stationTimeBounds.minLeaveTime}` : ''}
+                  disabled={loading}
                 />
                 <div style={styles.inputGroup}>
                   <label style={styles.label}>停靠類別</label>
@@ -1750,6 +1766,9 @@ const handleCreateRoute = async (e) => {
           </div>
         </div>
       )}
+      {activeTab === 'history' && (
+        <ActionHistoryLog />
+      )}
     </div>
   );
 };
@@ -1765,6 +1784,11 @@ const styles = {
     display: 'flex', gap: '0',
     borderBottom: `1px solid ${c.border}`,
     marginBottom: '22px', flexWrap: 'wrap',
+  },
+  // 歷史紀錄分頁的子分頁列（緊接在主 tab 下方）
+  historyTabShim: {
+    display: 'flex', gap: '6px',
+    marginTop: '-18px', marginBottom: '20px', flexWrap: 'wrap',
   },
   tabButton: {
     padding: '10px 16px',

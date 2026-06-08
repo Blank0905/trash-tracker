@@ -82,8 +82,9 @@ const AuditLog = () => {
     ...Object.entries(ACTION_META).map(([k, v]) => ({ key: k, label: `${v.icon} ${v.label}` })),
   ], []);
 
-  const chip = (active, label, onClick) => (
-    <button onClick={onClick} style={{ ...styles.chip, ...(active ? styles.chipActive : {}) }}>
+  //因為我要沿用 但chip呼叫在map迴圈裡要key不然我那邊會炸 在actionhistorylog.jsx 如果你要改回來或是修正可以再改
+  const chip = (key, active, label, onClick) => (
+    <button key={key} onClick={onClick} style={{ ...styles.chip, ...(active ? styles.chipActive : {}) }}>
       {label}
     </button>
   );
@@ -105,7 +106,7 @@ const AuditLog = () => {
         <div style={styles.filterRow}>
           <span style={styles.filterLabel}>動作</span>
           <div style={styles.chipWrap}>
-            {actionChips.map(c => chip(fAction === c.key, c.label, () => onPickAction(c.key)))}
+            {actionChips.map(c => chip(c.key, fAction === c.key, c.label, () => onPickAction(c.key)))} 
           </div>
         </div>
       </div>
