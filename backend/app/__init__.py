@@ -143,7 +143,7 @@ def create_app():
                 if not user or not verify_password(password, user['password_hash']):
                     return err('帳號或密碼輸入錯誤', 401)
 
-                if user['role'] != 'admin':
+                if user['role'] not in ('admin', 'developer'):
                     return err('權限不足，您並非管理員', 403)
 
                 return jsonify({
