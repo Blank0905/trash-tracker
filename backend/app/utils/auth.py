@@ -102,6 +102,9 @@ def admin_required(f):
         if user.get('status') == 'suspended':
             return err('帳號已停權', 403)
 
+        # 後台管理路由同時提供 current_user / current_admin，
+        # 讓既有 API 與新權限邏輯都能拿到同一份最新使用者資料。
+        g.current_user = user
         g.current_admin = user
         return f(*args, **kwargs)
     return wrapper

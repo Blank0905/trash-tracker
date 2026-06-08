@@ -6,19 +6,20 @@ const UsersManage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [canDemoteAdmins, setCanDemoteAdmins] = useState(false);
 
-  // 1. 🔍 向實體後端 API 撈取真實資料庫的所有用戶清單
   const fetchUsers = async () => {
     try {
       setLoading(true);
       setError(null);
       const baseUrl = await getBackendUrl();
-      
+
       const res = await authedFetch(`${baseUrl}/api/users/list`);
       if (!res.ok) throw new Error('無法取得使用者管理清單');
-      
+
       const data = await res.json();
       setUsers(data.users || []);
+      setCanDemoteAdmins(data.can_demote_admins === true);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -30,7 +31,6 @@ const UsersManage = () => {
     fetchUsers();
   }, []);
 
-  // 2. 🔼 提升為管理員實體對接
   const handlePromote = async (userId, username) => {
     const confirmAction = window.confirm(`確定要將 [${username}] 提升為系統管理員 (Admin) 嗎？`);
     if (!confirmAction) return;
@@ -40,24 +40,23 @@ const UsersManage = () => {
       const res = await authedFetch(`${baseUrl}/api/users/promote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId }) // 傳送資料庫 user_id 門牌
+        body: JSON.stringify({ user_id: userId })
       });
-      
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || '提升失敗');
-      
-      alert(`成功！${username} 已正式晉升為系統管理員 👑`);
-      
-      // 畫面同步更新狀態，免重新整理
-      setUsers(users.map(u => u.user_id === userId ? { ...u, role: 'admin' } : u));
+
+      alert(`成功！${username} 已正式晉升為系統管理員`);
+      setUsers(prev => prev.map(u => (
+        u.user_id === userId ? { ...u, role: 'admin' } : u
+      )));
     } catch (err) {
-      alert('操作失敗：' + err.message);
+      alert(`操作失敗：${err.message}`);
     }
   };
 
-  // 3. 🚫 違規停權實體對接
   const handleSuspend = async (userId, username) => {
-    const confirmAction = window.confirm(`危害專題安全！確定要將一般用戶 [${username}] 進行停權處置嗎？`);
+    const confirmAction = window.confirm(`確定要將 [${username}] 停權嗎？`);
     if (!confirmAction) return;
 
     try {
@@ -67,21 +66,68 @@ const UsersManage = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId })
       });
-      
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || '停權失敗');
-      
-      alert(`處分成功！${username} 帳號已被強制停權 🚫`);
-      
-      // 畫面同步更新狀態
-      setUsers(users.map(u => u.user_id === userId ? { ...u, status: 'suspended' } : u));
+
+      alert(`處分成功！${username} 已停權`);
+      setUsers(prev => prev.map(u => (
+        u.user_id === userId ? { ...u, status: 'suspended' } : u
+      )));
     } catch (err) {
-      alert('操作失敗：' + err.message);
+      alert(`操作失敗：${err.message}`);
     }
   };
 
-  // 關鍵字篩選過濾
-  const filteredUsers = users.filter(u => 
+  const handleDemote = async (userId, username) => {
+    const confirmAction = window.confirm(`確定要將 [${username}] 從管理員降為一般用戶嗎？`);
+    if (!confirmAction) return;
+
+    try {
+      const baseUrl = await getBackendUrl();
+      const res = await authedFetch(`${baseUrl}/api/users/demote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || '降權失敗');
+
+      alert(`成功！${username} 已降為一般用戶`);
+      setUsers(prev => prev.map(u => (
+        u.user_id === userId ? { ...u, role: 'user' } : u
+      )));
+    } catch (err) {
+      alert(`操作失敗：${err.message}`);
+    }
+  };
+
+  const handleUnsuspend = async (userId, username) => {
+    const confirmAction = window.confirm(`確定要解除 [${username}] 的停權狀態嗎？`);
+    if (!confirmAction) return;
+
+    try {
+      const baseUrl = await getBackendUrl();
+      const res = await authedFetch(`${baseUrl}/api/users/unsuspend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || '解除停權失敗');
+
+      alert(`成功！${username} 已解除停權`);
+      setUsers(prev => prev.map(u => (
+        u.user_id === userId ? { ...u, status: 'active' } : u
+      )));
+    } catch (err) {
+      alert(`操作失敗：${err.message}`);
+    }
+  };
+
+  const filteredUsers = users.filter(u =>
     (u.username && u.username.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase()))
   );
@@ -90,12 +136,12 @@ const UsersManage = () => {
     <div style={styles.card}>
       <div style={styles.headerRow}>
         <div>
-          <h2 style={styles.title}>👥 使用者權限與帳號管理</h2>
-          <p style={styles.subtitle}>調閱系統所有註冊用戶，進行高階安全授權與違規停權調度。</p>
+          <h2 style={styles.title}>使用者權限與帳號管理</h2>
+          <p style={styles.subtitle}>調閱系統所有註冊用戶，進行權限管理與停權控制。</p>
         </div>
-        <input 
-          type="text" 
-          placeholder="🔍 搜尋用戶名稱或 Email..." 
+        <input
+          type="text"
+          placeholder="搜尋用戶名稱或 Email..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           style={styles.searchInput}
@@ -103,15 +149,15 @@ const UsersManage = () => {
       </div>
 
       {loading ? (
-        <div style={styles.loadingBox}>⏳ 正在讀取實體 MySQL 使用者數據...</div>
+        <div style={styles.loadingBox}>正在讀取使用者資料...</div>
       ) : error ? (
         <div style={styles.errorBox}>
-          <h4>❌ 使用者 API 讀取失敗</h4>
+          <h4>使用者 API 讀取失敗</h4>
           <p>{error}</p>
           <button onClick={fetchUsers} style={styles.retryBtn}>重新嘗試連線</button>
         </div>
       ) : filteredUsers.length === 0 ? (
-        <div style={styles.noData}>查無任何匹配的使用者數據。</div>
+        <div style={styles.noData}>查無任何匹配的使用者。</div>
       ) : (
         <div style={styles.tableWrapper}>
           <table style={styles.table}>
@@ -119,27 +165,32 @@ const UsersManage = () => {
               <tr>
                 <th style={styles.th}>UID</th>
                 <th style={styles.th}>用戶名稱</th>
-                <th style={styles.th}>電子郵件 (Email)</th>
-                <th style={styles.th}>當前權限 (Role)</th>
+                <th style={styles.th}>Email</th>
+                <th style={styles.th}>權限</th>
                 <th style={styles.th}>帳號狀態</th>
-                <th style={styles.th}>安全管理操作</th>
+                <th style={styles.th}>管理操作</th>
               </tr>
             </thead>
             <tbody>
               {filteredUsers.map((user) => {
+                const isDeveloper = user.role === 'developer';
                 const isAdmin = user.role === 'admin';
                 const isSuspended = user.status === 'suspended';
+                const displayName = user.username || user.email || `UID ${user.user_id}`;
+                const noPermissionForDeveloperRow = isDeveloper;
 
                 return (
                   <tr key={user.user_id} style={styles.tr}>
                     <td style={styles.td}><code>{user.user_id}</code></td>
-                    <td style={{ ...styles.td, fontWeight: 'bold' }}>{user.username || <span style={{color:'#aaa', fontWeight:'normal'}}>未填寫</span>}</td>
-                    <td style={styles.td}>{user.email || <span style={{color:'#aaa'}}>LINE 一鍵綁定用戶</span>}</td>
+                    <td style={{ ...styles.td, fontWeight: 'bold' }}>{user.username || <span style={{ color: '#aaa', fontWeight: 'normal' }}>未填寫</span>}</td>
+                    <td style={styles.td}>{user.email || <span style={{ color: '#aaa' }}>LINE 綁定用戶</span>}</td>
                     <td style={styles.td}>
-                      {isAdmin ? (
-                        <span style={styles.adminBadge}>👑 系統管理員</span>
+                      {isDeveloper ? (
+                        <span style={styles.developerBadge}>開發者</span>
+                      ) : isAdmin ? (
+                        <span style={styles.adminBadge}>系統管理員</span>
                       ) : (
-                        <span style={styles.userBadge}>👤 一般用戶</span>
+                        <span style={styles.userBadge}>一般用戶</span>
                       )}
                     </td>
                     <td style={styles.td}>
@@ -151,31 +202,61 @@ const UsersManage = () => {
                     </td>
                     <td style={styles.td}>
                       <div style={styles.actionGroup}>
-                        {/* 提升為 Admin 按鈕 */}
-                        {!isAdmin ? (
-                          <button 
-                            onClick={() => handlePromote(user.user_id, user.username || user.email)}
+                        {isDeveloper ? (
+                          <span style={styles.lockText}>開發者帳號不可更改</span>
+                        ) : isAdmin ? (
+                          canDemoteAdmins ? (
+                            <button
+                              type="button"
+                              onClick={() => handleDemote(user.user_id, displayName)}
+                              style={styles.demoteBtn}
+                            >
+                              降為使用者
+                            </button>
+                          ) : (
+                            <span style={styles.lockText}>已具備管理員權限</span>
+                          )
+                        ) : isSuspended ? (
+                          <span style={styles.lockText}>停權中不可升權</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handlePromote(user.user_id, displayName)}
                             style={styles.promoteBtn}
                           >
-                            🔼 提升管理員
+                            提升管理員
                           </button>
-                        ) : (
-                          <span style={styles.lockText}>🔒 已具備高階權限</span>
                         )}
 
-                        {/* 停權按鈕：💡 核心安全平權防禦！若為管理員則按鈕直接 disabled 反灰 🔒 */}
-                        <button 
-                          onClick={() => handleSuspend(user.user_id, user.username || user.email)}
-                          disabled={isAdmin || isSuspended}
-                          style={{
-                            ...styles.suspendBtn,
-                            ...(isAdmin ? styles.disabledBtn : {}),
-                            ...(isSuspended ? styles.alreadySuspendedBtn : {})
-                          }}
-                          title={isAdmin ? "管理員之間不能互相停權對方！" : ""}
-                        >
-                          {isSuspended ? '❌ 已處分' : '🚫 違規停權'}
-                        </button>
+                        {isDeveloper || isAdmin ? (
+                          <button
+                            type="button"
+                            disabled
+                            style={{
+                              ...styles.suspendBtn,
+                              ...styles.disabledBtn
+                            }}
+                            title={isDeveloper ? '不可變更 developer 帳號' : '管理員不可互相停權'}
+                          >
+                            違規停權
+                          </button>
+                        ) : isSuspended ? (
+                          <button
+                            type="button"
+                            onClick={() => handleUnsuspend(user.user_id, displayName)}
+                            style={styles.unsuspendBtn}
+                          >
+                            解除停權
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleSuspend(user.user_id, displayName)}
+                            style={styles.suspendBtn}
+                          >
+                            違規停權
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -286,6 +367,15 @@ const styles = {
     fontWeight: 'bold',
     border: '1px solid #d7ccc8'
   },
+  developerBadge: {
+    backgroundColor: '#ede9fe',
+    color: '#5b21b6',
+    padding: '4px 8px',
+    borderRadius: '6px',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    border: '1px solid #c4b5fd'
+  },
   userBadge: {
     backgroundColor: '#e0f2fe',
     color: '#0369a1',
@@ -317,8 +407,28 @@ const styles = {
     fontWeight: 'bold',
     fontSize: '13px',
   },
+  demoteBtn: {
+    backgroundColor: '#b45309',
+    color: 'white',
+    border: 'none',
+    padding: '6px 12px',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '13px',
+  },
   suspendBtn: {
     backgroundColor: '#dc2626',
+    color: 'white',
+    border: 'none',
+    padding: '6px 12px',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '13px',
+  },
+  unsuspendBtn: {
+    backgroundColor: '#0284c7',
     color: 'white',
     border: 'none',
     padding: '6px 12px',
@@ -330,12 +440,6 @@ const styles = {
   disabledBtn: {
     backgroundColor: '#cbd5e1',
     color: '#94a3b8',
-    cursor: 'not-allowed',
-  },
-  alreadySuspendedBtn: {
-    backgroundColor: '#fee2e2',
-    color: '#ef4444',
-    border: '1px solid #fca5a5',
     cursor: 'not-allowed',
   },
   lockText: {

@@ -1,30 +1,46 @@
 from flask import Blueprint, request, jsonify, g
 from werkzeug.security import generate_password_hash
+import pymysql
+
 from app.db import get_db_connection
 from app.utils.responses import ok, err
 from app.utils.auth import line_required, admin_required
 from app.utils.audit import write_audit_log
-import pymysql
 
 bp = Blueprint('users', __name__, url_prefix='/api/users')
 
-# 註：LIFF 註冊頁 HTML 改由通用路由 GET /liff/register 提供（見 app/api/pages.py）；
-#     本檔只保留純 JSON API（register 寫入 / me / credentials）。
+
+def _is_developer_operator():
+    current = getattr(g, 'current_user', None) or {}
+    user_id = current.get('user_id')
+    if not user_id:
+        return False
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+            cursor.execute("SELECT role FROM users WHERE user_id = %s", (user_id,))
+            me = cursor.fetchone()
+            return bool(me and me.get('role') == 'developer')
+    except Exception:
+        return False
+    finally:
+        conn.close()
+
+
+def _forbid_operating_developer(target_role):
+    if target_role != 'developer':
+        return None
+    return jsonify({
+        "status": "error",
+        "message": "developer 帳號不可變更"
+    }), 403
+
 
 @bp.route('/register', methods=['POST'])
 def register_user():
-    """
-    LINE 一鍵綁定（免帳密）：以 line_user_id 為核心識別寫入資料庫。
-    預期收到的 JSON 格式:
-    {
-        "line_user_id": "U...",       # 必填，由 LIFF 取得
-        "email": "test@example.com"   # 選填
-    }
-    一般使用者免帳密：username 與 password 皆不收（留 NULL）；
-    username/password 欄位保留給日後管理員等帳密型帳號。
-    """
-    data = request.get_json()
-    line_user_id = data.get('line_user_id') if data else None
+    data = request.get_json(silent=True) or {}
+    line_user_id = data.get('line_user_id')
 
     if not line_user_id:
         return jsonify({'status': 'error', 'message': '必須提供 line_user_id'}), 400
@@ -37,32 +53,29 @@ def register_user():
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
-            # 檢查此 LINE 是否已綁定過
             cursor.execute("SELECT user_id FROM users WHERE line_user_id = %s", (line_user_id,))
             if cursor.fetchone():
                 return jsonify({'status': 'error', 'message': '此 LINE 帳號已綁定過'}), 409
 
-            # 寫入資料庫
-            insert_sql = """
+            cursor.execute(
+                """
                 INSERT INTO users (line_user_id, username, email, password_hash, role)
                 VALUES (%s, %s, %s, %s, 'user')
-            """
-            cursor.execute(insert_sql, (line_user_id, username, email, hashed_password))
-            
-            conn.commit()
-            new_user_id = cursor.lastrowid
+                """,
+                (line_user_id, username, email, hashed_password),
+            )
 
+            conn.commit()
             return jsonify({
                 'status': 'success',
-                'message': '綁定成功！',
+                'message': '註冊成功',
                 'data': {
-                    'user_id': new_user_id,
-                    'username': username
+                    'user_id': cursor.lastrowid,
+                    'username': username,
                 }
             }), 201
-
     except Exception as e:
-        conn.rollback() # 發生錯誤就退回，保護資料庫
+        conn.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
     finally:
         conn.close()
@@ -71,7 +84,6 @@ def register_user():
 @bp.route('/me', methods=['GET'])
 @line_required
 def get_me():
-    """回傳目前 LINE 使用者的資料（依 X-Line-User-Id）。"""
     u = g.current_user
     return ok({
         'user_id': u['user_id'],
@@ -86,11 +98,6 @@ def get_me():
 @bp.route('/credentials', methods=['PUT'])
 @line_required
 def set_credentials():
-    """設定 / 更新本人的 email 與密碼（credentials.html 表單送出目標）。
-
-    body: { "email": "a@b.com", "password": "至少6碼" }
-    email 與其他人重複時回 409。
-    """
     data = request.get_json(silent=True) or {}
     email = (data.get('email') or '').strip()
     password = data.get('password')
@@ -98,32 +105,29 @@ def set_credentials():
     if not email or not password:
         return err('請提供 email 與密碼', 400)
     if len(password) < 6:
-        return err('密碼至少需 6 碼', 400)
+        return err('密碼長度至少 6 碼', 400)
 
     user_id = g.current_user['user_id']
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
-            # email 為 UNIQUE，不可與其他使用者重複
             cursor.execute(
                 "SELECT user_id FROM users WHERE email = %s AND user_id != %s",
-                (email, user_id)
+                (email, user_id),
             )
             if cursor.fetchone():
-                return err('此 email 已被使用', 409)
+                return err('此 email 已被其他使用者使用', 409)
 
             cursor.execute(
                 "UPDATE users SET email = %s, password_hash = %s WHERE user_id = %s",
-                (email, generate_password_hash(password), user_id)
+                (email, generate_password_hash(password), user_id),
             )
             conn.commit()
             return ok(None)
-
     except pymysql.err.IntegrityError as e:
         conn.rollback()
-        # 1062 = Duplicate entry（email UNIQUE 撞號的兜底）
         if e.args and e.args[0] == 1062:
-            return err('此 email 已被使用', 409)
+            return err('此 email 已被其他使用者使用', 409)
         return err(str(e), 500)
     except Exception as e:
         conn.rollback()
@@ -132,24 +136,77 @@ def set_credentials():
         conn.close()
 
 
-# ─── 以下為全新加裝的管理者高階控制端點 ───
-
 @bp.route('/list', methods=['GET'])
 @admin_required
 def get_users_list():
-    """
-    📊 讀取實體資料庫的所有用戶清單
-    前端 UsersManage.jsx 呼叫目標
-    """
     conn = get_db_connection()
     try:
-        # 強制使用 DictCursor，將撈出來的資料自動封裝成前端 React 最愛的 {} 物件型態
+        current = getattr(g, 'current_user', None) or {}
+        current_user_id = current.get('user_id')
+        current_email = (current.get('email') or '').strip().lower()
+        current_username = (current.get('username') or '').strip()
+        operator_role = ''
+
         with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-            sql = "SELECT user_id, username, email, role, status FROM users ORDER BY user_id ASC"
-            cursor.execute(sql)
+            cursor.execute(
+                "SELECT user_id, username, email, role, status FROM users ORDER BY user_id ASC"
+            )
             users_data = cursor.fetchall()
-            
-        return jsonify({"users": users_data}), 200
+            matched_operator = None
+            for row in users_data:
+                row_email = (row.get('email') or '').strip().lower()
+                row_username = (row.get('username') or '').strip()
+                if current_user_id and row.get('user_id') == current_user_id:
+                    matched_operator = row
+                    break
+                if current_email and row_email and row_email == current_email:
+                    matched_operator = row
+                    break
+                if current_username and row_username and row_username == current_username:
+                    matched_operator = row
+                    break
+
+            if matched_operator:
+                operator_role = matched_operator.get('role') or ''
+            elif current_user_id:
+                cursor.execute("SELECT role FROM users WHERE user_id = %s", (current_user_id,))
+                me = cursor.fetchone()
+                operator_role = (me or {}).get('role') or ''
+
+        can_demote_admins = operator_role == 'developer'
+
+        return jsonify({
+            "users": users_data,
+            "operator_role": operator_role,
+            "can_demote_admins": can_demote_admins,
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"資料庫讀取失敗: {str(e)}"}), 500
+    finally:
+        conn.close()
+
+
+@bp.route('/current-role', methods=['GET'])
+@admin_required
+def get_current_role():
+    current = getattr(g, 'current_user', None) or {}
+    user_id = current.get('user_id')
+    if not user_id:
+        return jsonify({"status": "error", "message": "無法識別目前使用者"}), 401
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+            cursor.execute("SELECT role FROM users WHERE user_id = %s", (user_id,))
+            me = cursor.fetchone()
+        if not me:
+            return jsonify({"status": "error", "message": "找不到目前使用者"}), 404
+        return jsonify({
+            "status": "success",
+            "data": {
+                "role": me.get('role') or ''
+            }
+        }), 200
     except Exception as e:
         return jsonify({"status": "error", "message": f"資料庫讀取失敗: {str(e)}"}), 500
     finally:
@@ -159,29 +216,36 @@ def get_users_list():
 @bp.route('/promote', methods=['POST'])
 @admin_required
 def promote_user():
-    """
-    🔼 權限升等：將指定的一般用戶提升為管理員 (Admin)
-    """
     data = request.get_json(silent=True) or {}
     user_id = data.get('user_id')
-    
+
     if not user_id:
         return jsonify({"status": "error", "message": "缺少必要參數 user_id"}), 400
-        
+
     conn = get_db_connection()
     try:
         with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-            # 限制：必須已綁定 email 與密碼才能升級為管理員（管理者需用帳密登入後台）
             cursor.execute(
-                "SELECT email, password_hash FROM users WHERE user_id = %s", (user_id,)
+                "SELECT role, status, email, password_hash FROM users WHERE user_id = %s",
+                (user_id,),
             )
             target = cursor.fetchone()
             if not target:
                 return jsonify({"status": "error", "message": "找不到該使用者"}), 404
-            if not target['email'] or not target['password_hash']:
+            blocked = _forbid_operating_developer(target.get('role'))
+            if blocked:
+                return blocked
+            if target.get('status') == 'suspended':
                 return jsonify({
                     "status": "error",
-                    "message": "該使用者尚未綁定電子信箱與密碼，無法升級為管理員"
+                    "message": "停權中的帳號不可提升為管理員，請先解除停權",
+                }), 403
+            if target.get('role') == 'admin':
+                return jsonify({"status": "error", "message": "該使用者已是管理員"}), 400
+            if not target.get('email') or not target.get('password_hash'):
+                return jsonify({
+                    "status": "error",
+                    "message": "此使用者尚未完成帳密設定，禁止提升為管理員",
                 }), 400
 
             cursor.execute("UPDATE users SET role = 'admin' WHERE user_id = %s", (user_id,))
@@ -195,7 +259,6 @@ def promote_user():
             )
 
             conn.commit()
-
         return jsonify({"status": "success", "message": "權限變更成功"}), 200
     except Exception as e:
         conn.rollback()
@@ -207,34 +270,31 @@ def promote_user():
 @bp.route('/suspend', methods=['POST'])
 @admin_required
 def suspend_user():
-    """
-    🚫 違規懲處：將違規用戶黑名單停權
-    🛡️ 安全限制：管理員同級互不侵犯保護機制
-    """
     data = request.get_json(silent=True) or {}
     user_id = data.get('user_id')
-    
+
     if not user_id:
         return jsonify({"status": "error", "message": "缺少必要參數 user_id"}), 400
-        
+
     conn = get_db_connection()
     try:
         with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-            # 1. 第一重防禦：先向資料庫調閱該目標使用者的真實權限
-            check_sql = "SELECT role FROM users WHERE user_id = %s"
-            cursor.execute(check_sql, (user_id,))
+            cursor.execute("SELECT role, status FROM users WHERE user_id = %s", (user_id,))
             target_user = cursor.fetchone()
-            
             if not target_user:
                 return jsonify({"status": "error", "message": "找不到該使用者"}), 404
-                
-            # 2. 🚨 核心平權捍衛：若目標身份已經是 admin，後端硬性攔截並駁回，不允許互相停權！
+            blocked = _forbid_operating_developer(target_user.get('role'))
+            if blocked:
+                return blocked
             if target_user['role'] == 'admin':
-                return jsonify({"status": "error", "message": "同級安全保護：管理員之間不得互相停權對方！"}), 403
-                
-            # 3. 安全通關，執行停權
-            update_sql = "UPDATE users SET status = 'suspended' WHERE user_id = %s"
-            cursor.execute(update_sql, (user_id,))
+                return jsonify({
+                    "status": "error",
+                    "message": "同級安全保護：管理員之間不得互相停權對方",
+                }), 403
+            if target_user['status'] == 'suspended':
+                return jsonify({"status": "error", "message": "該使用者目前已是停權狀態"}), 400
+
+            cursor.execute("UPDATE users SET status = 'suspended' WHERE user_id = %s", (user_id,))
 
             write_audit_log(
                 'user_suspend',
@@ -245,8 +305,97 @@ def suspend_user():
             )
 
             conn.commit()
+        return jsonify({"status": "success", "message": "該用戶已成功停權"}), 200
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "message": f"後端執行失敗: {str(e)}"}), 500
+    finally:
+        conn.close()
 
-        return jsonify({"status": "success", "message": "該用戶已成功移入黑名單停權"}), 200
+
+@bp.route('/demote', methods=['POST'])
+@admin_required
+def demote_user():
+    """
+    將 admin 角色降回 user。
+    僅 developer 可執行，避免一般 admin 互相降權。
+    """
+    if not _is_developer_operator():
+        return jsonify({"status": "error", "message": "僅 developer 可調整管理員權限"}), 403
+
+    data = request.get_json(silent=True) or {}
+    user_id = data.get('user_id')
+
+    if not user_id:
+        return jsonify({"status": "error", "message": "缺少必要參數 user_id"}), 400
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+            cursor.execute("SELECT role FROM users WHERE user_id = %s", (user_id,))
+            target_user = cursor.fetchone()
+            if not target_user:
+                return jsonify({"status": "error", "message": "找不到該使用者"}), 404
+
+            if target_user['role'] == 'developer':
+                return jsonify({"status": "error", "message": "developer 帳號不可被降權"}), 403
+
+            if target_user['role'] != 'admin':
+                return jsonify({"status": "error", "message": "該使用者目前不是管理員"}), 400
+
+            cursor.execute("UPDATE users SET role = 'user' WHERE user_id = %s", (user_id,))
+
+            write_audit_log(
+                'user_demote',
+                target_type='user',
+                target_id=user_id,
+                details={'new_role': 'user'},
+                cursor=cursor,
+            )
+
+            conn.commit()
+        return jsonify({"status": "success", "message": "已將管理員降為一般用戶"}), 200
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "message": f"後端執行失敗: {str(e)}"}), 500
+    finally:
+        conn.close()
+
+
+@bp.route('/unsuspend', methods=['POST'])
+@admin_required
+def unsuspend_user():
+    data = request.get_json(silent=True) or {}
+    user_id = data.get('user_id')
+
+    if not user_id:
+        return jsonify({"status": "error", "message": "缺少必要參數 user_id"}), 400
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+            cursor.execute("SELECT role, status FROM users WHERE user_id = %s", (user_id,))
+            target_user = cursor.fetchone()
+            if not target_user:
+                return jsonify({"status": "error", "message": "找不到該使用者"}), 404
+            blocked = _forbid_operating_developer(target_user.get('role'))
+            if blocked:
+                return blocked
+            if target_user['status'] != 'suspended':
+                return jsonify({"status": "error", "message": "該使用者目前不是停權狀態"}), 400
+
+            cursor.execute("UPDATE users SET status = 'active' WHERE user_id = %s", (user_id,))
+
+            write_audit_log(
+                'user_unsuspend',
+                target_type='user',
+                target_id=user_id,
+                details={'role': target_user['role']},
+                cursor=cursor,
+            )
+
+            conn.commit()
+        return jsonify({"status": "success", "message": "該用戶已解除停權並恢復正常狀態"}), 200
     except Exception as e:
         conn.rollback()
         return jsonify({"status": "error", "message": f"後端執行失敗: {str(e)}"}), 500
