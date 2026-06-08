@@ -229,6 +229,20 @@ def create_route():
                 team if team else None,
                 trip_number if trip_number else None
             ))
+            write_audit_log(
+                'route_create',
+                target_type='route',
+                target_id=cursor.lastrowid,
+                details={
+                    'route_id': cursor.lastrowid,
+                    'route_name': locals().get('route_name'),
+                    'route_code': locals().get('route_code'),
+                    'target_city': locals().get('city'),
+                    'district': locals().get('district'),
+                },
+                cursor=cursor,
+            )
+
             conn.commit()
         return jsonify({"status": "success", "message": "全新收運路線已安全寫入資料庫！"}), 201
     except Exception as e:
@@ -265,6 +279,13 @@ def delete_route(route_id):
                 'route_delete',
                 target_type='route',
                 target_id=route_id,
+                details={
+                    'route_id': route_id,
+                    'route_name': locals().get('route_name'),
+                    'route_code': locals().get('route_code'),
+                    'target_city': locals().get('city'),
+                    'district': locals().get('district'),
+                },
                 cursor=cursor,
             )
 

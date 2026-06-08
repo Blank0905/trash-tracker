@@ -363,6 +363,22 @@ def create_station_with_schedule():
                 ))
 
             # 一體化 Commit 提交！
+            write_audit_log(
+                'station_create',
+                target_type='station',
+                target_id=new_station_id,
+                details={
+                    'route_id': (locals().get('station_data') or {}).get('route_id'),
+                    'station_name': (locals().get('station_data') or {}).get('station_name'),
+                    'sequence_order': (locals().get('station_data') or {}).get('sequence_order'),
+                    'target_city': (locals().get('station_data') or {}).get('city'),
+                    'district': (locals().get('station_data') or {}).get('district'),
+                    'arrive_time': (locals().get('station_data') or {}).get('arrive_time'),
+                    'leave_time': (locals().get('station_data') or {}).get('leave_time'),
+                },
+                cursor=cursor,
+            )
+
             conn.commit()
 
         return jsonify({"status": "success", "message": "全新清運點與 7 日班次排程已成功級聯綁定存檔！"}), 201
@@ -555,7 +571,17 @@ def delete_station(station_id):
                 'station_delete',
                 target_type='station',
                 target_id=station_id,
-                details={'route_id': route_id, 'sequence_order': deleted_seq},
+                details={
+                    'route_id': route_id,
+                    'sequence_order': deleted_seq,
+                    'station_name': locals().get('station_name'),
+                    'route_name': locals().get('route_name'),
+                    'target_city': locals().get('city'),
+                    'district': locals().get('district'),
+                    'village': locals().get('village'),
+                    'arrive_time': locals().get('arrive_time'),
+                    'leave_time': locals().get('leave_time'),
+                },
                 cursor=cursor,
             )
 

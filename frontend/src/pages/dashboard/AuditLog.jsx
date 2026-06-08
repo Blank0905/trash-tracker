@@ -78,8 +78,9 @@ const AuditLog = () => {
     ...Object.entries(ACTION_META).map(([k, v]) => ({ key: k, label: `${v.icon} ${v.label}` })),
   ], []);
 
-  const chip = (active, label, onClick) => (
-    <button onClick={onClick} style={{ ...styles.chip, ...(active ? styles.chipActive : {}) }}>
+  //因為我要沿用 但chip呼叫在map迴圈裡要key不然我那邊會炸 在actionhistorylog.jsx 如果你要改回來或是修正可以再改
+  const chip = (key, active, label, onClick) => (
+    <button key={key} onClick={onClick} style={{ ...styles.chip, ...(active ? styles.chipActive : {}) }}>
       {label}
     </button>
   );
@@ -101,7 +102,7 @@ const AuditLog = () => {
         <div style={styles.filterRow}>
           <span style={styles.filterLabel}>動作</span>
           <div style={styles.chipWrap}>
-            {actionChips.map(c => chip(fAction === c.key, c.label, () => onPickAction(c.key)))}
+            {actionChips.map(c => chip(c.key, fAction === c.key, c.label, () => onPickAction(c.key)))} 
           </div>
         </div>
       </div>
@@ -204,7 +205,7 @@ const styles = {
     padding: '6px 12px', borderRadius: '999px', border: '1px solid #cbd5e1',
     backgroundColor: '#fff', color: '#475569', fontSize: '13px', cursor: 'pointer', fontWeight: '600',
   },
-  chipActive: { backgroundColor: '#1a237e', borderColor: '#1a237e', color: '#fff' },
+  chipActive: { backgroundColor: '#1a237e', border: '1px solid #1a237e', color: '#fff' },
   resultHint: { fontSize: '13px', color: '#94a3b8', marginBottom: '8px' },
   list: { display: 'flex', flexDirection: 'column', gap: '10px' },
   row: { border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px', backgroundColor: '#fff' },
