@@ -297,8 +297,10 @@
             box-shadow: var(--shadow-panel);
             transform: translateY(110%);
             transition: transform 0.34s cubic-bezier(0.32, 0.72, 0.2, 1);
-            max-height: 78vh;
-            overflow: hidden;   /* 不捲動 → 避免瀏覽器把下滑攔截為內容捲動，下滑關閉手勢更靈敏 */
+            max-height: 82vh;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
         }
         #panel.open { transform: translateY(0); }
         /* 上緣 handle bar：示意可上下拉動 */
@@ -356,13 +358,14 @@
         #p-schedule { margin-bottom: 4px; }
 
         /* renderWeek() 產出的 HTML 結構不能改，但這裡用 CSS 全面美化 */
+        /* 縮緊 padding 與字體：當時間變成「19:30 / 21:00」這種長字串時，6~7 row 才不會把面板撐到底部按鈕被遮住 */
         .sch-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            gap: 16px;
-            padding: 11px 0;
-            font-size: 14px;
+            gap: 12px;
+            padding: 6px 0;
+            font-size: 13px;
             border-bottom: 1px dashed var(--border);
         }
         .sch-row:last-child { border-bottom: 0; }
@@ -370,7 +373,7 @@
         .sch-day {
             color: var(--text);
             font-family: var(--font-mono);
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 500;
             letter-spacing: 0.02em;
             white-space: nowrap;
@@ -378,12 +381,12 @@
         /* 收運類別：做成 LINE 綠藥丸 tag */
         .sch-types {
             display: inline-block;
-            padding: 5px 11px;
+            padding: 4px 10px;
             background: var(--brand-soft);
             color: var(--brand-light);
             border: 1px solid var(--brand-tint);
             border-radius: 999px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             letter-spacing: 0.04em;
             text-align: center;
@@ -698,6 +701,8 @@
     let routeLayer = null;   // 目前顯示的行駛路線（polyline + 該路線站點）
     let currentRouteId = null;
     let lastSearchResults = []; // 最近一次 /stations/search 的原始結果，供 openStation 找「同地點所有班次時間」
+    let favoriteStationIds = new Set(); // 目前使用者收藏的 station_id 集合（控制 p-fav 按鈕顯示加入/移除）
+    let currentStationId = null;        // 目前 panel 開啟的 station_id（給 p-fav onclick 用）
 
     // 目前選取的搜尋半徑（公里）
     function currentRadius() {
@@ -903,7 +908,9 @@
             arriveTimes = [String(d.arrive_time).slice(0, 5)];
         }
         document.getElementById('p-schedule').innerHTML = renderWeek(d.schedules, arriveTimes);
-        document.getElementById('p-fav').onclick = () => addFavorite(d.station_id);
+        // 記住目前 panel 對應的 station_id，並依收藏狀態切換 p-fav 為「加入最愛」或「移除收藏」
+        currentStationId = d.station_id;
+        updateFavButton(d.station_id);
         // 記住此站所屬路線，供「顯示路線」用；按鈕文字依該路線是否正在顯示
         currentRouteId = d.route ? d.route.route_id : null;
         const routeBtn = document.getElementById('p-route');
@@ -912,10 +919,49 @@
         document.getElementById('panel').classList.add('open');
     }
 
+    // 載入目前使用者的收藏 station_id 集合（給 p-fav 顯示「加入最愛」或「移除收藏」用）
+    async function loadFavorites() {
+        try {
+            const r = await api('/me/stations');
+            if (r.status === 'success' && Array.isArray(r.data)) {
+                favoriteStationIds = new Set(r.data.map(f => f.station_id));
+            }
+        } catch (e) { /* 未綁定或網路問題都不致命，跳過 */ }
+    }
+
+    // 更新 p-fav 按鈕文字與點擊行為（依目前是否已收藏切換 加入最愛 / 移除收藏）
+    function updateFavButton(stationId) {
+        const btn = document.getElementById('p-fav');
+        const isFav = favoriteStationIds.has(stationId);
+        btn.innerText = isFav ? '移除收藏' : '加入最愛';
+        btn.onclick = () => isFav ? removeFavorite(stationId) : addFavorite(stationId);
+    }
+
     async function addFavorite(stationId) {
         const r = await api('/me/stations', { method: 'POST', body: JSON.stringify({ station_id: stationId }) });
-        if (r.status === 'success') toast('已加入最愛！');
-        else toast('加入失敗：' + (r.message || '')); // 409＝已收藏過此站點
+        if (r.status === 'success') {
+            favoriteStationIds.add(stationId);
+            toast('已加入最愛！');
+            if (stationId === currentStationId) updateFavButton(stationId);
+        } else {
+            // 409＝已收藏過此站點（後端說已有 → 同步更新本地 cache 並切換成「移除收藏」）
+            if (r.status === 'error' && /已收藏|409/.test(r.message || '')) {
+                favoriteStationIds.add(stationId);
+                if (stationId === currentStationId) updateFavButton(stationId);
+            }
+            toast('加入失敗：' + (r.message || ''));
+        }
+    }
+
+    async function removeFavorite(stationId) {
+        const r = await api(`/me/stations/${stationId}`, { method: 'DELETE' });
+        if (r.status === 'success') {
+            favoriteStationIds.delete(stationId);
+            toast('已移除收藏');
+            if (stationId === currentStationId) updateFavButton(stationId);
+        } else {
+            toast('移除失敗：' + (r.message || ''));
+        }
     }
 
     // 清掉目前顯示的行駛路線
@@ -974,14 +1020,17 @@
     }
     document.getElementById('p-close').onclick = closePanel;   // 保留綁定避免破壞 JS 結構
 
-    // 向下滑關閉 panel：詳細資訊不需要捲動，任何下滑都直接觸發關閉
+    // 向下滑關閉 panel：
+    // - 內容若不夠長（多數情境）panel.scrollTop 永遠是 0 → 任何下滑都直接關閉
+    // - 內容若超過 panel max-height（一週每天都有車且時間多）會 scroll → 只在捲到頂時才視為「想關閉」，否則照常捲內容
     (function () {
         const panel = document.getElementById('panel');
         let startY = null;
-        const THRESHOLD = 30;   // 下滑超過 30px 就關閉（小門檻 = 容易觸發）
+        const THRESHOLD = 30;
 
         panel.addEventListener('pointerdown', (e) => {
-            startY = e.clientY;
+            // 只在已捲到最頂時才開始監測下滑關閉手勢，否則讓 panel 自己 scroll
+            if (panel.scrollTop <= 0) startY = e.clientY;
         });
         panel.addEventListener('pointermove', (e) => {
             if (startY === null) return;
@@ -1066,6 +1115,10 @@
         if (!liff.isLoggedIn()) { liff.login(); return; }
         const profile = await liff.getProfile();
         lineUserId = profile.userId;
+
+        // 背景載入收藏清單（給 p-fav 按鈕判斷顯示「加入最愛」或「移除收藏」）；
+        // 不 await，與後續地圖初始化並行，加快進場
+        loadFavorites();
 
         // 檢查是否有上次離開時的狀態（如剛從 search.html 返回）
         const saved = loadMapState();
