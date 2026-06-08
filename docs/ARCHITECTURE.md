@@ -108,18 +108,20 @@ trash-tracker/
 #### `stations`（`api/routes.py`，`/api/stations`）— 公開
 - `GET /search`：附近站點（`lat`、`lng`、`radius` 預設 2km、`limit` 預設 20 上限 200）
 - `GET /<station_id>`：站點明細
-- `GET /<station_id>/next`：下一班到站
 - `GET /by-route/<route_id>`：整條路線的站點
 
 邏輯在 `services/geo_service.py`。
 
 #### `users`（`api/users.py`，`/api/users`）
-- `POST /register`：LINE 一鍵綁定（公開）
 - `GET /me`：查本人資料（LINE）
 - `PUT /credentials`：設定本人 email + 密碼（LINE）
 - `GET /list`：所有使用者清單（管理，前端 `UsersManage` 用）
 - `POST /promote`：升級為 admin（需已綁 email+密碼）（管理）
-- `POST /suspend`：停權使用者（禁止停權其他 admin）（管理）
+- `POST /demote`：把 admin 降回 user（管理；不可動 developer）
+- `POST /suspend`：停權使用者（禁止停權其他 admin / developer）（管理）
+- `POST /unsuspend`：解除停權（管理）
+
+> 註：新使用者註冊一律走 LINE Webhook 的 `FollowEvent` 自動綁定（見第六章），不再提供獨立 `POST /register` 端點。
 
 #### `line_webhook`（`api/webhooks.py`，`/api/webhooks`）— 公開（LINE 簽章驗證）
 - `POST /line`：LINE Webhook 入口（見第六章）
@@ -127,7 +129,8 @@ trash-tracker/
 #### `info`（`api/info.py`，`/api/info`）— 公開
 - `GET /bag-regulations`（可帶 `city`）
 - `GET /bulky-waste`（可帶 `city`）
-- `GET /announcements`（可帶 `city`，未帶只回全體公告）
+
+> 註：公開版 `/info/announcements` 已移除（未做對應 LIFF 頁、無 caller）。後台檢視走 `/api/announcements/list`；推送給民眾走 LINE multicast，不靠 LIFF 頁查閱。
 
 #### `me`（`api/me.py`，`/api/me`）— LINE　**目前 LIFF 收藏/通知的正式 API**
 - `GET /stations`：本人收藏站清單，每站附 `collect_days`（該站收運星期）與 `notify`（通知狀態，未設為 `null`）
@@ -214,7 +217,7 @@ APScheduler（`timezone="Asia/Taipei"`），背景執行緒內自行 push app co
 5. 以記憶體 `notified_set`（noti_id + 日期）做單程序去重，避免 60 秒重複推。
 
 ### 5.2 services
-- `geo_service.py`：`find_nearby_stations`（Bounding Box + Haversine）、`get_station_detail`、`next_arrival`、`list_route_stations`。
+- `geo_service.py`：`find_nearby_stations`（Bounding Box + Haversine）、`get_station_detail`、`list_route_stations`。
 - `line_service.py`：單例 `line_service`，動態讀 `LINE_CHANNEL_ACCESS_TOKEN`；提供 `reply_text`、`push_text`、`multicast_text`、`multicast_messages`、`multicast_flex`（multicast 自動 500 筆分批）。
 
 ---

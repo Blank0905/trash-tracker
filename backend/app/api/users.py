@@ -37,50 +37,6 @@ def _forbid_operating_developer(target_role):
     }), 403
 
 
-@bp.route('/register', methods=['POST'])
-def register_user():
-    data = request.get_json(silent=True) or {}
-    line_user_id = data.get('line_user_id')
-
-    if not line_user_id:
-        return jsonify({'status': 'error', 'message': '必須提供 line_user_id'}), 400
-
-    username = data.get('username')
-    email = data.get('email')
-    raw_password = data.get('password')
-    hashed_password = generate_password_hash(raw_password) if raw_password else None
-
-    conn = get_db_connection()
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT user_id FROM users WHERE line_user_id = %s", (line_user_id,))
-            if cursor.fetchone():
-                return jsonify({'status': 'error', 'message': '此 LINE 帳號已綁定過'}), 409
-
-            cursor.execute(
-                """
-                INSERT INTO users (line_user_id, username, email, password_hash, role)
-                VALUES (%s, %s, %s, %s, 'user')
-                """,
-                (line_user_id, username, email, hashed_password),
-            )
-
-            conn.commit()
-            return jsonify({
-                'status': 'success',
-                'message': '註冊成功',
-                'data': {
-                    'user_id': cursor.lastrowid,
-                    'username': username,
-                }
-            }), 201
-    except Exception as e:
-        conn.rollback()
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-    finally:
-        conn.close()
-
-
 @bp.route('/me', methods=['GET'])
 @line_required
 def get_me():
@@ -179,33 +135,6 @@ def get_users_list():
             "users": users_data,
             "operator_role": operator_role,
             "can_demote_admins": can_demote_admins,
-        }), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"資料庫讀取失敗: {str(e)}"}), 500
-    finally:
-        conn.close()
-
-
-@bp.route('/current-role', methods=['GET'])
-@admin_required
-def get_current_role():
-    current = getattr(g, 'current_user', None) or {}
-    user_id = current.get('user_id')
-    if not user_id:
-        return jsonify({"status": "error", "message": "無法識別目前使用者"}), 401
-
-    conn = get_db_connection()
-    try:
-        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-            cursor.execute("SELECT role FROM users WHERE user_id = %s", (user_id,))
-            me = cursor.fetchone()
-        if not me:
-            return jsonify({"status": "error", "message": "找不到目前使用者"}), 404
-        return jsonify({
-            "status": "success",
-            "data": {
-                "role": me.get('role') or ''
-            }
         }), 200
     except Exception as e:
         return jsonify({"status": "error", "message": f"資料庫讀取失敗: {str(e)}"}), 500

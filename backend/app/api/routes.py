@@ -34,12 +34,6 @@ def get_station_detail_endpoint(station_id):
         return err('找不到該站點資訊', 404)
     return ok(result)
 
-@bp.route('/<int:station_id>/next', methods=['GET'])
-def get_next_arrival_endpoint(station_id):
-    result = geo_service.next_arrival(station_id)
-    # 找不到車或日程時data帶null(OK傳NONE)
-    return ok(result)
-
 @bp.route('/by-route/<int:route_id>', methods=['GET'])
 def get_stations_by_route(route_id):
     stations = geo_service.list_route_stations(route_id)
