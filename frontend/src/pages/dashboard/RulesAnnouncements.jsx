@@ -15,6 +15,7 @@ const RulesAnnouncements = () => {
   // 📢 Tab 1：公告推播狀態
   const [announcements, setAnnouncements] = useState([]);
   const [newAnno, setNewAnno] = useState({ title: '', content: '', target_city: '全體' });
+  const [viewingAnnouncement, setViewingAnnouncement] = useState(null);
   
   // 🟢 新增：用來記錄目前正在「重新編輯」哪一則歷史公告的 ID（Null 代表新建公告）
   const [editingId, setEditingId] = useState(null);
@@ -66,6 +67,39 @@ const RulesAnnouncements = () => {
       ]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const normalizeAnnouncementForForm = (announcement) => ({
+    title: announcement?.title || '',
+    content: announcement?.content || '',
+    target_city: announcement?.target_city || '全體'
+  });
+
+  const handleApplyAnnouncement = async (announcement) => {
+    try {
+      const baseUrl = await getBackendUrl();
+      const res = await authedFetch(`${baseUrl}/api/announcements/template/${announcement.announcement_id}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const source = data?.announcement || announcement;
+      setEditingId(null);
+      setNewAnno(normalizeAnnouncementForForm(source));
+    } catch {
+      setEditingId(null);
+      setNewAnno(normalizeAnnouncementForForm(announcement));
+    }
+  };
+
+  const handleViewAnnouncement = async (announcement) => {
+    try {
+      const baseUrl = await getBackendUrl();
+      const res = await authedFetch(`${baseUrl}/api/announcements/template/${announcement.announcement_id}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setViewingAnnouncement(data?.announcement || announcement);
+    } catch {
+      setViewingAnnouncement(announcement);
     }
   };
 
@@ -322,15 +356,33 @@ const RulesAnnouncements = () => {
                   <p style={styles.annoContent}>{anno.content}</p>
                   <div style={styles.pushFooter}>
                     {anno.is_pushed ? (
-                      <span style={styles.pushedTag}>
-                        📡 LINE 官方已推播通報
-                        {formatDisplayTime(anno.pushed_at) ? ` (${formatDisplayTime(anno.pushed_at)})` : ''}
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <span style={styles.pushedTag}>
+                          📡 LINE 官方已推播通報
+                          {formatDisplayTime(anno.pushed_at) ? ` (${formatDisplayTime(anno.pushed_at)})` : ''}
+                        </span>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleViewAnnouncement(anno)}
+                            style={{ ...styles.secondaryBtn, backgroundColor: '#e0f2fe', color: '#0369a1', borderColor: '#7dd3fc' }}
+                          >
+                            👁️ 檢視
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleApplyAnnouncement(anno)}
+                            style={{ ...styles.secondaryBtn, backgroundColor: '#ecfccb', color: '#3f6212', borderColor: '#bef264' }}
+                          >
+                            套用到左側表單
+                          </button>
+                        </div>
+                      </div>
                     ) : (
                       /* 🟢 修改點：未推播的公告，優雅加入「編輯」與「直接發送」兩顆功能按鈕 */
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <span style={styles.unpushedTag}>🔕 僅存放於後台系統，未發送推播</span>
-                        <div style={{ display: 'flex', gap: '8px' }}>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                           <button
                             type="button"
                             onClick={() => {
@@ -340,6 +392,20 @@ const RulesAnnouncements = () => {
                             style={{ padding: '5px 12px', backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
                           >
                             ✏️ 點選編輯
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleViewAnnouncement(anno)}
+                            style={{ ...styles.secondaryBtn, backgroundColor: '#e0f2fe', color: '#0369a1', borderColor: '#7dd3fc' }}
+                          >
+                            👁️ 檢視
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleApplyAnnouncement(anno)}
+                            style={{ ...styles.secondaryBtn, backgroundColor: '#ecfccb', color: '#3f6212', borderColor: '#bef264' }}
+                          >
+                            套用
                           </button>
                           <button
                             type="button"
@@ -354,6 +420,48 @@ const RulesAnnouncements = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingAnnouncement && (
+        <div style={styles.modalOverlay} onClick={() => setViewingAnnouncement(null)}>
+          <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, fontSize: '18px', color: '#0f172a' }}>歷史公告檢視</h3>
+              <button
+                type="button"
+                onClick={() => setViewingAnnouncement(null)}
+                style={styles.modalCloseBtn}
+              >
+                關閉
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
+              <span style={styles.scopeBadge}>
+                {viewingAnnouncement.target_city ? `📍 ${viewingAnnouncement.target_city}` : '🌍 全體縣市'}
+              </span>
+              <span style={styles.timeText}>建立時間：{formatDisplayTime(viewingAnnouncement.created_at) || '未提供'}</span>
+              {viewingAnnouncement.is_pushed ? (
+                <span style={styles.pushedTag}>已推播</span>
+              ) : (
+                <span style={styles.unpushedTag}>未推播</span>
+              )}
+            </div>
+            <h4 style={{ margin: '0 0 10px 0', fontSize: '17px', color: '#1e293b' }}>{viewingAnnouncement.title}</h4>
+            <div style={styles.modalContent}>{viewingAnnouncement.content}</div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  handleApplyAnnouncement(viewingAnnouncement);
+                  setViewingAnnouncement(null);
+                }}
+                style={{ ...styles.submitBtn, backgroundColor: '#16a34a' }}
+              >
+                套用到左側表單
+              </button>
             </div>
           </div>
         </div>
@@ -449,11 +557,64 @@ const styles = {
   annoContent: { margin: '0 0 10px 0', fontSize: '14px', color: '#475569', lineHeight: '1.5', whiteSpace: 'pre-wrap' },
   pushedTag: { fontSize: '12px', color: '#16a34a', fontWeight: 'bold' },
   unpushedTag: { fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' },
+  secondaryBtn: {
+    padding: '5px 12px',
+    border: '1px solid #cbd5e1',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: 'bold'
+  },
   citySelectorRow: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' },
   cityTabBtn: { padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '20px', backgroundColor: '#fff', color: '#64748b', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' },
   cityTabActive: { backgroundColor: '#0284c7', color: 'white', borderColor: '#0284c7' },
   ruleEditorCard: { border: '1px solid #e2e8f0', borderRadius: '8px', padding: '24px', backgroundColor: '#ffffff', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' },
-  saveBtn: { padding: '12px 24px', backgroundColor: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }
+  saveBtn: { padding: '12px 24px', backgroundColor: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' },
+  modalOverlay: {
+    position: 'fixed',
+    inset: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '20px',
+    zIndex: 1000
+  },
+  modalCard: {
+    width: 'min(680px, 100%)',
+    maxHeight: '80vh',
+    overflowY: 'auto',
+    backgroundColor: '#ffffff',
+    borderRadius: '12px',
+    padding: '20px',
+    boxShadow: '0 20px 45px rgba(15, 23, 42, 0.2)'
+  },
+  modalHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '12px',
+    marginBottom: '16px'
+  },
+  modalCloseBtn: {
+    padding: '8px 12px',
+    borderRadius: '6px',
+    border: '1px solid #cbd5e1',
+    backgroundColor: '#fff',
+    color: '#475569',
+    cursor: 'pointer',
+    fontWeight: 'bold'
+  },
+  modalContent: {
+    border: '1px solid #e2e8f0',
+    borderRadius: '8px',
+    backgroundColor: '#f8fafc',
+    padding: '14px',
+    color: '#334155',
+    fontSize: '14px',
+    lineHeight: '1.7',
+    whiteSpace: 'pre-wrap'
+  }
 };
 
 export default RulesAnnouncements;
