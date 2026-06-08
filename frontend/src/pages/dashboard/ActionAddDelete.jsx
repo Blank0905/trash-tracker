@@ -274,7 +274,7 @@ const TimePickerField = ({ value, minTime = '', onChange, label, helperText, dis
         </select>
       </div>
       {helperText && (
-        <div style={{ fontSize: '11px', color: '#64748b' }}>{helperText}</div>
+        <div style={{ fontSize: '11px', color: c.textMuted }}>{helperText}</div>
       )}
     </div>
   );
@@ -1212,15 +1212,15 @@ const handleCreateRoute = async (e) => {
                 </div>
                 <div style={styles.inputGroup}>
                   <label style={styles.label}>2. 選擇行政區</label>
-                  <select value={routeDistrict} onChange={(e) => setRouteDistrict(e.target.value)} style={{ ...styles.select, backgroundColor: !routeCity ? '#e2e8f0' : '#fff' }} disabled={!routeCity} required>
+                  <select value={routeDistrict} onChange={(e) => setRouteDistrict(e.target.value)} style={{ ...styles.select, backgroundColor: !routeCity ? c.surface2 : c.surface1 }} disabled={!routeCity} required>
                     <option value="">-- 請選擇 --</option>
                     {filteredDistricts.map(dist => <option key={dist} value={dist}>{dist}</option>)}
                   </select>
                 </div>
               </div>
 
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '-5px', fontStyle: 'italic' }}>
-                💡 系統自動配對 MySQL 欄位 `areas_id`：{routeForm.areas_id ? <strong>{routeForm.areas_id}</strong> : '尚未配對'}
+              <div style={{ fontSize: '12px', color: c.textMuted, marginTop: '-5px', fontStyle: 'italic' }}>
+                💡 系統自動配對 MySQL 欄位 `areas_id`：{routeForm.areas_id ? <strong style={{ color: c.text }}>{routeForm.areas_id}</strong> : '尚未配對'}
               </div>
 
               <div style={styles.inputGroup}>
@@ -1235,18 +1235,18 @@ const handleCreateRoute = async (e) => {
 
               <div style={styles.rowFields}>
                 <div style={styles.inputGroup}>
-                  <label style={{ ...styles.label, color: routeCity !== '台北市' ? '#94a3b8' : '#475569' }}>車牌號碼</label>
-                  <input type="text" placeholder="KE-1234" maxLength={30} value={routeForm.car_number} onChange={(e) => setRouteForm({ ...routeForm, car_number: e.target.value })} style={{ ...styles.input, backgroundColor: routeCity !== '台北市' ? '#e2e8f0' : '#fff' }} disabled={routeCity !== '台北市'} required={routeCity === '台北市'} />
+                  <label style={{ ...styles.label, color: routeCity !== '台北市' ? c.textFaint : c.textDim }}>車牌號碼</label>
+                  <input type="text" placeholder="KE-1234" maxLength={30} value={routeForm.car_number} onChange={(e) => setRouteForm({ ...routeForm, car_number: e.target.value })} style={{ ...styles.input, backgroundColor: routeCity !== '台北市' ? c.surface2 : c.surface1 }} disabled={routeCity !== '台北市'} required={routeCity === '台北市'} />
                 </div>
                 <div style={styles.inputGroup}>
-                  <label style={{ ...styles.label, color: routeCity !== '台北市' ? '#94a3b8' : '#475569' }}>所屬車隊</label>
-                  <input type="text" placeholder="大安清潔隊" maxLength={30} value={routeForm.team} onChange={(e) => setRouteForm({ ...routeForm, team: e.target.value })} style={{ ...styles.input, backgroundColor: routeCity !== '台北市' ? '#e2e8f0' : '#fff' }} disabled={routeCity !== '台北市'} required={routeCity === '台北市'} />
+                  <label style={{ ...styles.label, color: routeCity !== '台北市' ? c.textFaint : c.textDim }}>所屬車隊</label>
+                  <input type="text" placeholder="大安清潔隊" maxLength={30} value={routeForm.team} onChange={(e) => setRouteForm({ ...routeForm, team: e.target.value })} style={{ ...styles.input, backgroundColor: routeCity !== '台北市' ? c.surface2 : c.surface1 }} disabled={routeCity !== '台北市'} required={routeCity === '台北市'} />
                 </div>
               </div>
 
               <div style={styles.inputGroup}>
-                <label style={{ ...styles.label, color: (routeCity !== '台北市' && routeCity !== '基隆市') ? '#94a3b8' : '#475569' }}>車次/班次描述</label>
-                <input type="text" placeholder="第1班次" maxLength={30} value={routeForm.trip_number} onChange={(e) => setRouteForm({ ...routeForm, trip_number: e.target.value })} style={{ ...styles.input, backgroundColor: (routeCity !== '台北市' && routeCity !== '基隆市') ? '#e2e8f0' : '#fff' }} disabled={routeCity !== '台北市' && routeCity !== '基隆市'} required={routeCity === '台北市' || routeCity === '基隆市'} />
+                <label style={{ ...styles.label, color: (routeCity !== '台北市' && routeCity !== '基隆市') ? c.textFaint : c.textDim }}>車次/班次描述</label>
+                <input type="text" placeholder="第1班次" maxLength={30} value={routeForm.trip_number} onChange={(e) => setRouteForm({ ...routeForm, trip_number: e.target.value })} style={{ ...styles.input, backgroundColor: (routeCity !== '台北市' && routeCity !== '基隆市') ? c.surface2 : c.surface1 }} disabled={routeCity !== '台北市' && routeCity !== '基隆市'} required={routeCity === '台北市' || routeCity === '基隆市'} />
               </div>
 
               <button type="submit" style={styles.submitBtn}>💾 確定新增收運路線</button>
@@ -1276,7 +1276,7 @@ const handleCreateRoute = async (e) => {
                   <option value="基隆市">🟡 基隆市</option>
                 </select>
 
-                <select value={searchDistrict} onChange={(e) => { setSearchDistrict(e.target.value); setSearchVillage(''); }} style={{ ...styles.filterSelect, backgroundColor: searchCity === '全部' ? '#e2e8f0' : '#fff' }} disabled={searchCity === '全部'}>
+                <select value={searchDistrict} onChange={(e) => { setSearchDistrict(e.target.value); setSearchVillage(''); }} style={{ ...styles.filterSelect, backgroundColor: searchCity === '全部' ? c.surface2 : c.surface1 }} disabled={searchCity === '全部'}>
                   <option value="">🔍 所有行政區</option>
                   {searchDistricts.map(dist => <option key={dist} value={dist}>{dist}</option>)}
                 </select>
@@ -1317,7 +1317,7 @@ const handleCreateRoute = async (e) => {
 
             <div style={styles.listWrapper}>
               {routesList.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '30px', color: '#94a3b8', fontSize: '13px' }}>
+                <div style={{ textAlign: 'center', padding: '30px', color: c.textFaint, fontSize: '13px' }}>
                   💡 請在上方的篩選器選擇條件，並點擊「執行查詢」載入路線資料。
                 </div>
               ) : (
@@ -1326,7 +1326,7 @@ const handleCreateRoute = async (e) => {
                     <div>
                       <span style={styles.routeBadge}>{r.route_code || '無'}</span>
                       <strong style={styles.itemMainTitle}>{r.route_name}</strong>
-                      <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: '6px' }}>({r.city}{r.district})</span>
+                      <span style={{ fontSize: '11px', color: c.textFaint, marginLeft: '6px' }}>({r.city}{r.district})</span>
                       <div style={styles.itemSubText}>🚙 車牌: {r.car_number || '無'} | ⏱️ 班次: {r.trip_number || '無'}</div>
                     </div>
                     <button onClick={() => handleDeleteRoute(r.route_id)} style={styles.deleteBtn}>🗑️ 刪除</button>
@@ -1363,16 +1363,16 @@ const handleCreateRoute = async (e) => {
                   }}
                   style={styles.input}
                 />
-                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', fontStyle: 'italic' }}>
+                <div style={{ fontSize: '12px', color: c.textMuted, marginTop: '4px', fontStyle: 'italic' }}>
                   請先填寫路線名稱，縣市與行政區會自動帶入。
                 </div>
                 {stationRouteQuery && !selectedRouteObj && (
                   <div style={styles.dropdownSuggestion}>
-                    {matchedRoutes.length === 0 ? <div style={{ padding: '8px', color: '#94a3b8' }}>找不到符合的收運路線</div> :
+                    {matchedRoutes.length === 0 ? <div style={{ padding: '8px', color: c.textFaint }}>找不到符合的收運路線</div> :
                       matchedRoutes.map(r => (
                         <div key={r.route_id} onClick={() => { setSelectedRouteObj(r); setStationRouteQuery(`${r.route_name} (${r.city}-${r.trip_number || '無班次別'})`); }} style={styles.suggestionItem}>
                           🚌 <strong>{r.route_name}</strong>
-                          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                          <div style={{ fontSize: '11px', color: c.textMuted, marginTop: '2px' }}>
                             Code: {r.route_code} | {r.city} | {r.trip_number || '無班次別'}
                           </div>
                         </div>
@@ -1381,7 +1381,7 @@ const handleCreateRoute = async (e) => {
                   </div>
                 )}
                 {selectedRouteObj && (
-                  <div style={{ fontSize: '12px', color: '#16a34a', fontWeight: 'bold', marginTop: '4px' }}>
+                  <div style={{ fontSize: '12px', color: c.green, fontWeight: '600', marginTop: '4px' }}>
                     ✅ 已鎖定：{selectedRouteObj.route_name} ({selectedRouteObj.city} - {selectedRouteObj.trip_number || '無班次別'}) / Route ID: {selectedRouteObj.route_id}
                   </div>
                 )}
@@ -1393,7 +1393,7 @@ const handleCreateRoute = async (e) => {
                       setStationRouteQuery('');
                       setStationForm(prev => ({ ...prev, route_id: '' }));
                     }}
-                    style={{ marginTop: '6px', padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', cursor: 'pointer', fontSize: '12px', color: '#334155' }}
+                    style={{ marginTop: '6px', padding: '6px 10px', borderRadius: r.sm, border: `1px solid ${c.border}`, backgroundColor: c.surface1, cursor: 'pointer', fontSize: '12px', color: c.textDim, fontFamily: theme.fonts.sans }}
                   >
                     重新選擇路線
                   </button>
@@ -1406,7 +1406,7 @@ const handleCreateRoute = async (e) => {
                   <select
                     value={stationSelectedCity}
                     onChange={() => {}}
-                    style={{ ...styles.select, backgroundColor: '#e2e8f0', color: '#64748b' }}
+                    style={{ ...styles.select, backgroundColor: c.surface2, color: c.textMuted }}
                     disabled
                     required
                   >
@@ -1421,7 +1421,7 @@ const handleCreateRoute = async (e) => {
                   <select
                     value={stationSelectedDistrict}
                     onChange={() => {}}
-                    style={{ ...styles.select, backgroundColor: '#e2e8f0', color: '#64748b' }}
+                    style={{ ...styles.select, backgroundColor: c.surface2, color: c.textMuted }}
                     disabled
                     required
                   >
@@ -1444,8 +1444,8 @@ const handleCreateRoute = async (e) => {
                 </div>
               </div>
 
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '-5px', fontStyle: 'italic' }}>
-                💡 系統自動配對 MySQL 欄位 `areas_id`：{stationForm.areas_id ? <strong>{stationForm.areas_id}</strong> : '尚未配對'}
+              <div style={{ fontSize: '12px', color: c.textMuted, marginTop: '-5px', fontStyle: 'italic' }}>
+                💡 系統自動配對 MySQL 欄位 `areas_id`：{stationForm.areas_id ? <strong style={{ color: c.text }}>{stationForm.areas_id}</strong> : '尚未配對'}
               </div>
 
               <div style={styles.rowFields}>
@@ -1454,7 +1454,7 @@ const handleCreateRoute = async (e) => {
                   <input type="text" placeholder="例如: 捷運站出口、超商前" maxLength={30} value={stationForm.station_name} onChange={(e) => setStationForm({ ...stationForm, station_name: e.target.value })} style={styles.input} required />
                 </div>
                 <div style={styles.inputGroup}>
-                  <label style={{ ...styles.label, color: selectedRouteObj?.city === '台北市' ? '#94a3b8' : '#475569' }}>
+                  <label style={{ ...styles.label, color: selectedRouteObj?.city === '台北市' ? c.textFaint : c.textDim }}>
                     順序順位 {selectedRouteObj?.city === '台北市' ? '🔒 台北免填' : '*必填'}
                   </label>
                   <input
@@ -1462,7 +1462,7 @@ const handleCreateRoute = async (e) => {
                     min="1"
                     value={stationForm.sequence_order}
                     onChange={(e) => setStationForm({ ...stationForm, sequence_order: e.target.value })}
-                    style={{ ...styles.input, backgroundColor: selectedRouteObj?.city === '台北市' ? '#e2e8f0' : '#fff' }}
+                    style={{ ...styles.input, backgroundColor: selectedRouteObj?.city === '台北市' ? c.surface2 : c.surface1 }}
                     disabled={selectedRouteObj?.city === '台北市'}
                     required={selectedRouteObj?.city !== '台北市'}
                   />
@@ -1505,7 +1505,7 @@ const handleCreateRoute = async (e) => {
                   onChange={(e) => setStationForm({ ...stationForm, memo: e.target.value })}
                   style={styles.input}
                 />
-                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                <div style={{ fontSize: '11px', color: c.textMuted }}>
                   這裡會一起用來找地圖定位，也會存入 MySQL 的 memo 欄位。
                 </div>
               </div>
@@ -1517,7 +1517,9 @@ const handleCreateRoute = async (e) => {
                   onClick={() => setMapPickerOpen(prev => !prev)}
                   style={{
                     ...styles.searchBtn,
-                    backgroundColor: mapPickerOpen ? '#0f172a' : '#0284c7',
+                    backgroundColor: mapPickerOpen ? c.text : c.brand,
+                    color: '#ffffff',
+                    borderColor: mapPickerOpen ? c.text : c.brand,
                     opacity: (!stationSelectedCity || !stationSelectedDistrict || !stationSelectedVillage) ? 0.55 : 1,
                     cursor: (!stationSelectedCity || !stationSelectedDistrict || !stationSelectedVillage) ? 'not-allowed' : 'pointer'
                   }}
@@ -1527,11 +1529,11 @@ const handleCreateRoute = async (e) => {
                 <button
                   type="button"
                   onClick={handleLocateByDetail}
-                  style={{ ...styles.deleteBtn, padding: '8px 16px', backgroundColor: '#ecfeff', color: '#0f766e', borderColor: '#67e8f9' }}
+                  style={{ ...styles.deleteBtn, padding: '8px 16px', backgroundColor: c.brandSoft, color: c.brand, borderColor: c.brandTint }}
                 >
                   依詳細位置定位
                 </button>
-                <span style={{ fontSize: '11px', color: '#64748b' }}>
+                <span style={{ fontSize: '11px', color: c.textMuted }}>
                   {mapStatusText}
                 </span>
               </div>
@@ -1543,14 +1545,14 @@ const handleCreateRoute = async (e) => {
                     <div>經度：<strong>{stationForm.longitude}</strong></div>
                     <div>緯度：<strong>{stationForm.latitude}</strong></div>
                   </div>
-                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px' }}>
+                  <div style={{ fontSize: '11px', color: c.textMuted, marginTop: '6px' }}>
                     提示：你可以先輸入詳細位置再按定位，也可以直接點地圖，點下去的位置會自動回填座標。
                   </div>
                 </div>
               )}
 
               <div style={styles.scheduleBox}>
-                <label style={{ ...styles.label, color: '#1a237e' }}>📅 配置此站點每週收運日程 (station_schedules)</label>
+                <label style={{ ...styles.label, color: c.brand }}>📅 配置此站點每週收運日程 (station_schedules)</label>
                 <table style={styles.scheduleTable}>
                   <thead>
                     <tr>
@@ -1562,7 +1564,7 @@ const handleCreateRoute = async (e) => {
                   </thead>
                   <tbody>
                     {scheduleForm.map((day, idx) => (
-                      <tr key={day.day_of_week} style={{ backgroundColor: idx === 0 ? '#fff1f2' : '#ffffff' }}>
+                      <tr key={day.day_of_week} style={{ backgroundColor: idx === 0 ? c.brandSoft : c.surface1 }}>
                         <td style={{ ...styles.td, fontWeight: 'bold' }}>{weekDays[idx]}</td>
                         <td style={styles.td}><input type="checkbox" checked={day.collects_garbage === 1} onChange={() => handleStationScheduleChange(idx, 'collects_garbage')} /></td>
                         <td style={styles.td}><input type="checkbox" checked={day.collects_recycling === 1} onChange={() => handleStationScheduleChange(idx, 'collects_recycling')} /></td>
@@ -1573,7 +1575,7 @@ const handleCreateRoute = async (e) => {
                 </table>
               </div>
 
-              <button type="submit" style={{ ...styles.submitBtn, backgroundColor: '#0284c7' }}>🚀 確定新增清運點（同步配置清運日程）</button>
+              <button type="submit" style={{ ...styles.submitBtn, backgroundColor: c.brand, borderColor: c.brand }}>🚀 確定新增清運點（同步配置清運日程）</button>
             </form>
           </div>
 
@@ -1602,7 +1604,7 @@ const handleCreateRoute = async (e) => {
                 <select
                   value={stationSearchDistrict}
                   onChange={(e) => setStationSearchDistrict(e.target.value)}
-                  style={{ ...styles.filterSelect, backgroundColor: stationSearchCity === '全部' ? '#e2e8f0' : '#fff' }}
+                  style={{ ...styles.filterSelect, backgroundColor: stationSearchCity === '全部' ? c.surface2 : c.surface1 }}
                   disabled={stationSearchCity === '全部'}
                 >
                   <option value="">🔍 所有行政區</option>
@@ -1677,7 +1679,7 @@ const handleCreateRoute = async (e) => {
             </div>
             <div style={styles.listWrapper}>
               {stationsList.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '24px', color: '#94a3b8', fontSize: '13px' }}>
+                <div style={{ textAlign: 'center', padding: '24px', color: c.textFaint, fontSize: '13px' }}>
                   請至少填一個條件：縣市、行政區、站點名稱或路線名稱，再按「查詢站點」。
                 </div>
               ) : stationsList.map(s => {
@@ -1687,16 +1689,16 @@ const handleCreateRoute = async (e) => {
                   return (
                     <div key={s.station_id} style={styles.dataItemCard}>
                       <div>
-                        {s.sequence_order && <span style={{ ...styles.routeBadge, backgroundColor: '#f0fdf4', color: '#16a34a' }}>序位 {s.sequence_order}</span>}
-                        {s.stay_type && <span style={{ ...styles.routeBadge, backgroundColor: '#fff7ed', color: '#ea580c' }}>{s.stay_type}</span>}
+                        {s.sequence_order && <span style={{ ...styles.routeBadge, backgroundColor: c.greenSoft, color: c.green, border: `1px solid ${c.greenSoft}` }}>序位 {s.sequence_order}</span>}
+                        {s.stay_type && <span style={{ ...styles.routeBadge, backgroundColor: c.amberSoft, color: c.amber, border: `1px solid ${c.amberSoft}` }}>{s.stay_type}</span>}
                         <strong style={styles.itemMainTitle}>{s.station_name}</strong>
                         <div style={styles.itemSubText}>
-                          🚌 路線: {s.route_name} | ⏱️ 時間: <span style={{ fontWeight: 'bold', color: '#1e293b' }}>{s.arrive_time} ~ {s.leave_time}</span>
+                          🚌 路線: {s.route_name} | ⏱️ 時間: <span style={{ fontWeight: 'bold', color: c.text }}>{s.arrive_time} ~ {s.leave_time}</span>
                         </div>
-                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>📍 區域: {s.city}{s.district}{s.village}</div>
+                        <div style={{ fontSize: '11px', color: c.textFaint, marginTop: '2px' }}>📍 區域: {s.city}{s.district}{s.village}</div>
                       </div>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        <button type="button" onClick={() => startEditStation(s)} style={{ ...styles.deleteBtn, backgroundColor: '#e0f2fe', color: '#0369a1', borderColor: '#7dd3fc' }}>✏️ 編輯</button>
+                        <button type="button" onClick={() => startEditStation(s)} style={{ ...styles.deleteBtn, backgroundColor: c.brandSoft, color: c.brand, borderColor: c.brandTint }}>✏️ 編輯</button>
                         <button type="button" onClick={() => handleDeleteStation(s.station_id)} style={styles.deleteBtn}>🗑️ 刪除</button>
                       </div>
                     </div>
@@ -1705,7 +1707,7 @@ const handleCreateRoute = async (e) => {
 
                 return (
                   <div key={s.station_id} style={styles.editItemCard}>
-                    <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#1a237e' }}>🛠️ 正在行內修改站點資料</h4>
+                    <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', color: c.brand }}>🛠️ 正在行內修改站點資料</h4>
                     <div style={styles.form}>
                       <div style={styles.inputGroup}>
                         <label style={styles.label}>站點名稱調整</label>
@@ -1726,26 +1728,26 @@ const handleCreateRoute = async (e) => {
                         <strong>📅 調整每週排班日程：</strong>
                         <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
                           {weekDays.map((day, dayIdx) => (
-                            <div key={dayIdx} style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '4px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: '#fff' }}>
-                              <div style={{ fontWeight: 'bold', fontSize: '11px', color: '#334155', textAlign: 'center' }}>{day}</div>
+                            <div key={dayIdx} style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '6px', border: `1px solid ${c.border}`, borderRadius: r.sm, backgroundColor: c.surface1 }}>
+                              <div style={{ fontWeight: '600', fontSize: '11px', color: c.text, textAlign: 'center' }}>{day}</div>
                               <button
                                 type="button"
                                 onClick={() => setEditingSchedules(prev => prev.map((sch, sIdx) => sIdx === dayIdx ? { ...sch, collects_garbage: sch.collects_garbage === 1 ? 0 : 1 } : sch))}
-                                style={{ padding: '3px 6px', fontSize: '11px', borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', backgroundColor: editingSchedules[dayIdx]?.collects_garbage === 1 ? '#e0e7ff' : '#ffffff', color: editingSchedules[dayIdx]?.collects_garbage === 1 ? '#4338ca' : '#64748b' }}
+                                style={{ padding: '3px 6px', fontSize: '11px', borderRadius: r.sm, border: `1px solid ${editingSchedules[dayIdx]?.collects_garbage === 1 ? c.brandTint : c.border}`, cursor: 'pointer', backgroundColor: editingSchedules[dayIdx]?.collects_garbage === 1 ? c.brandSoft : c.surface1, color: editingSchedules[dayIdx]?.collects_garbage === 1 ? c.brand : c.textMuted, fontFamily: theme.fonts.sans, fontWeight: editingSchedules[dayIdx]?.collects_garbage === 1 ? '600' : '500' }}
                               >
                                 垃圾 {editingSchedules[dayIdx]?.collects_garbage === 1 ? '收' : '停'}
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setEditingSchedules(prev => prev.map((sch, sIdx) => sIdx === dayIdx ? { ...sch, collects_recycling: sch.collects_recycling === 1 ? 0 : 1 } : sch))}
-                                style={{ padding: '3px 6px', fontSize: '11px', borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', backgroundColor: editingSchedules[dayIdx]?.collects_recycling === 1 ? '#dbeafe' : '#ffffff', color: editingSchedules[dayIdx]?.collects_recycling === 1 ? '#2563eb' : '#64748b' }}
+                                style={{ padding: '3px 6px', fontSize: '11px', borderRadius: r.sm, border: `1px solid ${editingSchedules[dayIdx]?.collects_recycling === 1 ? c.blueSoft : c.border}`, cursor: 'pointer', backgroundColor: editingSchedules[dayIdx]?.collects_recycling === 1 ? c.blueSoft : c.surface1, color: editingSchedules[dayIdx]?.collects_recycling === 1 ? c.blue : c.textMuted, fontFamily: theme.fonts.sans, fontWeight: editingSchedules[dayIdx]?.collects_recycling === 1 ? '600' : '500' }}
                               >
                                 資收 {editingSchedules[dayIdx]?.collects_recycling === 1 ? '收' : '停'}
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setEditingSchedules(prev => prev.map((sch, sIdx) => sIdx === dayIdx ? { ...sch, collects_foodscraps: sch.collects_foodscraps === 1 ? 0 : 1 } : sch))}
-                                style={{ padding: '3px 6px', fontSize: '11px', borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', backgroundColor: editingSchedules[dayIdx]?.collects_foodscraps === 1 ? '#dcfce7' : '#ffffff', color: editingSchedules[dayIdx]?.collects_foodscraps === 1 ? '#16a34a' : '#64748b' }}
+                                style={{ padding: '3px 6px', fontSize: '11px', borderRadius: r.sm, border: `1px solid ${editingSchedules[dayIdx]?.collects_foodscraps === 1 ? c.greenSoft : c.border}`, cursor: 'pointer', backgroundColor: editingSchedules[dayIdx]?.collects_foodscraps === 1 ? c.greenSoft : c.surface1, color: editingSchedules[dayIdx]?.collects_foodscraps === 1 ? c.green : c.textMuted, fontFamily: theme.fonts.sans, fontWeight: editingSchedules[dayIdx]?.collects_foodscraps === 1 ? '600' : '500' }}
                               >
                                 廚餘 {editingSchedules[dayIdx]?.collects_foodscraps === 1 ? '收' : '停'}
                               </button>

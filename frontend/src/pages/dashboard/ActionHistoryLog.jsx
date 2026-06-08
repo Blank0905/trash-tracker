@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { getBackendUrl, authedFetch } from '../../utils/api';
+import { theme } from '../../utils/theme';
+
+const c = theme.colors;
+const r = theme.radius;
 
 // 動作與目標翻譯對照表
 const ACTION_TEXT = {
@@ -195,31 +199,188 @@ const ActionHistoryLog = () => {
 
 const styles = {
   wrapper: { display: 'flex', flexDirection: 'column', gap: '16px' },
-  topBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', padding: '18px 20px', borderRadius: '14px', background: 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)', border: '1px solid #dbe4ff' },
-  title: { margin: '0 0 6px 0', color: '#1e293b', fontSize: '18px', fontWeight: 'bold' },
-  subtitle: { color: '#64748b', fontSize: '13px', lineHeight: '1.6' },
-  refreshBtn: { padding: '8px 14px', borderRadius: '8px', border: '1px solid #c7d2fe', backgroundColor: '#ffffff', color: '#3730a3', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', transition: '0.2s' },
-  noticeBox: { textAlign: 'center', padding: '26px', borderRadius: '12px', backgroundColor: '#ffffff', border: '1px dashed #cbd5e1', color: '#64748b' },
-  errorBox: { padding: '16px', borderRadius: '12px', backgroundColor: '#fff1f2', border: '1px solid #fecdd3', color: '#be123c', fontWeight: 'bold' },
-  list: { display: 'flex', flexDirection: 'column', gap: '14px' },
-  card: { backgroundColor: '#ffffff', borderRadius: '14px', border: '1px solid #e2e8f0', padding: '18px', boxShadow: '0 4px 12px rgba(15, 23, 42, 0.03)' },
-  cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' },
+
+  // 頁首：暖底 + 細邊，不再用 indigo 漸層
+  topBar: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: '16px',
+    padding: '18px 22px',
+    borderRadius: r.lg,
+    backgroundColor: c.bg,
+    border: `1px solid ${c.border}`,
+  },
+  title: {
+    margin: '0 0 4px 0',
+    color: c.text,
+    fontSize: '16px',
+    fontWeight: '600',
+    letterSpacing: '-0.005em',
+  },
+  subtitle: {
+    color: c.textMuted,
+    fontSize: '12.5px',
+    lineHeight: '1.55',
+  },
+  refreshBtn: {
+    padding: '8px 14px',
+    borderRadius: r.sm,
+    border: `1px solid ${c.border}`,
+    backgroundColor: c.surface1,
+    color: c.text,
+    cursor: 'pointer',
+    fontWeight: '500',
+    fontSize: '12.5px',
+    fontFamily: theme.fonts.sans,
+    transition: `background ${theme.transition.fast}, border-color ${theme.transition.fast}`,
+  },
+
+  noticeBox: {
+    textAlign: 'center',
+    padding: '32px 24px',
+    borderRadius: r.md,
+    backgroundColor: c.surface1,
+    border: `1px dashed ${c.border}`,
+    color: c.textMuted,
+    fontSize: '13px',
+  },
+  errorBox: {
+    padding: '14px 18px',
+    borderRadius: r.md,
+    backgroundColor: c.redSoft,
+    border: `1px solid ${c.redSoft}`,
+    color: c.red,
+    fontWeight: '600',
+    fontSize: '13px',
+  },
+
+  list: { display: 'flex', flexDirection: 'column', gap: '12px' },
+
+  // 紀錄卡：白底、暖邊、左 3px 條（依動作類別著色，於 inline 設定）
+  card: {
+    backgroundColor: c.surface1,
+    borderRadius: r.md,
+    border: `1px solid ${c.border}`,
+    padding: '18px 20px',
+    boxShadow: theme.shadow.sm,
+  },
+  cardHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '12px',
+    flexWrap: 'wrap',
+  },
   headerLeft: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' },
-  actionBadge: { padding: '5px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold' },
-  createBadge: { backgroundColor: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0' },
-  updateBadge: { backgroundColor: '#dbeafe', color: '#1d4ed8', border: '1px solid #bfdbfe' },
-  deleteBadge: { backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca' },
-  targetBadge: { padding: '5px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' },
-  timeText: { fontSize: '12px', color: '#64748b', fontWeight: 'bold' },
-  summary: { marginTop: '12px', fontSize: '16px', color: '#0f172a', fontWeight: 'bold', lineHeight: '1.5' },
-  metaRow: { marginTop: '10px', display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '13px', color: '#475569' },
-  detailsPanel: { marginTop: '16px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc', padding: '14px' },
-  detailsTitle: { fontSize: '13px', fontWeight: 'bold', color: '#334155', marginBottom: '12px' },
-  emptyDetail: { color: '#94a3b8', fontStyle: 'italic', fontSize: '13px' },
-  detailGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px' },
-  detailItem: { backgroundColor: '#ffffff', borderRadius: '6px', border: '1px solid #e2e8f0', padding: '8px 12px' },
-  detailLabel: { fontSize: '11px', color: '#64748b', fontWeight: 'bold', marginBottom: '4px' },
-  detailValue: { fontSize: '13px', color: '#0f172a', lineHeight: '1.5', wordBreak: 'break-word', fontWeight: '500' },
+
+  // 動作 badge 基底（顏色由 create/update/deleteBadge 覆寫）
+  actionBadge: {
+    padding: '4px 11px',
+    borderRadius: r.sm,
+    fontSize: '11.5px',
+    fontWeight: '600',
+    letterSpacing: '0.02em',
+  },
+  // 三種語意色 — 使用 theme accents
+  createBadge: {
+    backgroundColor: c.greenSoft,
+    color: c.green,
+    border: `1px solid ${c.greenSoft}`,
+  },
+  updateBadge: {
+    backgroundColor: c.blueSoft,
+    color: c.blue,
+    border: `1px solid ${c.blueSoft}`,
+  },
+  deleteBadge: {
+    backgroundColor: c.redSoft,
+    color: c.red,
+    border: `1px solid ${c.redSoft}`,
+  },
+  // 對象 badge — 暖棕（brand soft）
+  targetBadge: {
+    padding: '4px 11px',
+    borderRadius: r.sm,
+    fontSize: '11.5px',
+    fontWeight: '600',
+    backgroundColor: c.brandSoft,
+    color: c.brand,
+    border: `1px solid ${c.brandTint}`,
+    letterSpacing: '0.02em',
+  },
+  timeText: {
+    fontSize: '11.5px',
+    color: c.textMuted,
+    fontFamily: theme.fonts.mono,
+    letterSpacing: '0.02em',
+  },
+
+  summary: {
+    marginTop: '14px',
+    fontSize: '15px',
+    color: c.text,
+    fontWeight: '600',
+    lineHeight: '1.5',
+    letterSpacing: '-0.005em',
+  },
+  metaRow: {
+    marginTop: '10px',
+    display: 'flex',
+    gap: '20px',
+    flexWrap: 'wrap',
+    fontSize: '12.5px',
+    color: c.textDim,
+  },
+
+  // 變更詳細內容區塊
+  detailsPanel: {
+    marginTop: '16px',
+    borderRadius: r.md,
+    border: `1px solid ${c.border}`,
+    backgroundColor: c.bg,
+    padding: '14px 16px',
+  },
+  detailsTitle: {
+    fontSize: '11px',
+    fontWeight: '600',
+    color: c.textMuted,
+    marginBottom: '12px',
+    letterSpacing: '0.10em',
+    textTransform: 'uppercase',
+  },
+  emptyDetail: {
+    color: c.textFaint,
+    fontStyle: 'italic',
+    fontSize: '12.5px',
+  },
+  detailGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+    gap: '10px',
+  },
+  detailItem: {
+    backgroundColor: c.surface1,
+    borderRadius: r.sm,
+    border: `1px solid ${c.border}`,
+    padding: '8px 12px',
+  },
+  detailLabel: {
+    fontSize: '10.5px',
+    color: c.textMuted,
+    fontWeight: '600',
+    marginBottom: '4px',
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+  },
+  detailValue: {
+    fontSize: '13px',
+    color: c.text,
+    lineHeight: '1.5',
+    wordBreak: 'break-word',
+    fontWeight: '500',
+    fontFamily: theme.fonts.mono,
+  },
 };
 
 export default ActionHistoryLog;
