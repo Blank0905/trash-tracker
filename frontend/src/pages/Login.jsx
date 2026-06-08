@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'; // 🟢 1. 補上 useEffect 監聽螢幕
 import { getBackendUrl } from '../utils/api';
+import { theme } from '../utils/theme';
 
 const Login = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState('');
@@ -109,131 +110,167 @@ const Login = ({ onLoginSuccess }) => {
   );
 };
 
-// 🟢 4. 升級為 RWD 動態樣式引擎
+// 深色現代 SaaS 風（GitHub Dark / Vercel-ish）。RWD 自適應手機/桌面。
+// 共用 design tokens 見 src/utils/theme.js
+const __c = theme.colors;
+const __r = theme.radius;
+
 const getStyles = (isMobile) => ({
   outerContainer: {
-    height: '100vh',
+    minHeight: '100vh',
+    width: '100%',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    background: '#eceff1', 
-    fontFamily: '"PingFang TC", "Helvetica Neue", Arial, sans-serif',
-    padding: isMobile ? '10px' : '20px', // 手機版縮小內邊距
+    background: __c.bg,
+    backgroundImage: [
+      // 亮色下用淡淡的 indigo / blue 漸層光暈，給平淡白底一點呼吸感
+      'radial-gradient(ellipse 70% 50% at 20% 10%, rgba(79, 70, 229, 0.08), transparent 60%)',
+      'radial-gradient(ellipse 50% 35% at 85% 90%, rgba(9, 105, 218, 0.06), transparent 60%)',
+    ].join(','),
+    fontFamily: theme.fonts.sans,
+    color: __c.text,
+    padding: isMobile ? '16px' : '24px',
+    WebkitFontSmoothing: 'antialiased',
   },
   splitWrapper: {
     display: 'flex',
     flexDirection: isMobile ? 'column' : 'row',
-    width: isMobile ? '100%' : '1000px',
-    maxWidth: isMobile ? '400px' : '100%', // 手機版鎖定表單黃金寬度
-    height: isMobile ? 'auto' : '650px',
+    width: isMobile ? '100%' : '960px',
+    maxWidth: isMobile ? '420px' : '100%',
+    height: isMobile ? 'auto' : '600px',
     maxHeight: isMobile ? 'none' : '100vh',
-    borderRadius: '24px',
+    borderRadius: __r.xl,
     overflow: 'hidden',
-    boxShadow: '0 15px 50px -10px rgba(0, 0, 0, 0.15)',
-    backgroundColor: '#ffffff',
+    border: `1px solid ${__c.border}`,
+    boxShadow: theme.shadow.lg,
+    backgroundColor: __c.surface1,
   },
   imageSection: {
-    display: isMobile ? 'none' : 'flex', // ⚡ 核心關鍵：手機版直接隱藏大圖，不破壞排版
-    flex: '1.2',
+    display: isMobile ? 'none' : 'flex',
+    flex: '1.15',
     position: 'relative',
     justifyContent: 'center',
     alignItems: 'center',
-    background: '#1e3c72',
+    background: __c.surface2,
+    overflow: 'hidden',
   },
   sideImage: {
     width: '100%',
     height: '100%',
     objectFit: 'cover',
+    // 亮色版仍稍微壓暗 + 加 indigo 色調，讓圖跟整體 indigo 主色協調、不喧賓奪主
+    filter: 'brightness(0.75) saturate(0.85) hue-rotate(-10deg)',
   },
   brandOverlay: {
     position: 'absolute',
-    bottom: '50px',
-    left: '50px',
-    color: 'white',
-    textShadow: '0 3px 15px rgba(0,0,0,0.6)', 
+    bottom: '40px',
+    left: '40px',
+    right: '40px',
+    color: '#ffffff',
   },
   brandTitle: {
     margin: 0,
-    fontSize: '38px',
-    fontWeight: '800',
-    lineHeight: '1.2',
-    letterSpacing: '1px',
+    fontSize: '34px',
+    fontWeight: '700',
+    lineHeight: '1.15',
+    letterSpacing: '-0.02em',
+    textShadow: '0 2px 12px rgba(0,0,0,0.45)',
   },
   brandSubtitle: {
-    margin: '12px 0 0 0',
-    fontSize: '15px',
-    opacity: 0.9,
-    letterSpacing: '0.5px',
+    margin: '14px 0 0 0',
+    fontSize: '14px',
+    color: 'rgba(230,237,243,0.85)',
+    letterSpacing: '0.01em',
+    lineHeight: '1.55',
+    textShadow: '0 1px 6px rgba(0,0,0,0.45)',
   },
   formSection: {
     flex: '1',
-    background: 'white',
+    background: __c.surface1,
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: isMobile ? '35px 25px' : '40px', // 手機版收縮 padding
+    padding: isMobile ? '36px 24px' : '48px',
   },
   formCard: {
     width: '100%',
-    maxWidth: '350px',
+    maxWidth: '340px',
   },
   header: {
     textAlign: 'left',
-    marginBottom: '35px',
+    marginBottom: '28px',
   },
+  // 「管理者登入」主標
   title: {
-    margin: '0 0 8px 0',
-    color: '#1e3c72',
-    fontSize: '26px',
-    fontWeight: 'bold',
+    margin: '0 0 6px 0',
+    color: __c.text,
+    fontSize: '22px',
+    fontWeight: '600',
+    letterSpacing: '-0.015em',
   },
   subtitle: {
     margin: 0,
-    color: '#757575',
-    fontSize: '14px',
+    color: __c.textDim,
+    fontSize: '13px',
+    lineHeight: '1.55',
   },
   form: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '20px',
+    gap: '18px',
   },
   inputGroup: {
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
   },
+  // 小標籤：uppercase mono 風，看起來像 SaaS 表單常見的 micro label
   label: {
-    fontSize: '13px',
-    color: '#455a64',
-    fontWeight: '600',
-    letterSpacing: '0.5px',
+    fontSize: '11px',
+    color: __c.textDim,
+    fontWeight: '500',
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    fontFamily: theme.fonts.sans,
   },
   input: {
-    padding: '14px 16px',
-    borderRadius: '10px',
-    border: '1px solid #cfd8dc',
-    backgroundColor: '#fafbfc',
-    fontSize: '16px',
+    padding: '11px 14px',
+    borderRadius: __r.md,
+    border: `1px solid ${__c.border}`,
+    backgroundColor: __c.bg,
+    color: __c.text,
+    fontSize: '14px',
+    fontFamily: theme.fonts.sans,
     outline: 'none',
+    transition: `border-color 0.15s ease, box-shadow 0.15s ease`,
+    // focus 用 box-shadow ring 而非 outline：圓角更乾淨；JS 端綁 onFocus/onBlur 可動但保留 default visual focus
   },
+  // 主按鈕：indigo 實心 + 細微 brand shadow
   button: {
-    padding: '15px',
-    borderRadius: '10px',
-    border: 'none',
-    backgroundColor: '#1e3c72',
-    color: 'white',
-    fontSize: '16px',
-    fontWeight: 'bold',
+    padding: '12px',
+    borderRadius: __r.md,
+    border: `1px solid ${__c.brand}`,
+    backgroundColor: __c.brand,
+    color: '#ffffff',
+    fontSize: '14px',
+    fontWeight: '600',
+    letterSpacing: '0.01em',
     cursor: 'pointer',
-    marginTop: '10px',
+    marginTop: '6px',
+    boxShadow: theme.shadow.brand,
+    transition: 'background 0.15s ease, transform 0.1s ease',
+    fontFamily: theme.fonts.sans,
   },
   errorAlert: {
-    backgroundColor: '#ffebee',
-    color: '#c62828',
-    padding: '12px',
-    borderRadius: '8px',
-    fontSize: '14px',
-    textAlign: 'center',
+    backgroundColor: __c.redSoft,
+    color: __c.red,
+    border: `1px solid rgba(248, 81, 73, 0.25)`,
+    padding: '10px 14px',
+    borderRadius: __r.md,
+    fontSize: '13px',
+    lineHeight: '1.5',
+    textAlign: 'left',
   }
 });
 

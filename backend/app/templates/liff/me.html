@@ -135,8 +135,17 @@
             box-shadow: 0 0 8px rgba(0,185,0,0.4);
         }
         .card.inactive { border-color: var(--border); }
-        .card.inactive .days { opacity: 0.4; }
-        .card.inactive .row select { opacity: 0.4; }
+        /* 通知關閉狀態：保留視覺層級（左綠條變灰）但讓文字仍清晰可讀 */
+        .card.inactive .days { opacity: 0.85; }
+        .card.inactive .days label {
+            color: var(--text-dim);                          /* 從 mute(#606a66) 改 dim(#a8b0ac) 字較亮 */
+            background: var(--surface-2);
+            border-color: var(--border);
+        }
+        .card.inactive .row select {
+            opacity: 1;
+            color: var(--text-dim);                          /* select 內字色也提亮 */
+        }
 
         /* === Card head：站名 + 通知 toggle === */
         .card-head {
@@ -327,7 +336,7 @@
             cursor: pointer;
         }
         .row select:focus { outline: none; border-color: var(--brand); }
-        .row select:disabled { cursor: not-allowed; opacity: 0.4; }
+        .row select:disabled { cursor: not-allowed; opacity: 0.7; }
 
         /* 與下拉同排的取消收藏鈕 */
         .row .btn-small { padding: 7px 12px; font-size: 11px; }

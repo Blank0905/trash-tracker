@@ -428,21 +428,32 @@
         }
         .p-actions button:active { transform: scale(0.96); }
 
-        /* PRIMARY — 顯示路線：LINE 綠實心、帶綠光 */
-        #p-route {
+        /* PRIMARY — 加入最愛：LINE 綠實心、帶綠光（最重要動作，視覺最強）
+           移除收藏狀態（.is-remove）→ 變紅色，讓使用者意識到這是個「破壞性」動作 */
+        #p-fav {
             background: var(--brand);
             border-color: var(--brand);
             color: #001a00;
             font-weight: 700;
             box-shadow: 0 4px 14px rgba(0,185,0,0.28);
         }
-        #p-route:active {
+        #p-fav:active {
             background: var(--brand-light);
             box-shadow: 0 2px 8px rgba(0,185,0,0.4);
         }
+        #p-fav.is-remove {
+            background: #ff5e5b;
+            border-color: #ff5e5b;
+            color: #2a0000;
+            box-shadow: 0 4px 14px rgba(255, 94, 91, 0.32);
+        }
+        #p-fav.is-remove:active {
+            background: #ff7b7b;
+            box-shadow: 0 2px 8px rgba(255, 94, 91, 0.45);
+        }
 
-        /* SECONDARY — 加入最愛：綠色描邊 + soft 背景 */
-        #p-fav {
+        /* SECONDARY — 顯示路線：綠色描邊 + soft 背景 */
+        #p-route {
             background: var(--brand-soft);
             border-color: rgba(0,185,0,0.32);
             color: var(--brand-light);
@@ -562,8 +573,8 @@
     <div id="p-schedule"></div>
 
     <div class="p-actions">
-        <button id="p-route">加入最愛</button>
-        <button id="p-fav">顯示路線</button>
+        <button id="p-fav">加入最愛</button>
+        <button id="p-route">顯示路線</button>
         <button id="p-close">關閉</button>
     </div>
 </div>
@@ -929,11 +940,13 @@
         } catch (e) { /* 未綁定或網路問題都不致命，跳過 */ }
     }
 
-    // 更新 p-fav 按鈕文字與點擊行為（依目前是否已收藏切換 加入最愛 / 移除收藏）
+    // 更新 p-fav 按鈕文字、樣式、點擊行為（依目前是否已收藏切換 加入最愛 / 移除收藏）
+    // is-remove class 切換為紅色，視覺警示「破壞性動作」
     function updateFavButton(stationId) {
         const btn = document.getElementById('p-fav');
         const isFav = favoriteStationIds.has(stationId);
         btn.innerText = isFav ? '移除收藏' : '加入最愛';
+        btn.classList.toggle('is-remove', isFav);
         btn.onclick = () => isFav ? removeFavorite(stationId) : addFavorite(stationId);
     }
 

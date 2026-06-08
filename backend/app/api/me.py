@@ -116,21 +116,47 @@ def list_my_stations():
 @bp.route('/stations', methods=['POST'])
 @line_required
 def add_my_station():
-    """新增收藏。body: { station_id*, alias? }"""
+    """新增收藏。body: { station_id*, alias? }
+
+    同一交易內順帶建立預設通知：is_active=1、remind_before_mins=5、
+    notify_d{0..6} 依該站收運日預設（有收=1、沒收=0）；通知已存在則不動。
+    使用者預設一收藏就會收到推播，更符合常識。
+    """
     data = request.get_json(silent=True) or {}
     station_id = data.get('station_id')
     if not station_id:
         return err('缺少 station_id', 400)
 
+    user_id = g.current_user['user_id']
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
+            # 1. 新增收藏
             cursor.execute(
                 "INSERT INTO favorites (user_id, station_id, alias) VALUES (%s, %s, %s)",
-                (g.current_user['user_id'], station_id, data.get('alias'))
+                (user_id, station_id, data.get('alias'))
             )
+            fav_id = cursor.lastrowid
+
+            # 2. 順帶建立預設通知（若該 user+station 尚未有 notification row）
+            cursor.execute(
+                "SELECT 1 FROM notifications WHERE user_id = %s AND station_id = %s",
+                (user_id, station_id)
+            )
+            if not cursor.fetchone():
+                collect_days = _query_collect_days(cursor, station_id)
+                day_values = [1 if d in collect_days else 0 for d in range(7)]
+                cursor.execute(
+                    f"""
+                    INSERT INTO notifications
+                        (user_id, station_id, remind_before_mins, is_active, push_method, {', '.join(DAY_COLS)})
+                    VALUES (%s, %s, %s, %s, 'line', {', '.join(['%s'] * 7)})
+                    """,
+                    (user_id, station_id, 5, 1, *day_values)
+                )
+
             conn.commit()
-            return ok({'fav_id': cursor.lastrowid}, status_code=201)
+            return ok({'fav_id': fav_id}, status_code=201)
 
     except Exception as e:
         conn.rollback()
