@@ -124,8 +124,9 @@ const getStyles = (isMobile) => ({
     alignItems: 'center',
     background: __c.bg,
     backgroundImage: [
-      'radial-gradient(ellipse 60% 40% at 25% 10%, rgba(0,185,0,0.10), transparent 60%)',
-      'radial-gradient(ellipse 50% 30% at 80% 90%, rgba(88,166,255,0.06), transparent 60%)',
+      // 亮色下用淡淡的 indigo / blue 漸層光暈，給平淡白底一點呼吸感
+      'radial-gradient(ellipse 70% 50% at 20% 10%, rgba(79, 70, 229, 0.08), transparent 60%)',
+      'radial-gradient(ellipse 50% 35% at 85% 90%, rgba(9, 105, 218, 0.06), transparent 60%)',
     ].join(','),
     fontFamily: theme.fonts.sans,
     color: __c.text,
@@ -158,8 +159,8 @@ const getStyles = (isMobile) => ({
     width: '100%',
     height: '100%',
     objectFit: 'cover',
-    // 暗化 + 微飽和，讓圖貼合整體深色語言；不會搶過表單側
-    filter: 'brightness(0.55) saturate(0.85)',
+    // 亮色版仍稍微壓暗 + 加 indigo 色調，讓圖跟整體 indigo 主色協調、不喧賓奪主
+    filter: 'brightness(0.75) saturate(0.85) hue-rotate(-10deg)',
   },
   brandOverlay: {
     position: 'absolute',
@@ -245,13 +246,13 @@ const getStyles = (isMobile) => ({
     transition: `border-color 0.15s ease, box-shadow 0.15s ease`,
     // focus 用 box-shadow ring 而非 outline：圓角更乾淨；JS 端綁 onFocus/onBlur 可動但保留 default visual focus
   },
-  // 主按鈕：LINE 綠實心 + 細微 brand shadow
+  // 主按鈕：indigo 實心 + 細微 brand shadow
   button: {
     padding: '12px',
     borderRadius: __r.md,
     border: `1px solid ${__c.brand}`,
     backgroundColor: __c.brand,
-    color: '#001a00',
+    color: '#ffffff',
     fontSize: '14px',
     fontWeight: '600',
     letterSpacing: '0.01em',

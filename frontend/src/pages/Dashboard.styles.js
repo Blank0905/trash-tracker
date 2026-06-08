@@ -84,9 +84,10 @@ export const getStyles = (isMobile) => ({
     alignItems: 'center',
   },
 
+  // 亮色下純 surface2 hover 感不夠明顯，active 用 indigo soft + brand 文字
   menuActive: {
-    backgroundColor: c.surface2,
-    color: c.text,
+    backgroundColor: c.brandSoft,
+    color: c.brand,
     fontWeight: '600',
   },
 
@@ -113,8 +114,9 @@ export const getStyles = (isMobile) => ({
   },
 
   submenuActive: {
-    color: c.text,
-    backgroundColor: c.surface2,
+    color: c.brand,
+    backgroundColor: c.brandSoft,
+    fontWeight: '600',
   },
 
   sidebarFooter: {
@@ -176,12 +178,12 @@ export const getStyles = (isMobile) => ({
     letterSpacing: '0.01em',
   },
 
-  // 登出按鈕：透明 + ghost 邊框，hover 時微微泛紅
+  // 登出按鈕：白底 + 細邊，文字微紅暗示「破壞性動作」但不過於搶眼
   logoutButton: {
     padding: '6px 12px',
-    backgroundColor: 'transparent',
+    backgroundColor: c.surface1,
     border: `1px solid ${c.border}`,
-    color: c.textDim,
+    color: c.red,
     borderRadius: r.sm,
     cursor: 'pointer',
     fontWeight: '500',

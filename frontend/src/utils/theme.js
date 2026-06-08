@@ -1,46 +1,46 @@
 // ================================================================
-// 深色現代 SaaS Design Tokens（GitHub Dark / Vercel / Supabase 風）
-// 全 React 後台共用；各頁面 `import { theme } from '../../utils/theme'`
+// 管理者後台 Design Tokens — 亮色辦公管理風（類 Linear / GitHub Light）
+// 主色用 indigo（#4f46e5），與 LIFF 端的 LINE 綠完全區隔：
+// 「管理者操作 = 藍紫色 / 使用者端 = LINE 綠」一眼分得出來在哪個產品線
 // ================================================================
 
 export const theme = {
   colors: {
-    // 背景層次（從最深到最淺）
-    bg:           '#0d1117',          // page background
-    surface1:     '#161b22',          // 卡片 / sidebar
-    surface2:     '#21262d',          // hover / elevated
-    surface3:     '#2d333b',          // active / pressed
+    // 背景層次（亮色，從最淺到最深）
+    bg:           '#fafafa',          // page background — 微帶灰的白
+    surface1:     '#ffffff',          // 卡片 / sidebar
+    surface2:     '#f3f4f6',          // hover / elevated
+    surface3:     '#e5e7eb',          // active / pressed
 
     // 邊框
-    border:       '#30363d',
-    borderStrong: '#444c56',
+    border:       '#e5e7eb',
+    borderStrong: '#d1d5db',
 
-    // 文字（從亮到暗）
-    text:         '#e6edf3',
-    textDim:      '#9198a1',
-    textMuted:    '#6e7681',
-    textFaint:    '#484f58',
+    // 文字（從深到淺）
+    text:         '#111827',          // 主文字 — 近黑
+    textDim:      '#4b5563',          // 副文字
+    textMuted:    '#6b7280',          // 弱化文字
+    textFaint:    '#9ca3af',          // 占位、提示
 
-    // 品牌（LINE 綠）— 保留為主要動作色
-    brand:        '#00B900',
-    brandHover:   '#00d10a',
-    brandActive:  '#009a00',
-    brandSoft:    'rgba(0, 185, 0, 0.10)',
-    brandTint:    'rgba(0, 185, 0, 0.25)',
+    // 品牌 — 用 indigo 而非 LINE 綠（區分管理者 vs 使用者端）
+    brand:        '#4f46e5',          // indigo-600
+    brandHover:   '#4338ca',          // indigo-700
+    brandActive:  '#3730a3',          // indigo-800
+    brandSoft:    'rgba(79, 70, 229, 0.08)',
+    brandTint:    'rgba(79, 70, 229, 0.22)',
 
     // 語義 accents
-    blue:         '#58a6ff',          // info / link
-    blueSoft:     'rgba(88, 166, 255, 0.12)',
-    amber:        '#d29922',          // warning
-    amberSoft:    'rgba(210, 153, 34, 0.12)',
-    red:          '#f85149',          // danger
-    redSoft:      'rgba(248, 81, 73, 0.12)',
-    green:        '#3fb950',          // success（系統 OK 用，跟品牌綠區隔）
-    greenSoft:    'rgba(63, 185, 80, 0.12)',
+    blue:         '#0969da',          // info / link
+    blueSoft:     'rgba(9, 105, 218, 0.10)',
+    amber:        '#d97706',          // warning
+    amberSoft:    'rgba(217, 119, 6, 0.10)',
+    red:          '#dc2626',          // danger
+    redSoft:      'rgba(220, 38, 38, 0.08)',
+    green:        '#16a34a',          // success（線上、同步成功）
+    greenSoft:    'rgba(22, 163, 74, 0.10)',
   },
 
   fonts: {
-    // 系統字優先：iOS 用 SF Pro、Windows 用 Segoe UI、加 CJK fallback
     sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "PingFang TC", "Microsoft JhengHei", "Heiti TC", sans-serif',
     mono: 'ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Code", "JetBrains Mono", Consolas, "Liberation Mono", monospace',
   },
@@ -54,11 +54,12 @@ export const theme = {
   },
 
   shadow: {
-    sm: '0 1px 2px rgba(0,0,0,0.4)',
-    md: '0 4px 12px rgba(0,0,0,0.4), 0 1px 3px rgba(0,0,0,0.3)',
-    lg: '0 12px 32px rgba(0,0,0,0.5), 0 2px 6px rgba(0,0,0,0.4)',
-    // 帶綠光的 primary button shadow
-    brand: '0 0 0 1px rgba(0,185,0,0.12), 0 2px 6px rgba(0,185,0,0.18)',
+    // 亮色下陰影要更柔、更淡，太深會顯髒
+    sm: '0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06)',
+    md: '0 4px 12px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04)',
+    lg: '0 12px 32px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04)',
+    // 主按鈕用淡淡的 indigo 光暈，比純黑陰影有層次
+    brand: '0 1px 2px rgba(79, 70, 229, 0.10), 0 2px 6px rgba(79, 70, 229, 0.18)',
   },
 
   transition: {
