@@ -220,7 +220,9 @@ class GarbageTruckImporter:
         self.batch_count += 1
         if self.batch_count % self.batch_size == 0:
             self.conn.commit()
-            print(f"已提交資料 筆數={self.batch_count}")
+            # 每 10000 筆才印一次進度，避免終端洗版（145k 筆從 ~1500 行壓到 ~15 行）
+            if self.batch_count % (self.batch_size * 100) == 0:
+                print(f"已提交資料 筆數={self.batch_count}")
 
     def _clean_station_name(self, name: str, city: str, district: str) -> str:
         if not name:
