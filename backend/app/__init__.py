@@ -33,7 +33,7 @@ class CustomJSONProvider(DefaultJSONProvider):
 
 
 def _start_scheduler(app):
-    """啟動 APScheduler 背景排程：到站推播（每 60 秒）、ETL 同步（每日 02:00）、去重快取清理。"""
+    """啟動 APScheduler 背景排程：到站推播（每 60 秒）、ETL 同步（每週日 02:00）、去重快取清理。"""
     from apscheduler.schedulers.background import BackgroundScheduler
     from app.tasks.notifier import check_and_send_notifications, clear_expired_notified_set
     from app.tasks.data_sync import execute_daily_data_sync
@@ -47,7 +47,7 @@ def _start_scheduler(app):
 
     scheduler = BackgroundScheduler(timezone="Asia/Taipei")
     scheduler.add_job(_with_context(check_and_send_notifications), 'interval', seconds=60, id='notifier')
-    scheduler.add_job(_with_context(execute_daily_data_sync), 'cron', hour=2, minute=0, id='data_sync')
+    scheduler.add_job(_with_context(execute_daily_data_sync), 'cron', day_of_week='sun', hour=2, minute=0, id='data_sync')
     scheduler.add_job(_with_context(clear_expired_notified_set), 'cron', hour=0, minute=5, id='clear_notified')
     scheduler.start()
     app.scheduler = scheduler

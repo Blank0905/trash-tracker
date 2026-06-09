@@ -206,7 +206,7 @@ APScheduler（`timezone="Asia/Taipei"`），背景執行緒內自行 push app co
 | 任務 | 觸發 | 函式 |
 |---|---|---|
 | 到站推播 | 每 60 秒 | `tasks/notifier.check_and_send_notifications` |
-| 每日 ETL | 每日 02:00 | `tasks/data_sync.execute_daily_data_sync` |
+| 每週 ETL | 每週日 02:00 | `tasks/data_sync.execute_daily_data_sync` |
 | 去重快取清理 | 每日 00:05 | `tasks/notifier.clear_expired_notified_set` |
 
 ### 5.1 到站推播 `notifier.py`

@@ -86,9 +86,9 @@ def _insert_sync_logs(run_id: str, phase_results: List[Dict[str, object]]) -> No
 
 
 def execute_daily_data_sync():
-    """每日凌晨 02:00 執行的定時同步排程。"""
+    """每週日凌晨 02:00 執行的定時同步排程（亦供 admin 後台手動觸發）。"""
     run_id = str(uuid.uuid4())
-    logger.info("觸發每日凌晨 02:00 資料同步任務，run_id=%s", run_id)
+    logger.info("觸發每週資料同步任務，run_id=%s", run_id)
 
     phase_results: List[Dict[str, object]] = []
     try:

@@ -81,7 +81,7 @@ const SyncLog = () => {
           {loading ? '載入中…' : '↻ 重新整理'}
         </button>
       </div>
-      <p style={styles.subtitle}>每日凌晨 02:00 自動同步、或手動重跑 ETL 的結果。點下方標籤即可篩選，最新的在最上面。</p>
+      <p style={styles.subtitle}>每週日凌晨 02:00 自動同步、或手動重跑 ETL 的結果。點下方標籤即可篩選，最新的在最上面。</p>
 
       {/* 篩選列：狀態 / 來源 / 階段 */}
       <div style={styles.filterBlock}>
