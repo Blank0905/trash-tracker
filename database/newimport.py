@@ -411,14 +411,16 @@ class GarbageTruckImporter:
     ) -> Optional[int]:
         """依業務 key 查現有 station_id；找不到回 None。
 
-        biz_key = (route_id, station_name)。
-        - 為何只用兩個欄位：lat/lng/arrive_time/leave_time/sequence_order 在實測中
-          會有少量 row 無法穩定對齊（Python float IEEE754 漂移、time parse 些微差異
-          等），實測獨立呼叫此函式能找到對的 row，但在 ETL 真實跑時某些 row 失敗。
-          放寬到「同 route 同站名 = 同站」最穩定，與 CSV 結構的常識也吻合。
-        - 副作用：若 CSV 內同路線同站名出現多筆班次資料（不同 arrive_time），會合併
-          為同一個 station_id；schedule 透過 _insert_schedule 的 ON DUPLICATE KEY
-          UPDATE 機制處理逐日狀態，最終資訊不失。
+        biz_key = (route_id, station_name, arrive_time)。
+        - 為何把 arrive_time 納入 key：同站一天有多個到站時間時，每個時段視為獨立
+          station_id，使用者才能分別收藏／設通知。若只用 (route_id, station_name)
+          會把第二班合併掉，arrive_time 直接遺失。
+        - 為何不納入 lat/lng/leave_time/sequence_order：實測中這些欄位有 float
+          IEEE754 漂移、time parse 些微差異等問題，會讓本來該命中的 row 找不到。
+          arrive_time 是 TIME 型別、語意明確，比對穩定。
+        - publisher 微調 arrive_time（例：07:30 → 07:35）導致此處查不到時，由
+          _insert_station 走 fallback：若同 (route_id, station_name) 只有一筆既有
+          row，視為「改時間」，UPDATE 既有 row 而非 INSERT 新 row，避免孤兒累積。
         - ORDER BY station_id ASC LIMIT 1 確保多次跑都回相同（最早的）id，favorites
           收藏的 station_id 穩定。
         - 用獨立 cursor 避免與 self.cursor 共用狀態。
@@ -427,13 +429,49 @@ class GarbageTruckImporter:
             SELECT station_id FROM stations
             WHERE route_id = %s
               AND station_name <=> %s
+              AND arrive_time <=> %s
             ORDER BY station_id ASC
             LIMIT 1
         """
         with self.conn.cursor() as cursor:
-            cursor.execute(sql, (route_id, station_name))
+            cursor.execute(sql, (route_id, station_name, arrive_time))
             row = cursor.fetchone()
         return row[0] if row else None
+
+    def _find_siblings_by_route_name(
+        self,
+        route_id: Optional[int],
+        station_name: Optional[str],
+    ) -> List[int]:
+        """同 (route_id, station_name) 的所有 station_id，不限 arrive_time。
+
+        用途：_insert_station 在完整 key 查不到時，靠這個判斷是「publisher 改了時間」
+        （只有 1 筆 → UPDATE）還是「真的多了一個班次」（>1 筆 → INSERT 新 row）。
+        用獨立 cursor 避免與 self.cursor 共用狀態。
+        """
+        sql = """
+            SELECT station_id FROM stations
+            WHERE route_id = %s AND station_name <=> %s
+            ORDER BY station_id ASC
+        """
+        with self.conn.cursor() as cursor:
+            cursor.execute(sql, (route_id, station_name))
+            return [row[0] for row in cursor.fetchall()]
+
+    def _update_station_times(
+        self,
+        station_id: int,
+        arrive_time: Optional[str],
+        leave_time: Optional[str],
+    ) -> None:
+        """publisher 修改 arrive_time 時，更新既有 row 而非建新 row，避免孤兒累積。"""
+        sql = """
+            UPDATE stations
+            SET arrive_time = %s, leave_time = %s
+            WHERE station_id = %s
+        """
+        self.cursor.execute(sql, (arrive_time, leave_time, station_id))
+        self._commit_if_needed()
 
     def _insert_station(
         self,
@@ -449,9 +487,11 @@ class GarbageTruckImporter:
         memo: str = None,
         raw_source_id: str = None,
     ) -> int:
-        # 冪等：先查業務 key 是否已存在；存在就回現有 id（讓下游 schedules 掛在同一個 station_id 上）
-        # 業務 key = route_id + station_name + lat + lng + arrive_time + leave_time + sequence_order
-        # 對應 CSV 每一行的自然 key；station_id 跨次 ETL 穩定 → 使用者收藏不失效
+        # 冪等：business key = (route_id, station_name, arrive_time)
+        # - 完整 key 命中 → 回既有 id
+        # - 完整 key 沒命中、但同 (route_id, station_name) 已有恰好 1 筆 → 視為 publisher
+        #   改時間，UPDATE 該筆並回其 id，避免孤兒 station_id 累積
+        # - 其餘情況（同名 >1 筆，或完全沒同名）→ INSERT 新 row
         cleaned_route_id       = self._clean(route_id)
         cleaned_areas_id       = self._clean(areas_id)
         cleaned_station_name   = self._clean(station_name)
@@ -475,6 +515,16 @@ class GarbageTruckImporter:
         )
         if existing is not None:
             return existing
+
+        # Fallback：完整 key 沒命中，判斷是「改時間」還是「新班次」
+        siblings = self._find_siblings_by_route_name(cleaned_route_id, cleaned_station_name)
+        if len(siblings) == 1:
+            self._update_station_times(
+                siblings[0],
+                arrive_time=cleaned_arrive_time,
+                leave_time=cleaned_leave_time,
+            )
+            return siblings[0]
 
         sql = """
             INSERT INTO stations
