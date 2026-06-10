@@ -11,6 +11,12 @@
 -- 本檔只重建台北市站點的班表，不動 stations / routes / areas，
 -- 也不動 favorites / notifications（收藏與通知設定保留）。
 -- 純由程式推導的班表，毋須重跑整套 ETL。
+--
+-- ⚠️ 為何用 HEX(a.city) 而非 a.city = '台北市'：
+--   經 docker 容器內 mysql client 以 -e / stdin 匯入時，中文字面（'台北市'）
+--   會因 character_set_client 不一致而比對失準（實測整支空跑、0 筆命中）。
+--   改以位元組比對 HEX(a.city) = 'E58FB0E58C97E5B882'（'台北市' 的 UTF-8 編碼），
+--   完全不含中文字面，不受 client/terminal 編碼影響，必定命中。
 -- ================================================================
 
 -- 1) 刪除台北市所有既有班表
@@ -18,7 +24,7 @@ DELETE ss
 FROM station_schedules ss
 JOIN stations s ON ss.station_id = s.station_id
 JOIN areas    a ON s.areas_id   = a.areas_id
-WHERE a.city = '台北市';
+WHERE HEX(a.city) = 'E58FB0E58C97E5B882';
 
 -- 2) 重建：週一、二、四、五、六，三項全收
 INSERT INTO station_schedules
@@ -33,7 +39,7 @@ JOIN (
     UNION ALL SELECT 5
     UNION ALL SELECT 6
 ) d
-WHERE a.city = '台北市';
+WHERE HEX(a.city) = 'E58FB0E58C97E5B882';
 
 -- 3) 確認結果：應只剩 day_of_week ∈ {1,2,4,5,6}，且三欄皆為 1
 SELECT ss.day_of_week,
@@ -44,6 +50,6 @@ SELECT ss.day_of_week,
 FROM station_schedules ss
 JOIN stations s ON ss.station_id = s.station_id
 JOIN areas    a ON s.areas_id   = a.areas_id
-WHERE a.city = '台北市'
+WHERE HEX(a.city) = 'E58FB0E58C97E5B882'
 GROUP BY ss.day_of_week
 ORDER BY ss.day_of_week;
