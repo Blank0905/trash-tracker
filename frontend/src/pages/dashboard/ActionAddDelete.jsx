@@ -320,6 +320,11 @@ const ActionAddDelete = () => {
     minArriveTime: '',
     minLeaveTime: '',
   });
+
+  const lockedCityRef = useRef(stationSelectedCity);
+  const lockedDistrictRef = useRef(stationSelectedDistrict);
+  const lastValidCoordsRef = useRef({ lat: null, lng: null });
+
   const [selectedRouteObj, setSelectedRouteObj] = useState(null);
   const [editingStationId, setEditingStationId] = useState(null);
   const [editingForm, setEditingForm] = useState({
@@ -447,27 +452,120 @@ const ActionAddDelete = () => {
     mapMoveHandlerRef.current = null;
   };
 
+  // ==========================================
+  // 1. 反向地理編碼核心函式 (座標 ➔ 地址)
+  // ==========================================
+  const performReverseGeocoding = async (lat, lng) => {
+    try {
+      setMapStatusText(`正在檢查區域邊界...`);
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
+      );
+      const data = await response.json();
+
+      // 🛠️ 除錯神器：請在瀏覽器按 F12 打開 Console，查看地圖回傳的完整 address 長怎樣
+      console.log("OSM 完整地址回應物件:", data.address);
+
+      if (data && data.address) {
+        const { city, county, suburb, town, village, neighbourhood, quarter, hamlet, road, house_number } = data.address;
+        
+        // 1. 字體全面對齊（臺 ➔ 台）
+        const resolvedCity = (city || county || '').replace(/臺/g, '台');
+        const resolvedDistrict = (suburb || town || '').replace(/臺/g, '台');
+        
+        // 2. 核心修正：多欄位探針，通殺台灣都市的「里」與鄉村的「村」
+        let rawVillage = village || neighbourhood || quarter || hamlet || '';
+        
+        // 防呆：如果上面都落空，但 suburb (次分區) 的尾字剛好是里或村，就借來用
+        if (!rawVillage && suburb && (suburb.endsWith('里') || suburb.endsWith('村'))) {
+          rawVillage = suburb;
+        }
+        
+        // 字體轉換
+        let resolvedVillage = rawVillage.replace(/臺/g, '台');
+
+        // 抓取目前面板鎖定的區域
+        const targetCity = lockedCityRef.current;
+        const targetDistrict = lockedDistrictRef.current;
+
+        // 邊界攔截檢查
+        if (resolvedCity !== targetCity || resolvedDistrict !== targetDistrict) {
+          setMapStatusText(`錯誤：超出目前鎖定區域 (${targetCity} ${targetDistrict})`);
+          alert(`超出指定範圍！\n您目前鎖定了「${targetCity} ${targetDistrict}」，但此處屬於「${resolvedCity} ${resolvedDistrict}」，已自動彈回！`);
+          
+          if (lastValidCoordsRef.current.lat && mapMarkerRef.current) {
+            const oldPos = [lastValidCoordsRef.current.lat, lastValidCoordsRef.current.lng];
+            mapMarkerRef.current.setLatLng(oldPos);
+            mapRef.current.setView(oldPos, mapRef.current.getZoom(), { animate: true });
+            updateStationCoordinates(lastValidCoordsRef.current.lat, lastValidCoordsRef.current.lng);
+          }
+          return;
+        }
+
+        // 3. 邊界檢查通過，連動更新「鄉里」下拉選單
+        if (resolvedVillage) {
+          // 資工小提醒：如果你的下拉選單 value 沒帶「里/村」字（例如選單是 "文化" 而不是 "文化里"）
+          // 請把下面這行的註解打開，它會自動把尾字去掉來匹配：
+          // resolvedVillage = resolvedVillage.replace(/里|村/g, '');
+          
+          setStationSelectedVillage(resolvedVillage);
+        }
+
+        // 4. 組合詳細路名與門牌
+        const detailAddress = [road, house_number].filter(Boolean).join(' ') || data.display_name || '';
+        setStationForm(prev => ({ ...prev, memo: detailAddress }));
+        
+        // 記錄本次成功座標
+        lastValidCoordsRef.current = { lat, lng };
+        setMapStatusText(`定位成功！自動填入鄉里：${resolvedVillage || '無村里資訊'}`);
+      } else {
+        setMapStatusText(`座標已更新，但查無詳細地址資訊`);
+      }
+    } catch (error) {
+      console.error('反向定位 API 失敗:', error);
+      setMapStatusText(`地址反查失敗，請手動填寫鄉里`);
+    }
+  };
+
+  // ==========================================
+  // 2. 同步地圖標記與地圖視角
+  // ==========================================
   const syncMapMarker = (lat, lng, label = '已選定位置') => {
     if (!window.L || !mapRef.current) return;
     const pos = [lat, lng];
 
     if (!mapMarkerRef.current) {
+      // 第一次建立標記，啟動可拖曳功能 (draggable: true)
       mapMarkerRef.current = window.L.marker(pos, { draggable: true }).addTo(mapRef.current);
-      mapMarkerRef.current.on('dragend', (event) => {
+      
+      // 【修改點】拖曳放開事件：移除重複的 fetch，直接呼叫統一的反向編碼函式
+      mapMarkerRef.current.on('dragend', async (event) => {
         const nextLatLng = event.target.getLatLng();
-        updateStationCoordinates(nextLatLng.lat, nextLatLng.lng);
-        setMapStatusText(`已拖曳到 ${nextLatLng.lat.toFixed(6)}, ${nextLatLng.lng.toFixed(6)}`);
+        const newLat = nextLatLng.lat;
+        const newLng = nextLatLng.lng;
+        
+        // 更新前端的經緯度數值
+        updateStationCoordinates(newLat, newLng);
+        
+        // 執行反向地理編碼，連動更新左側面板
+        await performReverseGeocoding(newLat, newLng);
       });
     } else {
+      // 若標記已存在，直接移動位置
       mapMarkerRef.current.setLatLng(pos);
     }
 
+    // 移動地圖視角並彈出提示文字
     mapRef.current.setView(pos, Math.max(mapRef.current.getZoom(), 17), { animate: true });
     mapMarkerRef.current.bindPopup(label).openPopup();
+    
+    // 更新座標狀態
     updateStationCoordinates(lat, lng);
-    setMapStatusText(`已定位到 ${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`);
   };
 
+  // ==========================================
+  // 3. 初始化地圖與綁定點擊事件
+  // ==========================================
   const initStationMap = async () => {
     if (mapInitializingRef.current || !mapContainerRef.current) return;
     if (mapRef.current) {
@@ -482,23 +580,32 @@ const ActionAddDelete = () => {
       await ensureLeafletAssets();
       if (!mapContainerRef.current || mapRef.current || !window.L) return;
 
+      // 建立地圖主體
       mapRef.current = window.L.map(mapContainerRef.current, {
         zoomControl: true,
         scrollWheelZoom: true
       }).setView([DEFAULT_MAP_CENTER.lat, DEFAULT_MAP_CENTER.lng], 13);
 
+      // 載入 OpenStreetMap 圖磚
       window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '&copy; OpenStreetMap contributors'
       }).addTo(mapRef.current);
 
-      mapClickHandlerRef.current = (event) => {
+      // 【修改點】地圖點擊處理器：改為 async，點擊時同步搬移 Marker + 反查地址
+      mapClickHandlerRef.current = async (event) => {
+        if (pendingMapLocateModeRef.current) return;
         const { lat, lng } = event.latlng;
+        
+        // 1. 先把圖標移過去
         syncMapMarker(lat, lng, '點選位置');
+        
+        // 2. 隨即啟動反向地理編碼，自動回填面板
+        await performReverseGeocoding(lat, lng);
       };
 
       mapRef.current.on('click', mapClickHandlerRef.current);
-      setMapStatusText('已載入地圖，點一下地圖即可回填座標');
+      setMapStatusText('已載入地圖，不論點擊或拖曳圖標皆能自動回填地址資料！');
     } catch (err) {
       console.warn(err);
       setMapStatusText('地圖載入失敗，請稍後再試');
@@ -604,6 +711,17 @@ const ActionAddDelete = () => {
     return data.stations || [];
   };
 
+  const getNextSequenceOrder = async (routeId) => {
+    const siblings = await fetchStationsByRouteId(routeId);
+
+    const maxSeq = siblings.reduce((max, station) => {
+      const seq = Number(station.sequence_order);
+      return Number.isNaN(seq) ? max : Math.max(max, seq);
+    }, 0);
+
+    return String(maxSeq + 1);
+  };
+
   const fetchAllData = async () => {
     try {
       setLoading(true);
@@ -683,19 +801,47 @@ const ActionAddDelete = () => {
 
   useEffect(() => {
     if (selectedRouteObj) {
+      let cancelled = false;
+
       setStationForm(prev => ({
         ...prev,
         route_id: selectedRouteObj.route_id,
-        sequence_order: selectedRouteObj.city === '台北市' ? '' : '1'
+        sequence_order: selectedRouteObj.city === '台北市' ? '' : '計算中...'
       }));
+
+      if (selectedRouteObj.city !== '台北市') {
+        getNextSequenceOrder(selectedRouteObj.route_id)
+          .then((nextSeq) => {
+            if (!cancelled) {
+              setStationForm(prev => ({
+                ...prev,
+                sequence_order: nextSeq
+              }));
+            }
+          })
+          .catch(() => {
+            if (!cancelled) {
+              setStationForm(prev => ({
+                ...prev,
+                sequence_order: '1'
+              }));
+            }
+          });
+      }
+
       setStationSelectedCity(selectedRouteObj.city || '');
       setStationSelectedDistrict(selectedRouteObj.district || '');
       setStationSelectedVillage('');
+
       if (villageAreas.length === 0) {
         loadVillageAreas().catch((err) => console.warn('村里載入失敗', err));
       }
+
+      return () => {
+        cancelled = true;
+      };
     } else {
-      setStationForm(prev => ({ ...prev, route_id: '' }));
+      setStationForm(prev => ({ ...prev, route_id: '', sequence_order: '1' }));
       setStationSelectedCity('');
       setStationSelectedDistrict('');
       setStationSelectedVillage('');
@@ -866,6 +1012,21 @@ const ActionAddDelete = () => {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    lockedCityRef.current = stationSelectedCity;
+    lockedDistrictRef.current = stationSelectedDistrict;
+  }, [stationSelectedCity, stationSelectedDistrict]);
+
+  // 當初始表單有經緯度載入時，先記錄為初始合法座標
+  useEffect(() => {
+    const lat = Number(stationForm.latitude);
+    const lng = Number(stationForm.longitude);
+
+    if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+      lastValidCoordsRef.current = { lat, lng };
+    }
+  }, []);
+
   const handleCityChange = (city) => {
     setRouteCity(city);
     setRouteDistrict('');
@@ -880,7 +1041,7 @@ const ActionAddDelete = () => {
     }
   };
 
-const handleCreateRoute = async (e) => {
+  const handleCreateRoute = async (e) => {
     e.preventDefault();
     const payload = {
       ...routeForm,
@@ -993,15 +1154,6 @@ const handleCreateRoute = async (e) => {
 
       const siblingStations = (await fetchStationsByRouteId(selectedRouteObj.route_id))
         .sort((a, b) => a.sequence_order - b.sequence_order);
-
-      if (inputSeq === 1) {
-        if (siblingStations.some(s => s.sequence_order === 1)) {
-          return alert('該路線已存在序位 1 的站點！');
-        }
-      } else {
-        const hasPrevious = siblingStations.some(s => s.sequence_order === inputSeq - 1);
-        if (!hasPrevious) return alert(`排序不連續！請先填寫序位較前的站點（目前缺少序位: ${inputSeq - 1}）`);
-      }
 
       const prevStation = siblingStations.find(s => s.sequence_order === inputSeq - 1);
       if (prevStation && stationPayload.arrive_time <= prevStation.leave_time) {
@@ -1458,12 +1610,16 @@ const handleCreateRoute = async (e) => {
                     順序順位 {selectedRouteObj?.city === '台北市' ? '🔒 台北免填' : '*必填'}
                   </label>
                   <input
-                    type="number"
-                    min="1"
-                    value={stationForm.sequence_order}
-                    onChange={(e) => setStationForm({ ...stationForm, sequence_order: e.target.value })}
-                    style={{ ...styles.input, backgroundColor: selectedRouteObj?.city === '台北市' ? c.surface2 : c.surface1 }}
-                    disabled={selectedRouteObj?.city === '台北市'}
+                    type="text"
+                    value={selectedRouteObj?.city === '台北市' ? '台北免填' : stationForm.sequence_order}
+                    readOnly
+                    style={{
+                      ...styles.input,
+                      backgroundColor: c.surface2,
+                      color: c.textMuted,
+                      cursor: 'not-allowed'
+                    }}
+                    disabled={!selectedRouteObj || selectedRouteObj.city === '台北市'}
                     required={selectedRouteObj?.city !== '台北市'}
                   />
                 </div>
