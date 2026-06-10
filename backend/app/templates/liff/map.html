@@ -1093,8 +1093,13 @@
     }
 
     function renderWeek(schedules, arriveTimes, city) {
-        if (!Array.isArray(schedules) || schedules.length === 0)
-            return '<div class="sch-empty">本站無收運班表資料</div>';
+        if (!Array.isArray(schedules) || schedules.length === 0) {
+            // 多為來源開放資料未提供收運日（基隆有 14 條路線整條沒給）；誠實說明、避免看起來像壞掉
+            const msg = city === '基隆市'
+                ? '基隆市開放資料未提供此站的收運日，建議參考現場公告或洽基隆市環保局。'
+                : '本站目前查無收運班表（資料來源未提供），建議參考現場公告。';
+            return `<div class="sch-empty">${msg}</div>`;
+        }
         const timeStr = Array.isArray(arriveTimes) && arriveTimes.length
             ? arriveTimes.join(' / ')
             : '';
