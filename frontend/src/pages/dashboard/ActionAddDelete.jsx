@@ -37,6 +37,17 @@ const DEFAULT_STATION_COORDS = { lat: 25.0, lng: 121.0 };
 const LEAFLET_CSS_ID = 'leaflet-cdn-css';
 const LEAFLET_JS_ID = 'leaflet-cdn-js';
 
+const isPlaceholderStationCoords = (lat, lng) => (
+  Math.abs(lat - DEFAULT_STATION_COORDS.lat) < 0.0000001 &&
+  Math.abs(lng - DEFAULT_STATION_COORDS.lng) < 0.0000001
+);
+
+const isUsableStationCoords = (lat, lng) => (
+  !Number.isNaN(lat) &&
+  !Number.isNaN(lng) &&
+  !isPlaceholderStationCoords(lat, lng)
+);
+
 let leafletAssetsPromise = null;
 const geocodeCache = new Map();
 
@@ -433,6 +444,15 @@ const ActionAddDelete = () => {
     }));
   };
 
+  const rememberLastValidCoords = (lat, lng) => {
+    const nextLat = Number(lat);
+    const nextLng = Number(lng);
+    if (Number.isNaN(nextLat) || Number.isNaN(nextLng)) return false;
+
+    lastValidCoordsRef.current = { lat: nextLat, lng: nextLng };
+    return true;
+  };
+
   const destroyStationMap = () => {
     if (mapRef.current && mapClickHandlerRef.current) {
       mapRef.current.off('click', mapClickHandlerRef.current);
@@ -493,7 +513,11 @@ const ActionAddDelete = () => {
           setMapStatusText(`錯誤：超出目前鎖定區域 (${targetCity} ${targetDistrict})`);
           alert(`超出指定範圍！\n您目前鎖定了「${targetCity} ${targetDistrict}」，但此處屬於「${resolvedCity} ${resolvedDistrict}」，已自動彈回！`);
           
-          if (lastValidCoordsRef.current.lat && mapMarkerRef.current) {
+          if (
+            !Number.isNaN(Number(lastValidCoordsRef.current.lat)) &&
+            !Number.isNaN(Number(lastValidCoordsRef.current.lng)) &&
+            mapMarkerRef.current
+          ) {
             const oldPos = [lastValidCoordsRef.current.lat, lastValidCoordsRef.current.lng];
             mapMarkerRef.current.setLatLng(oldPos);
             mapRef.current.setView(oldPos, mapRef.current.getZoom(), { animate: true });
@@ -516,7 +540,7 @@ const ActionAddDelete = () => {
         setStationForm(prev => ({ ...prev, memo: detailAddress }));
         
         // 記錄本次成功座標
-        lastValidCoordsRef.current = { lat, lng };
+        rememberLastValidCoords(lat, lng);
         setMapStatusText(`定位成功！自動填入鄉里：${resolvedVillage || '無村里資訊'}`);
       } else {
         setMapStatusText(`座標已更新，但查無詳細地址資訊`);
@@ -649,6 +673,7 @@ const ActionAddDelete = () => {
           if (hit) {
             if (!mapRef.current) return;
             geocodeFailureUntilRef.current = 0;
+            rememberLastValidCoords(hit.lat, hit.lng);
             syncMapMarker(hit.lat, hit.lng, hit.displayName || candidate);
             setMapStatusText(`已依 ${detailText ? '詳細位置' : '行政區域'} 定位到 ${candidate}`);
             return;
@@ -880,15 +905,15 @@ const ActionAddDelete = () => {
 
       const currentLat = Number(stationForm.latitude);
       const currentLng = Number(stationForm.longitude);
-      const isPlaceholderCoords =
-        Math.abs(currentLat - DEFAULT_STATION_COORDS.lat) < 0.0000001 &&
-        Math.abs(currentLng - DEFAULT_STATION_COORDS.lng) < 0.0000001;
-      const hasSavedCoords = !Number.isNaN(currentLat) && !Number.isNaN(currentLng) && !isPlaceholderCoords;
+      const hasSavedCoords = isUsableStationCoords(currentLat, currentLng);
 
       if (hasSavedCoords) {
+        rememberLastValidCoords(currentLat, currentLng);
         syncMapMarker(currentLat, currentLng, '目前座標');
         setMapStatusText('地圖已開啟，可直接拖曳標記或點地圖調整位置');
       } else {
+        rememberLastValidCoords(DEFAULT_MAP_CENTER.lat, DEFAULT_MAP_CENTER.lng);
+        updateStationCoordinates(DEFAULT_MAP_CENTER.lat, DEFAULT_MAP_CENTER.lng);
         mapRef.current.setView([DEFAULT_MAP_CENTER.lat, DEFAULT_MAP_CENTER.lng], 13, { animate: false });
         setMapStatusText('地圖已開啟，請按「依詳細位置定位」或直接點地圖選點');
       }
@@ -1022,8 +1047,8 @@ const ActionAddDelete = () => {
     const lat = Number(stationForm.latitude);
     const lng = Number(stationForm.longitude);
 
-    if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
-      lastValidCoordsRef.current = { lat, lng };
+    if (isUsableStationCoords(lat, lng)) {
+      rememberLastValidCoords(lat, lng);
     }
   }, []);
 
