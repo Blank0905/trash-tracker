@@ -448,23 +448,23 @@
         }
 
         /* ====================================================
-           TAIPEI RECYCLE — 台北班表的回收 tag 可點 + 物品清單彈窗
-           班表內 .rec-link（資源回收 平面/立體）→ 點開畫面中央 modal
+           TYPE INFO — 班表收運類型 tag 可點 + 詳情彈窗
+           班表內 .info-link（台北回收平面/立體、新北回收、基隆廚餘）→ 點開畫面中央 modal
            ==================================================== */
-        /* 可點的回收標籤：虛線底線 + ⓘ 暗示「點我看細節」 */
-        .rec-link {
+        /* 可點的類型標籤：虛線底線 + ⓘ 暗示「點我看細節」 */
+        .info-link {
             cursor: pointer;
             text-decoration: underline dotted;
             text-underline-offset: 2px;
         }
-        .rec-link .rec-i {
+        .info-link .info-i {
             margin-left: 3px;
             font-size: 11px;
             opacity: 0.85;
         }
 
-        /* 畫面中央的回收詳情彈窗（疊在站點抽屜之上） */
-        #recycle-modal {
+        /* 畫面中央的詳情彈窗（疊在站點抽屜之上） */
+        #info-modal {
             position: fixed; inset: 0; z-index: 1400;
             display: flex; align-items: center; justify-content: center;
             padding: 24px;
@@ -472,7 +472,7 @@
             backdrop-filter: blur(3px);
             -webkit-backdrop-filter: blur(3px);
         }
-        #recycle-modal[hidden] { display: none; }
+        #info-modal[hidden] { display: none; }
         .modal-card {
             position: relative;
             width: 100%; max-width: 340px;
@@ -508,6 +508,17 @@
             border-radius: 2px;
             box-shadow: 0 0 8px rgba(0,185,0,0.3);
         }
+        /* 前言／警示（如新北「須單獨分開交給隊員」）：琥珀色提示框 */
+        .modal-intro {
+            font-size: 13px; line-height: 1.55;
+            color: var(--text);
+            margin: 0 0 12px;
+            padding: 10px 12px;
+            background: rgba(255,181,71,0.12);
+            border: 1px solid rgba(255,181,71,0.3);
+            border-radius: 10px;
+        }
+        .modal-intro[hidden] { display: none; }
         .modal-list {
             list-style: none; margin: 0; padding: 0;
             display: flex; flex-direction: column; gap: 8px;
@@ -764,12 +775,13 @@
 
 <div id="toast" role="status" aria-live="polite"></div>
 
-<!-- 台北資源回收詳情彈窗：點班表的「資源回收（平面/立體）」tag 開啟 -->
-<div id="recycle-modal" hidden>
-    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="recycle-title">
-        <button class="modal-close" id="recycle-close" aria-label="關閉">✕</button>
-        <div class="modal-title" id="recycle-title"></div>
-        <ul class="modal-list" id="recycle-list"></ul>
+<!-- 收運類型詳情彈窗：點班表可點的類型 tag（台北回收/新北回收/基隆廚餘）開啟 -->
+<div id="info-modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="info-title">
+        <button class="modal-close" id="info-close" aria-label="關閉">✕</button>
+        <div class="modal-title" id="info-title"></div>
+        <p class="modal-intro" id="info-intro" hidden></p>
+        <ul class="modal-list" id="info-list"></ul>
     </div>
 </div>
 
@@ -1001,22 +1013,17 @@
 
     // 把一週班表條列成「有收運的日子」：週X HH:MM + 當天收的種類
     // arriveTimes：同地點（同站名同位置）所有班次到站時間清單，多個用 ' / ' 串接
-    // isTaipei：台北市站點，資源回收依星期細分平面類（一、五）/立體類（二、四、六），
-    //           並把該 tag 做成可點的 .rec-link（點開物品清單彈窗，見 openRecycleModal）
+    // city：依城市決定哪個收運類型 tag 可點（帶 ⓘ）、點開哪個說明主題（見 INFO_TOPICS）：
+    //   台北市 → 資源回收細分平面類（一、五）/立體類（二、四、六）
+    //   新北市 → 資源回收（七大類危險／易碎物須單獨分開交給隊員）
+    //   基隆市 → 廚餘（瀝乾水份、分養豬/一般廚餘）
     const DOW = ['日', '一', '二', '三', '四', '五', '六'];
-    const TPE_RECYCLE_FLAT = [1, 5];      // 平面類
-    const TPE_RECYCLE_SOLID = [2, 4, 6];  // 立體類
+    const TPE_RECYCLE_FLAT = [1, 5];      // 台北平面類
+    const TPE_RECYCLE_SOLID = [2, 4, 6];  // 台北立體類
 
-    // 台北回收的星期 → 類別 key（flat/solid）；非回收日回 null
-    function taipeiRecycleCat(day) {
-        if (TPE_RECYCLE_FLAT.includes(day)) return 'flat';
-        if (TPE_RECYCLE_SOLID.includes(day)) return 'solid';
-        return null;
-    }
-
-    // 各類別的標題與可丟物品清單（彈窗內容；全市通用靜態資訊）
-    const TPE_RECYCLE_DETAIL = {
-        flat: {
+    // 收運類型詳情主題（彈窗內容；皆為各市通用靜態資訊）
+    const INFO_TOPICS = {
+        'tpe-flat': {
             title: '平面類回收（週一、週五）',
             items: [
                 '紙類（報紙、紙箱、雜誌）',
@@ -1025,7 +1032,7 @@
                 '防撞網／泡棉',
             ],
         },
-        solid: {
+        'tpe-solid': {
             title: '立體類回收（週二、週四、週六）',
             items: [
                 '瓶罐類（寶特瓶、玻璃瓶、金屬罐）',
@@ -1038,9 +1045,54 @@
                 '廢輪胎',
             ],
         },
+        'ntpc-recycle': {
+            title: '新北市資源回收須知',
+            intro: '以下七大類危險／易碎物必須「單獨分開」交給隊員：',
+            items: [
+                '廢乾淨塑膠袋',
+                '包裝用保麗龍（必須非常乾淨、無油污、無紙質標籤）',
+                '廢玻璃容器',
+                '廢照明光源（日光燈管、燈泡）',
+                '廢乾電池（含行動電源）',
+                '廢鉛蓄電池',
+                '易燃物（高壓瓦斯罐、打火機；高壓罐須遵守「完、包、警、收」排空原則）',
+            ],
+        },
+        'klu-foodscraps': {
+            title: '基隆市廚餘須知',
+            items: [
+                '廚餘需先瀝乾水份再排出',
+                '分為「養豬廚餘」與「一般廚餘」分開投入',
+            ],
+        },
     };
 
-    function renderWeek(schedules, arriveTimes, isTaipei) {
+    // 依 (城市, 收運類型, 星期) 決定該 tag 顯示文字與可點主題
+    // 回傳 { label, topic }；topic 為 null 代表純文字（不可點）
+    function typeTag(city, type, day) {
+        if (type === 'recycling') {
+            if (city === '台北市') {
+                if (TPE_RECYCLE_FLAT.includes(day))  return { label: '資源回收（平面類）', topic: 'tpe-flat' };
+                if (TPE_RECYCLE_SOLID.includes(day)) return { label: '資源回收（立體類）', topic: 'tpe-solid' };
+                return { label: '資源回收', topic: null };
+            }
+            if (city === '新北市') return { label: '資源回收', topic: 'ntpc-recycle' };
+            return { label: '資源回收', topic: null };
+        }
+        if (type === 'foodscraps') {
+            if (city === '基隆市') return { label: '廚餘', topic: 'klu-foodscraps' };
+            return { label: '廚餘', topic: null };
+        }
+        return { label: '一般垃圾', topic: null };  // type === 'garbage'
+    }
+
+    // 收運類型 → HTML：有 topic 就做成可點的 .info-link（帶 ⓘ），否則純文字
+    function typeTagHtml(tag) {
+        if (!tag.topic) return tag.label;
+        return `<span class="info-link" data-topic="${tag.topic}" role="button" tabindex="0">${tag.label}<span class="info-i">ⓘ</span></span>`;
+    }
+
+    function renderWeek(schedules, arriveTimes, city) {
         if (!Array.isArray(schedules) || schedules.length === 0)
             return '<div class="sch-empty">本站無收運班表資料</div>';
         const timeStr = Array.isArray(arriveTimes) && arriveTimes.length
@@ -1052,45 +1104,39 @@
             .filter(s => s.collects_garbage || s.collects_recycling || s.collects_foodscraps)
             .map(s => {
                 const types = [];
-                if (s.collects_garbage) types.push('一般垃圾');
-                if (s.collects_recycling) {
-                    const cat = isTaipei ? taipeiRecycleCat(s.day_of_week) : null;
-                    if (cat) {
-                        const label = cat === 'flat' ? '資源回收（平面類）' : '資源回收（立體類）';
-                        // 可點：data-cat 帶類別，點擊由 #p-schedule 委派處理（見下方 addEventListener）
-                        types.push(`<span class="rec-link" data-cat="${cat}" role="button" tabindex="0">${label}<span class="rec-i">ⓘ</span></span>`);
-                    } else {
-                        types.push('資源回收');
-                    }
-                }
-                if (s.collects_foodscraps) types.push('廚餘');
+                if (s.collects_garbage)    types.push(typeTagHtml(typeTag(city, 'garbage', s.day_of_week)));
+                if (s.collects_recycling)  types.push(typeTagHtml(typeTag(city, 'recycling', s.day_of_week)));
+                if (s.collects_foodscraps) types.push(typeTagHtml(typeTag(city, 'foodscraps', s.day_of_week)));
                 return `<div class="sch-row"><span class="sch-day">週${DOW[s.day_of_week]} ${timeStr}</span>`
                      + `<span class="sch-types">${types.join('、')}</span></div>`;
             });
         return rows.length ? rows.join('') : '<div class="sch-empty">近 7 天無收運</div>';
     }
 
-    // 開啟/關閉回收詳情彈窗
-    function openRecycleModal(cat) {
-        const detail = TPE_RECYCLE_DETAIL[cat];
-        if (!detail) return;
-        document.getElementById('recycle-title').innerText = detail.title;
-        document.getElementById('recycle-list').innerHTML =
-            detail.items.map(i => `<li>${i}</li>`).join('');
-        document.getElementById('recycle-modal').hidden = false;
+    // 開啟/關閉收運類型詳情彈窗
+    function openInfoModal(topicId) {
+        const topic = INFO_TOPICS[topicId];
+        if (!topic) return;
+        document.getElementById('info-title').innerText = topic.title;
+        const introEl = document.getElementById('info-intro');
+        if (topic.intro) { introEl.innerText = topic.intro; introEl.hidden = false; }
+        else { introEl.hidden = true; }
+        document.getElementById('info-list').innerHTML =
+            topic.items.map(i => `<li>${i}</li>`).join('');
+        document.getElementById('info-modal').hidden = false;
     }
-    function closeRecycleModal() {
-        document.getElementById('recycle-modal').hidden = true;
+    function closeInfoModal() {
+        document.getElementById('info-modal').hidden = true;
     }
-    // 班表內的 .rec-link 用事件委派處理（班表每次開站會重繪，委派綁在固定的 #p-schedule 上）
+    // 班表內的 .info-link 用事件委派處理（班表每次開站會重繪，委派綁在固定的 #p-schedule 上）
     document.getElementById('p-schedule').addEventListener('click', (e) => {
-        const link = e.target.closest('.rec-link');
-        if (link) openRecycleModal(link.dataset.cat);
+        const link = e.target.closest('.info-link');
+        if (link) openInfoModal(link.dataset.topic);
     });
     // 關閉：按 ✕ 或點彈窗外的暗幕
-    document.getElementById('recycle-close').onclick = closeRecycleModal;
-    document.getElementById('recycle-modal').addEventListener('click', (e) => {
-        if (e.target.id === 'recycle-modal') closeRecycleModal();
+    document.getElementById('info-close').onclick = closeInfoModal;
+    document.getElementById('info-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'info-modal') closeInfoModal();
     });
 
     // 從 lastSearchResults 找出「同站名 + 同位置（lat/lng round 5 位 ~1m）」的所有 station_id 與時段
@@ -1135,10 +1181,10 @@
         }
         currentSlots = slots;
         const arriveTimes = slots.map(s => s.arrive_time).filter(t => t);
-        // 台北站點：班表的資源回收 tag 會細分平面/立體並可點開物品清單（見 renderWeek）
-        const isTaipei = !!(d.area && d.area.city === '台北市');
-        closeRecycleModal();  // 換站時關掉可能殘留的彈窗
-        document.getElementById('p-schedule').innerHTML = renderWeek(d.schedules, arriveTimes, isTaipei);
+        // 依城市決定班表 tag 哪個可點開詳情（台北回收平面/立體、新北回收、基隆廚餘；見 renderWeek）
+        const city = d.area ? d.area.city : null;
+        closeInfoModal();  // 換站時關掉可能殘留的彈窗
+        document.getElementById('p-schedule').innerHTML = renderWeek(d.schedules, arriveTimes, city);
         // 預設選中「使用者剛剛點到的 pin」對應的 station_id
         currentStationId = d.station_id;
         renderSlots(slots, currentStationId);
