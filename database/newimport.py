@@ -567,10 +567,9 @@ class GarbageTruckImporter:
         self._commit_if_needed()
 
     def _insert_taipei_schedule(self, station_id: int) -> None:
-        for day in [2, 4, 6]:
+        # 台北市：週一、二、四、五、六收運一般垃圾、資源回收、廚餘；週三、週日全市停收
+        for day in [1, 2, 4, 5, 6]:
             self._insert_schedule(station_id, day, True, True, True)
-        for day in [1, 3, 5]:
-            self._insert_schedule(station_id, day, True, False, False)
 
     def _insert_new_taipei_schedule(self, station_id: int, row) -> None:
         days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
