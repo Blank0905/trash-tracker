@@ -4,15 +4,17 @@ from app.utils.auth import admin_required
 from app.utils.audit import write_audit_log
 import pymysql
 import json
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
-from urllib.error import URLError, HTTPError
+import os
+import requests
 
 # 🟢 獨立的後台站點管理藍圖，前綴採用 /api/admin/stations
 bp = Blueprint('add_delete_station', __name__, url_prefix='/api/admin/stations')
 
 
-GEOCODE_USER_AGENT = 'greater-taipei-trash-tracker/1.0'
+GEOCODE_USER_AGENT = os.getenv(
+    'GEOCODE_USER_AGENT',
+    'greater-taipei-trash-tracker/1.0 (server-side geocoding proxy)'
+)
 
 
 def _safe_geocode_text(value):
@@ -22,22 +24,26 @@ def _safe_geocode_text(value):
 
 
 def _proxy_nominatim_search(query):
-    query_string = urlencode({
+    params = {
         'q': query,
         'format': 'jsonv2',
         'limit': 5,
         'countrycodes': 'tw',
         'addressdetails': 1,
-    })
-    request = Request(
-        f'https://nominatim.openstreetmap.org/search?{query_string}',
+    }
+    response = requests.get(
+        'https://nominatim.openstreetmap.org/search',
+        params=params,
         headers={
             'User-Agent': GEOCODE_USER_AGENT,
+            'Accept': 'application/json',
             'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8',
-        }
+            'Referer': request.host_url.rstrip('/'),
+        },
+        timeout=8,
     )
-    with urlopen(request, timeout=8) as response:
-        return json.loads(response.read().decode('utf-8'))
+    response.raise_for_status()
+    return response.json()
 
 
 def _time_key(value):
@@ -211,7 +217,7 @@ def geocode_station_address():
                 continue
 
         return jsonify({"status": "success", "data": simplified_results}), 200
-    except (URLError, HTTPError, TimeoutError, json.JSONDecodeError) as e:
+    except (requests.RequestException, ValueError, TimeoutError, json.JSONDecodeError) as e:
         return jsonify({"status": "error", "message": f"地圖定位服務暫時無法使用: {str(e)}"}), 502
 
 

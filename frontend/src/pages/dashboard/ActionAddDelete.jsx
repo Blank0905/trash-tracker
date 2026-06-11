@@ -48,6 +48,26 @@ const isUsableStationCoords = (lat, lng) => (
   !isPlaceholderStationCoords(lat, lng)
 );
 
+const normalizeTaiwanPlaceName = (value) => String(value || '')
+  .replace(/臺/g, '台')
+  .replace(/\s+/g, '')
+  .trim();
+
+const getOsmVillageCandidate = (address = {}, displayName = '') => {
+  const candidates = [
+    address.village,
+    address.neighbourhood,
+    address.quarter,
+    address.hamlet,
+    address.suburb,
+    ...String(displayName || '').split(',')
+  ]
+    .map(normalizeTaiwanPlaceName)
+    .filter((item, index, arr) => item && arr.indexOf(item) === index);
+
+  return candidates.find((item) => /[里村]$/.test(item)) || '';
+};
+
 let leafletAssetsPromise = null;
 const geocodeCache = new Map();
 
@@ -334,6 +354,7 @@ const ActionAddDelete = () => {
 
   const lockedCityRef = useRef(stationSelectedCity);
   const lockedDistrictRef = useRef(stationSelectedDistrict);
+  const lockedVillageRef = useRef(stationSelectedVillage);
   const lastValidCoordsRef = useRef({ lat: null, lng: null });
 
   const [selectedRouteObj, setSelectedRouteObj] = useState(null);
@@ -507,6 +528,8 @@ const ActionAddDelete = () => {
         // 抓取目前面板鎖定的區域
         const targetCity = lockedCityRef.current;
         const targetDistrict = lockedDistrictRef.current;
+        const targetVillage = lockedVillageRef.current;
+        const resolvedVillageCandidate = getOsmVillageCandidate(data.address, data.display_name);
 
         // 邊界攔截檢查
         if (resolvedCity !== targetCity || resolvedDistrict !== targetDistrict) {
@@ -526,22 +549,34 @@ const ActionAddDelete = () => {
           return;
         }
 
-        // 3. 邊界檢查通過，連動更新「鄉里」下拉選單
-        if (resolvedVillage) {
-          // 資工小提醒：如果你的下拉選單 value 沒帶「里/村」字（例如選單是 "文化" 而不是 "文化里"）
-          // 請把下面這行的註解打開，它會自動把尾字去掉來匹配：
-          // resolvedVillage = resolvedVillage.replace(/里|村/g, '');
-          
-          setStationSelectedVillage(resolvedVillage);
+        // 3. 組合詳細路名與門牌；村里維持使用者在表單選定的值，不由 OSM 覆蓋。
+        if (
+          targetVillage &&
+          resolvedVillageCandidate &&
+          normalizeTaiwanPlaceName(resolvedVillageCandidate) !== normalizeTaiwanPlaceName(targetVillage)
+        ) {
+          setMapStatusText(`錯誤：超出目前鎖定村里 (${targetVillage})`);
+          alert(`超出指定村里！\n您目前鎖定了「${targetCity} ${targetDistrict} ${targetVillage}」，但此處屬於「${resolvedVillageCandidate}」，已自動彈回！`);
+
+          if (
+            !Number.isNaN(Number(lastValidCoordsRef.current.lat)) &&
+            !Number.isNaN(Number(lastValidCoordsRef.current.lng)) &&
+            mapMarkerRef.current
+          ) {
+            const oldPos = [lastValidCoordsRef.current.lat, lastValidCoordsRef.current.lng];
+            mapMarkerRef.current.setLatLng(oldPos);
+            mapRef.current.setView(oldPos, mapRef.current.getZoom(), { animate: true });
+            updateStationCoordinates(lastValidCoordsRef.current.lat, lastValidCoordsRef.current.lng);
+          }
+          return;
         }
 
-        // 4. 組合詳細路名與門牌
         const detailAddress = [road, house_number].filter(Boolean).join(' ') || data.display_name || '';
         setStationForm(prev => ({ ...prev, memo: detailAddress }));
         
         // 記錄本次成功座標
         rememberLastValidCoords(lat, lng);
-        setMapStatusText(`定位成功！自動填入鄉里：${resolvedVillage || '無村里資訊'}`);
+        setMapStatusText(`定位成功！村里維持：${stationSelectedVillage || '尚未選擇'}；OSM 回傳：${resolvedVillage || '無村里資訊'}`);
       } else {
         setMapStatusText(`座標已更新，但查無詳細地址資訊`);
       }
@@ -1040,7 +1075,8 @@ const ActionAddDelete = () => {
   useEffect(() => {
     lockedCityRef.current = stationSelectedCity;
     lockedDistrictRef.current = stationSelectedDistrict;
-  }, [stationSelectedCity, stationSelectedDistrict]);
+    lockedVillageRef.current = stationSelectedVillage;
+  }, [stationSelectedCity, stationSelectedDistrict, stationSelectedVillage]);
 
   // 當初始表單有經緯度載入時，先記錄為初始合法座標
   useEffect(() => {
@@ -1401,12 +1437,12 @@ const ActionAddDelete = () => {
               </div>
 
               <div style={styles.inputGroup}>
-                <label style={styles.label}>路線代碼 (route_code) *必填</label>
+                <label style={styles.label}>路線代碼 (route_code) <span style={{ color: '#ff4d4f', marginLeft: '4px' }}>*必填</span></label>
                 <input type="text" placeholder="例如: BR-01" maxLength={30} value={routeForm.route_code} onChange={(e) => setRouteForm({ ...routeForm, route_code: e.target.value })} style={styles.input} required />
               </div>
 
               <div style={styles.inputGroup}>
-                <label style={styles.label}>收運路線完整名稱 (route_name) *必填</label>
+                <label style={styles.label}>收運路線完整名稱 (route_name) <span style={{ color: '#ff4d4f', marginLeft: '4px' }}>*必填</span></label>
                 <input type="text" placeholder="例如: 板橋文化線A" maxLength={30} value={routeForm.route_name} onChange={(e) => setRouteForm({ ...routeForm, route_name: e.target.value })} style={styles.input} required />
               </div>
 
@@ -1579,7 +1615,7 @@ const ActionAddDelete = () => {
 
               <div style={styles.rowFields}>
                 <div style={styles.inputGroup}>
-                  <label style={styles.label}>縣市 *</label>
+                  <label style={styles.label}>縣市 </label>
                   <select
                     value={stationSelectedCity}
                     onChange={() => {}}
@@ -1594,7 +1630,7 @@ const ActionAddDelete = () => {
                   </select>
                 </div>
                 <div style={styles.inputGroup}>
-                  <label style={styles.label}>行政區 *</label>
+                  <label style={styles.label}>行政區 </label>
                   <select
                     value={stationSelectedDistrict}
                     onChange={() => {}}
@@ -1607,7 +1643,7 @@ const ActionAddDelete = () => {
                   </select>
                 </div>
                 <div style={styles.inputGroup}>
-                  <label style={styles.label}>村里 *</label>
+                  <label style={styles.label}>村里 <span style={{ color: '#ff4d4f', marginLeft: '4px' }}>*必填</span></label>
                   <select
                     value={stationSelectedVillage}
                     disabled={!stationSelectedDistrict}
@@ -1627,12 +1663,12 @@ const ActionAddDelete = () => {
 
               <div style={styles.rowFields}>
                 <div style={styles.inputGroup}>
-                  <label style={styles.label}>清運點地標名稱 (station_name)</label>
+                  <label style={styles.label}>清運點地標名稱 <span style={{ color: '#ff4d4f', marginLeft: '4px' }}>*必填</span></label>
                   <input type="text" placeholder="例如: 捷運站出口、超商前" maxLength={30} value={stationForm.station_name} onChange={(e) => setStationForm({ ...stationForm, station_name: e.target.value })} style={styles.input} required />
                 </div>
                 <div style={styles.inputGroup}>
                   <label style={{ ...styles.label, color: selectedRouteObj?.city === '台北市' ? c.textFaint : c.textDim }}>
-                    順序順位 {selectedRouteObj?.city === '台北市' ? '🔒 台北免填' : '*必填'}
+                    順序順位 {selectedRouteObj?.city === '台北市' ? '🔒 台北免填' : ''}
                   </label>
                   <input
                     type="text"
